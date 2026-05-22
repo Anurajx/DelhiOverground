@@ -1,0 +1,349 @@
+diff --git a/lib/elements/metro.dart b/lib/elements/metro.dart
+index 2356b70..b0f78f7 100644
+--- a/lib/elements/metro.dart
++++ b/lib/elements/metro.dart
+@@ -1,8 +1,6 @@
+-import 'dart:convert';
+ import 'package:liquid_glass_renderer/liquid_glass_renderer.dart';
+ import 'package:metroapp/elements/ServicesDir/geolocator_service.dart';
+ import 'package:metroapp/elements/StationDir/stop_info.dart';
+-import 'package:metroapp/elements/route.dart';
+ import 'package:metroapp/main.dart';
+ import 'package:skeletonizer/skeletonizer.dart';
+ import 'package:url_launcher/url_launcher.dart';
+@@ -15,6 +13,7 @@ import 'package:flutter/material.dart';
+ import 'package:marquee/marquee.dart';
+ import './ServicesDir/station_element.dart';
+ import 'search.dart';
++import 'bus_info.dart';
+ import 'StationDir/station_search.dart';
+ import 'ServicesDir/data_provider.dart';
+ import 'package:provider/provider.dart';
+@@ -72,12 +71,7 @@ class _MetroHomeScreenState extends State<MetroHomeScreen> {
+           searchBar(
+             context,
+           ), //there is a feature in flutter for hero widget that transitions smoothly between screen transitions
+-          suggestions(context),
+-          Divider(
+-            thickness: 0,
+-            color: const Color.fromARGB(0, 35, 35, 35),
+-            //height: 10,
+-          ),
++          busHistory(context),
+           nearYou(context),
+           Divider(
+             thickness: 0,
+@@ -160,7 +154,7 @@ searchBar(context) {
+         crossAxisAlignment: CrossAxisAlignment.center,
+         children: [
+           Text(
+-            'Where to',
++            'Buses',
+             style: TextStyle(
+               fontFamily: 'Poppins',
+               fontWeight: FontWeight.w600,
+@@ -175,35 +169,52 @@ searchBar(context) {
+   );
+ }
+ 
+-Widget _buildHistoryItem(BuildContext context, Map<String, dynamic>? item) {
+-  if (item == null) return const SizedBox.shrink();
+-  
+-  final source = item["Source"];
+-  final dest = item["Destination"];
+-  
+-  String sourceName = source?["Name"]?.toString() ?? "Unknown Stop";
+-  String destName = dest?["Name"]?.toString() ?? "Unknown Stop";
+-  
+-  String mainSrc = sourceName;
+-  String? subSrc;
+-  if (mainSrc.contains('/')) {
+-    final parts = mainSrc.split('/');
+-    mainSrc = parts[0].trim();
+-    subSrc = parts[1].trim();
+-  }
+-  
+-  String mainDest = destName;
+-  String? subDest;
+-  if (mainDest.contains('/')) {
+-    final parts = mainDest.split('/');
+-    mainDest = parts[0].trim();
+-    subDest = parts[1].trim();
+-  }
++Widget busHistory(BuildContext context) {
++  return Consumer<DataProvider>(
++    builder: (context, dataProvider, child) {
++      final history = dataProvider.busSearchHistory;
++      if (history.isEmpty) {
++        return const SizedBox.shrink();
++      }
++
++      return Container(
++        margin: const EdgeInsets.all(5),
++        width: double.infinity,
++        child: Column(
++          crossAxisAlignment: CrossAxisAlignment.start,
++          mainAxisSize: MainAxisSize.min,
++          children: [
++            ...history.take(2).map((item) {
++              return GestureDetector(
++                behavior: HitTestBehavior.opaque,
++                onTap: () {
++                  Navigator.push(
++                    context,
++                    MaterialPageRoute(
++                      builder: (context) => BusInfoScreen(
++                        routeId: item['route_id'] ?? '',
++                        routeLongName: item['route_long_name'] ?? '',
++                      ),
++                    ),
++                  );
++                },
++                child: _buildBusHistoryItem(context, item),
++              );
++            }),
++          ],
++        ),
++      );
++    },
++  );
++}
++
++Widget _buildBusHistoryItem(BuildContext context, Map<String, String> item) {
++  final routeName = item['route_long_name'] ?? '';
++  final headsign = item['headsign'] ?? '';
+ 
+   return Container(
+-    padding: EdgeInsets.symmetric(vertical: 2.h),
++    padding: EdgeInsets.symmetric(vertical: 4.h),
+     child: Row(
+-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+       children: [
+         Expanded(
+           child: Column(
+@@ -211,201 +222,39 @@ Widget _buildHistoryItem(BuildContext context, Map<String, dynamic>? item) {
+             mainAxisSize: MainAxisSize.min,
+             children: [
+               Text(
+-                mainSrc + (subSrc != null ? " ($subSrc)" : ""),
++                "Route $routeName",
+                 style: TextStyle(
+                   fontFamily: 'Poppins',
+                   color: Colors.white,
+-                  fontSize: 16.sp,
++                  fontSize: 15.sp,
+                   fontWeight: FontWeight.w600,
+                 ),
+-                maxLines: 1,
+-                overflow: TextOverflow.ellipsis,
+               ),
+               SizedBox(height: 2.h),
+-              Row(
+-                children: [
+-                  Icon(
+-                    CupertinoIcons.arrow_right_circle_fill,
+-                    color: Colors.white38,
+-                    size: 13.sp,
+-                  ),
+-                  SizedBox(width: 6.w),
+-                  Expanded(
+-                    child: Text(
+-                      mainDest + (subDest != null ? " ($subDest)" : ""),
+-                      style: TextStyle(
+-                        fontFamily: 'Poppins',
+-                        color: Colors.white70,
+-                        fontSize: 13.sp,
+-                        fontWeight: FontWeight.w400,
+-                      ),
+-                      maxLines: 1,
+-                      overflow: TextOverflow.ellipsis,
+-                    ),
+-                  ),
+-                ],
++              Text(
++                headsign.isNotEmpty ? "To $headsign" : "DTC Bus Service",
++                style: TextStyle(
++                  fontFamily: 'Poppins',
++                  color: AppColors.secondaryText,
++                  fontSize: 12.sp,
++                  fontWeight: FontWeight.w400,
++                ),
++                maxLines: 1,
++                overflow: TextOverflow.ellipsis,
+               ),
+             ],
+           ),
+         ),
+-        SizedBox(width: 10.w),
+         Icon(
+-          CupertinoIcons.arrow_right,
+-          color: const Color.fromARGB(255, 179, 179, 179),
+-          size: 20.sp,
++          CupertinoIcons.chevron_forward,
++          color: AppColors.tertiaryText,
++          size: 16.sp,
+         ),
+       ],
+     ),
+   );
+ }
+ 
+-suggestions(context) {
+-  return Container(
+-    margin: const EdgeInsets.all(5),
+-    width: double.infinity,
+-    height: 115.h,
+-    child: Consumer<DataProvider>(
+-      builder: (context, dataProvider, child) {
+-        final data = dataProvider.coreTransferStationsDict;
+-        print("transfer data NOT JSON is **$data");
+-        print(data);
+-        var just = data["just"];
+-        var justBefore = data["justBefore"];
+-        if (data.isNotEmpty &&
+-            just is List &&
+-            just.isNotEmpty &&
+-            justBefore is List &&
+-            justBefore.isNotEmpty) {
+-          return Column(
+-            mainAxisAlignment: MainAxisAlignment.center,
+-            crossAxisAlignment: CrossAxisAlignment.start,
+-            children: [
+-              GestureDetector(
+-                behavior: HitTestBehavior.opaque,
+-                onTap: () {
+-                  Navigator.push(
+-                    context,
+-                    CupertinoPageRoute(
+-                      builder:
+-                          (context) => RouteScreen(
+-                            coreTransferStationsDict: data["just"]?[0],
+-                          ),
+-                    ),
+-                  );
+-                },
+-                child: _buildHistoryItem(context, data["just"]?[0]),
+-              ),
+-              SizedBox(height: 8.h),
+-              GestureDetector(
+-                behavior: HitTestBehavior.opaque,
+-                onTap: () {
+-                  Navigator.push(
+-                    context,
+-                    CupertinoPageRoute(
+-                      builder:
+-                          (context) => RouteScreen(
+-                            coreTransferStationsDict: data["justBefore"]?[0],
+-                          ),
+-                    ),
+-                  );
+-                },
+-                child: _buildHistoryItem(context, data["justBefore"]?[0]),
+-              ),
+-            ],
+-          );
+-        } else {
+-          //DEFAULT DATA WHEN SAVED SUGGESTIONS ARE NOT AVAILABLE
+-          final String defaultData = '''
+-                        {
+-                          "just": [
+-                            {
+-                              "Source": {
+-                                "StationCode": "0",
+-                                "Name": "Narela Terminal",
+-                                "Hindi": "Narela Terminal",
+-                                "Line": "828AUP",
+-                                "Latitude": "28.851958",
+-                                "Longitude": "77.088107"
+-                              },
+-                              "Destination": {
+-                                "StationCode": "1",
+-                                "Name": "Police Station Narela",
+-                                "Hindi": "Police Station Narela",
+-                                "Line": "828AUP",
+-                                "Latitude": "28.853311",
+-                                "Longitude": "77.088548"
+-                              }
+-                            }
+-                          ],
+-                          "justBefore": [
+-                            {
+-                              "Source": {
+-                                "StationCode": "2",
+-                                "Name": "Safiyabad Crossing",
+-                                "Hindi": "Safiyabad Crossing",
+-                                "Line": "828AUP",
+-                                "Latitude": "28.854965",
+-                                "Longitude": "77.089322"
+-                              },
+-                              "Destination": {
+-                                "StationCode": "3",
+-                                "Name": "Ramdev Chowk / Pitori Johad",
+-                                "Hindi": "Ramdev Chowk / Pitori Johad",
+-                                "Line": "828AUP",
+-                                "Latitude": "28.857713",
+-                                "Longitude": "77.092846"
+-                              }
+-                            }
+-                          ]
+-                        }
+-                        ''';
+-          final Map<String, dynamic> defaultDataParsed = jsonDecode(
+-            defaultData,
+-          );
+-          return Column(
+-            mainAxisAlignment: MainAxisAlignment.center,
+-            crossAxisAlignment: CrossAxisAlignment.start,
+-            children: [
+-              GestureDetector(
+-                behavior: HitTestBehavior.opaque,
+-                onTap: () {
+-                  Navigator.push(
+-                    context,
+-                    MaterialPageRoute(
+-                      builder:
+-                          (context) => RouteScreen(
+-                            coreTransferStationsDict: defaultDataParsed["just"]?[0],
+-                          ),
+-                    ),
+-                  );
+-                },
+-                child: _buildHistoryItem(context, defaultDataParsed["just"]?[0]),
+-              ),
+-              SizedBox(height: 8.h),
+-              GestureDetector(
+-                behavior: HitTestBehavior.opaque,
+-                onTap: () {
+-                  Navigator.push(
+-                    context,
+-                    MaterialPageRoute(
+-                      builder:
+-                          (context) => RouteScreen(
+-                            coreTransferStationsDict:
+-                                defaultDataParsed["justBefore"]?[0],
+-                          ),
+-                    ),
+-                  );
+-                },
+-                child: _buildHistoryItem(context, defaultDataParsed["justBefore"]?[0]),
+-              ),
+-            ],
+-          );
+-        }
+-      },
+-    ),
+-  );
+-}
+-
+ Map<String, Map<String, dynamic>> coreTransferStationsDictNE = {'Source': {}};
+ Map<String, Map<String, dynamic>> coreTransferStationsDictN = {'Source': {}};
+ 
+@@ -870,7 +719,7 @@ appFooter(context) {
+         Container(
+           margin: EdgeInsets.all(20),
+           child: Text(
+-            "Delhi\nUnderground",
++            "Delhi\nOverground",
+             textAlign: TextAlign.left,
+             style: TextStyle(
+               color: const Color.fromARGB(255, 255, 255, 255),

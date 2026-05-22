@@ -1,0 +1,2735 @@
+﻿diff --git a/lib/elements/RouteDir/route_data_provider.dart b/lib/elements/RouteDir/route_data_provider.dart
+deleted file mode 100644
+index 3051c17..0000000
+--- a/lib/elements/RouteDir/route_data_provider.dart
++++ /dev/null
+@@ -1,1249 +0,0 @@
+-import 'dart:io';
+-import 'dart:math' as math;
+-import 'package:flutter/material.dart';
+-import 'package:flutter/cupertino.dart';
+-import 'package:flutter/services.dart';
+-import 'package:flutter_screenutil/flutter_screenutil.dart';
+-import 'package:marquee/marquee.dart';
+-import 'package:metroapp/elements/ServicesDir/report_error_service.dart';
+-import 'package:metroapp/main.dart';
+-import 'package:sqflite/sqflite.dart';
+-import 'package:path/path.dart';
+-
+-// ---------------------- HELPERS ----------------------
+-
+-double _calculateDistance(double lat1, double lon1, double lat2, double lon2) {
+-  const double r = 6371.0; // Earth's radius in km
+-  double dLat = (lat2 - lat1) * math.pi / 180.0;
+-  double dLon = (lon2 - lon1) * math.pi / 180.0;
+-  double a = math.sin(dLat / 2) * math.sin(dLat / 2) +
+-      math.cos(lat1 * math.pi / 180.0) * math.cos(lat2 * math.pi / 180.0) *
+-      math.sin(dLon / 2) * math.sin(dLon / 2);
+-  double c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
+-  return r * c;
+-}
+-
+-int calculateNonACFare(double distance) {
+-  if (distance <= 4.0) return 5;
+-  if (distance <= 10.0) return 10;
+-  return 15;
+-}
+-
+-int calculateACFare(double distance) {
+-  if (distance <= 4.0) return 10;
+-  if (distance <= 8.0) return 15;
+-  if (distance <= 12.0) return 20;
+-  return 25;
+-}
+-
+-Color getColorFromRouteName(String routeName) {
+-  if (routeName.isEmpty) return const Color.fromARGB(226, 255, 255, 255);
+-  int hash = 0;
+-  for (int i = 0; i < routeName.length; i++) {
+-    hash = routeName.codeUnitAt(i) + ((hash << 5) - hash);
+-  }
+-  double hue = (hash.abs() % 360).toDouble();
+-  return HSLColor.fromAHSL(1.0, hue, 0.35, 0.7).toColor();
+-}
+-
+-// ---------------------- DB SERVICE ----------------------
+-
+-class RouteService {
+-  Database? _db;
+-
+-  Future<void> initDB() async {
+-    if (_db != null && _db!.isOpen) return;
+-
+-    final dbPath = await getDatabasesPath();
+-    final path = join(dbPath, "routes.db");
+-
+-    bool needsCopy = false;
+-    final exists = await databaseExists(path);
+-    if (!exists) {
+-      needsCopy = true;
+-    } else {
+-      try {
+-        final tempDb = await openDatabase(path, readOnly: true);
+-        final tables = await tempDb.rawQuery(
+-          "SELECT name FROM sqlite_master WHERE type='table' AND name='stop_times'"
+-        );
+-        await tempDb.close();
+-        if (tables.isEmpty) {
+-          needsCopy = true;
+-        }
+-      } catch (e) {
+-        needsCopy = true;
+-      }
+-    }
+-
+-    if (needsCopy) {
+-      try {
+-        final file = File(path);
+-        if (await file.exists()) {
+-          await file.delete();
+-        }
+-      } catch (e) {
+-        // ignore
+-      }
+-      ByteData data = await rootBundle.load("assets/routes.db");
+-      List<int> bytes = data.buffer.asUint8List(
+-        data.offsetInBytes,
+-        data.lengthInBytes,
+-      );
+-      await File(path).writeAsBytes(bytes, flush: true);
+-    }
+-
+-    _db = await openDatabase(path, readOnly: true);
+-  }
+-
+-  Future<Map<String, dynamic>?> getRouteFromDict(
+-    Map<String, dynamic> input,
+-  ) async {
+-    await initDB();
+-
+-    final sourceCode = input["Source"]["StationCode"]?.toString();
+-    final destCode = input["Destination"]["StationCode"]?.toString();
+-
+-    if (sourceCode == null || destCode == null) return null;
+-
+-    final sourceStopIds = sourceCode.split(',').map((id) => id.trim()).toList();
+-    final destStopIds = destCode.split(',').map((id) => id.trim()).toList();
+-
+-    if (sourceStopIds.isEmpty || destStopIds.isEmpty) return null;
+-
+-    // Fetch details of source and destination stops using first ID in group
+-    final sourceStops = await _db!.query(
+-      "stops",
+-      where: "stop_id = ?",
+-      whereArgs: [sourceStopIds.first],
+-      limit: 1,
+-    );
+-    final destStops = await _db!.query(
+-      "stops",
+-      where: "stop_id = ?",
+-      whereArgs: [destStopIds.first],
+-      limit: 1,
+-    );
+-
+-    if (sourceStops.isEmpty || destStops.isEmpty) return null;
+-
+-    final sourceStop = sourceStops.first;
+-    final destStop = destStops.first;
+-
+-    final sourceName = sourceStop["stop_name"] as String;
+-    final destName = destStop["stop_name"] as String;
+-
+-    final sourceLat = sourceStop["stop_lat"] as double;
+-    final sourceLon = sourceStop["stop_lon"] as double;
+-    final destLat = destStop["stop_lat"] as double;
+-    final destLon = destStop["stop_lon"] as double;
+-
+-    final srcPlaceholders = List.filled(sourceStopIds.length, '?').join(',');
+-    final dstPlaceholders = List.filled(destStopIds.length, '?').join(',');
+-
+-    // 1. Search for a direct route (0-transfer)
+-    final directTrips = await _db!.rawQuery('''
+-      SELECT 
+-        st1.trip_id,
+-        t.route_id,
+-        r.route_long_name,
+-        t.trip_headsign,
+-        st1.stop_sequence AS start_seq,
+-        st2.stop_sequence AS end_seq
+-      FROM stop_times st1
+-      JOIN stop_times st2 ON st1.trip_id = st2.trip_id
+-      JOIN trips t ON st1.trip_id = t.trip_id
+-      JOIN routes r ON t.route_id = r.route_id
+-      WHERE st1.stop_id IN ($srcPlaceholders) AND st2.stop_id IN ($dstPlaceholders) AND st1.stop_sequence < st2.stop_sequence
+-      ORDER BY (st2.stop_sequence - st1.stop_sequence) ASC
+-      LIMIT 1
+-    ''', [...sourceStopIds, ...destStopIds]);
+-
+-    if (directTrips.isNotEmpty) {
+-      final trip = directTrips.first;
+-      final tripId = trip["trip_id"] as String;
+-      final routeName = trip["route_long_name"] as String;
+-      final headsign = trip["trip_headsign"] as String;
+-      final startSeq = trip["start_seq"] as int;
+-      final endSeq = trip["end_seq"] as int;
+-
+-      final stopRows = await _db!.rawQuery('''
+-        SELECT s.stop_name, s.stop_lat, s.stop_lon
+-        FROM stop_times st
+-        JOIN stops s ON st.stop_id = s.stop_id
+-        WHERE st.trip_id = ? AND st.stop_sequence >= ? AND st.stop_sequence <= ?
+-        ORDER BY st.stop_sequence ASC
+-      ''', [tripId, startSeq, endSeq]);
+-
+-      final stops = stopRows.map((r) => r["stop_name"] as String).toList();
+-
+-      double totalDistance = 0.0;
+-      for (int i = 0; i < stopRows.length - 1; i++) {
+-        totalDistance += _calculateDistance(
+-          stopRows[i]["stop_lat"] as double,
+-          stopRows[i]["stop_lon"] as double,
+-          stopRows[i + 1]["stop_lat"] as double,
+-          stopRows[i + 1]["stop_lon"] as double,
+-        );
+-      }
+-
+-      int stopCount = stopRows.length;
+-      int nonAcFare = calculateNonACFare(totalDistance);
+-      int acFare = calculateACFare(totalDistance);
+-      int totalTime = (stopCount * 1.8 + totalDistance * 1.5).round();
+-
+-      return {
+-        "start": sourceName,
+-        "end": destName,
+-        "time": totalTime,
+-        "interchanges": 0,
+-        "price": nonAcFare,
+-        "price_ac": acFare,
+-        "distance": totalDistance,
+-        "stop_count": stopCount,
+-        "route_data": {
+-          "legs": [
+-            {
+-              "line_name": "$routeName to ${headsign.isNotEmpty ? headsign : destName}",
+-              "line_color": routeName,
+-              "stops": stops,
+-            }
+-          ]
+-        },
+-      };
+-    }
+-
+-    // 2. Search for a 1-transfer route
+-    final transferTrips = await _db!.rawQuery('''
+-      SELECT 
+-        st1.trip_id AS trip1_id,
+-        r1.route_long_name AS route1_name,
+-        t1.trip_headsign AS trip1_headsign,
+-        st1.stop_sequence AS seq1_start,
+-        st_x1.stop_sequence AS seq1_end,
+-        st_x1.stop_id AS transfer_stop_id,
+-        
+-        st_x2.trip_id AS trip2_id,
+-        r2.route_long_name AS route2_name,
+-        t2.trip_headsign AS trip2_headsign,
+-        st_x2.stop_sequence AS seq2_start,
+-        st2.stop_sequence AS seq2_end
+-      FROM stop_times st1
+-      JOIN stop_times st_x1 ON st1.trip_id = st_x1.trip_id
+-      JOIN trips t1 ON st1.trip_id = t1.trip_id
+-      JOIN routes r1 ON t1.route_id = r1.route_id
+-
+-      JOIN stop_times st_x2 ON st_x1.stop_id = st_x2.stop_id
+-      JOIN stop_times st2 ON st_x2.trip_id = st2.trip_id
+-      JOIN trips t2 ON st_x2.trip_id = t2.trip_id
+-      JOIN routes r2 ON t2.route_id = r2.route_id
+-
+-      WHERE st1.stop_id IN ($srcPlaceholders) 
+-        AND st2.stop_id IN ($dstPlaceholders)
+-        AND st1.stop_sequence < st_x1.stop_sequence
+-        AND st_x2.stop_sequence < st2.stop_sequence
+-        AND r1.route_id != r2.route_id
+-      ORDER BY (st_x1.stop_sequence - st1.stop_sequence + st2.stop_sequence - st_x2.stop_sequence) ASC
+-      LIMIT 1
+-    ''', [...sourceStopIds, ...destStopIds]);
+-
+-    if (transferTrips.isNotEmpty) {
+-      final tRow = transferTrips.first;
+-      final trip1Id = tRow["trip1_id"] as String;
+-      final route1Name = tRow["route1_name"] as String;
+-      final trip1Headsign = tRow["trip1_headsign"] as String;
+-      final seq1Start = tRow["seq1_start"] as int;
+-      final seq1End = tRow["seq1_end"] as int;
+-
+-      final trip2Id = tRow["trip2_id"] as String;
+-      final route2Name = tRow["route2_name"] as String;
+-      final trip2Headsign = tRow["trip2_headsign"] as String;
+-      final seq2Start = tRow["seq2_start"] as int;
+-      final seq2End = tRow["seq2_end"] as int;
+-
+-      final leg1StopRows = await _db!.rawQuery('''
+-        SELECT s.stop_name, s.stop_lat, s.stop_lon
+-        FROM stop_times st
+-        JOIN stops s ON st.stop_id = s.stop_id
+-        WHERE st.trip_id = ? AND st.stop_sequence >= ? AND st.stop_sequence <= ?
+-        ORDER BY st.stop_sequence ASC
+-      ''', [trip1Id, seq1Start, seq1End]);
+-
+-      final leg2StopRows = await _db!.rawQuery('''
+-        SELECT s.stop_name, s.stop_lat, s.stop_lon
+-        FROM stop_times st
+-        JOIN stops s ON st.stop_id = s.stop_id
+-        WHERE st.trip_id = ? AND st.stop_sequence >= ? AND st.stop_sequence <= ?
+-        ORDER BY st.stop_sequence ASC
+-      ''', [trip2Id, seq2Start, seq2End]);
+-
+-      final leg1Stops = leg1StopRows.map((r) => r["stop_name"] as String).toList();
+-      final leg2Stops = leg2StopRows.map((r) => r["stop_name"] as String).toList();
+-
+-      double leg1Distance = 0.0;
+-      for (int i = 0; i < leg1StopRows.length - 1; i++) {
+-        leg1Distance += _calculateDistance(
+-          leg1StopRows[i]["stop_lat"] as double,
+-          leg1StopRows[i]["stop_lon"] as double,
+-          leg1StopRows[i + 1]["stop_lat"] as double,
+-          leg1StopRows[i + 1]["stop_lon"] as double,
+-        );
+-      }
+-      double leg2Distance = 0.0;
+-      for (int i = 0; i < leg2StopRows.length - 1; i++) {
+-        leg2Distance += _calculateDistance(
+-          leg2StopRows[i]["stop_lat"] as double,
+-          leg2StopRows[i]["stop_lon"] as double,
+-          leg2StopRows[i + 1]["stop_lat"] as double,
+-          leg2StopRows[i + 1]["stop_lon"] as double,
+-        );
+-      }
+-      double totalDistance = leg1Distance + leg2Distance;
+-
+-      int stopCount = leg1StopRows.length + leg2StopRows.length;
+-      int nonAcFare = calculateNonACFare(totalDistance);
+-      int acFare = calculateACFare(totalDistance);
+-
+-      int leg1Time = (leg1StopRows.length * 1.8 + leg1Distance * 1.5).round();
+-      int leg2Time = (leg2StopRows.length * 1.8 + leg2Distance * 1.5).round();
+-      int totalTime = leg1Time + 5 + leg2Time; // 5 min transfer penalty
+-
+-      return {
+-        "start": sourceName,
+-        "end": destName,
+-        "time": totalTime,
+-        "interchanges": 1,
+-        "price": nonAcFare,
+-        "price_ac": acFare,
+-        "distance": totalDistance,
+-        "stop_count": stopCount,
+-        "route_data": {
+-          "legs": [
+-            {
+-              "line_name": "$route1Name to ${trip1Headsign.isNotEmpty ? trip1Headsign : leg1Stops.last}",
+-              "line_color": route1Name,
+-              "stops": leg1Stops,
+-            },
+-            {
+-              "line_name": "$route2Name to ${trip2Headsign.isNotEmpty ? trip2Headsign : leg2Stops.last}",
+-              "line_color": route2Name,
+-              "stops": leg2Stops,
+-            }
+-          ]
+-        },
+-      };
+-    }
+-
+-    // 3. Fallback: Straight-line path representation
+-    double straightDistance = _calculateDistance(sourceLat, sourceLon, destLat, destLon);
+-    int nonAcFare = calculateNonACFare(straightDistance);
+-    int acFare = calculateACFare(straightDistance);
+-    int totalTime = (10 + straightDistance * 2.0).round();
+-
+-    return {
+-      "start": sourceName,
+-      "end": destName,
+-      "time": totalTime,
+-      "interchanges": 0,
+-      "price": nonAcFare,
+-      "price_ac": acFare,
+-      "distance": straightDistance,
+-      "stop_count": 2,
+-      "route_data": {
+-        "legs": [
+-          {
+-            "line_name": "DTC Direct to $destName",
+-            "line_color": "DTC",
+-            "stops": [sourceName, destName],
+-          }
+-        ]
+-      },
+-    };
+-  }
+-}
+-
+-// ---------------------- MAIN SCREEN ----------------------
+-
+-class RouteScreenNew extends StatefulWidget {
+-  final Map<String, dynamic> coreTransferStationsDict;
+-
+-  const RouteScreenNew({super.key, required this.coreTransferStationsDict});
+-
+-  @override
+-  State<RouteScreenNew> createState() => _RouteScreenState();
+-}
+-
+-class _RouteScreenState extends State<RouteScreenNew> {
+-  Map<String, dynamic>? routeInfo;
+-  bool isLoading = true;
+-  bool hasError = false;
+-  String errorMessage = "";
+-  final RouteService _routeService = RouteService();
+-
+-  @override
+-  void initState() {
+-    super.initState();
+-    _loadRoute();
+-  }
+-
+-  Future<void> _loadRoute() async {
+-    setState(() {
+-      isLoading = true;
+-      hasError = false;
+-    });
+-    try {
+-      final result = await _routeService.getRouteFromDict(
+-        widget.coreTransferStationsDict,
+-      );
+-      if (result == null) {
+-        throw Exception("Could not calculate a route between these stops.");
+-      }
+-      if (mounted) {
+-        setState(() {
+-          routeInfo = result;
+-          isLoading = false;
+-        });
+-      }
+-    } catch (e) {
+-      if (mounted) {
+-        setState(() {
+-          hasError = true;
+-          errorMessage = e.toString().replaceFirst("Exception: ", "");
+-          isLoading = false;
+-        });
+-      }
+-    }
+-  }
+-
+-  @override
+-  Widget build(BuildContext context) {
+-    Widget bodyWidget;
+-    if (isLoading) {
+-      bodyWidget = const Center(
+-        child: CircularProgressIndicator(color: Colors.blueAccent),
+-      );
+-    } else if (hasError) {
+-      bodyWidget = Center(
+-        child: Padding(
+-          padding: EdgeInsets.all(20.w),
+-          child: Column(
+-            mainAxisAlignment: MainAxisAlignment.center,
+-            children: [
+-              Icon(Icons.error_outline, color: Colors.redAccent, size: 48.sp),
+-              SizedBox(height: 16.h),
+-              Text(
+-                errorMessage,
+-                style: TextStyle(color: Colors.white, fontSize: 16.sp, fontFamily: 'Poppins'),
+-                textAlign: TextAlign.center,
+-              ),
+-              SizedBox(height: 24.h),
+-              ElevatedButton(
+-                onPressed: _loadRoute,
+-                style: ElevatedButton.styleFrom(backgroundColor: Colors.blueAccent),
+-                child: const Text("Retry", style: TextStyle(color: Colors.white)),
+-              ),
+-            ],
+-          ),
+-        ),
+-      );
+-    } else {
+-      bodyWidget = RouteDisplay(
+-        coreTransferStationsDict: widget.coreTransferStationsDict,
+-        routeInfo: routeInfo!,
+-      );
+-    }
+-
+-    return SafeArea(
+-      child: Scaffold(
+-        backgroundColor: Colors.black,
+-        body: bodyWidget,
+-      ),
+-    );
+-  }
+-}
+-
+-// ---------------------- UI ----------------------
+-
+-class RouteDisplay extends StatelessWidget {
+-  final dynamic coreTransferStationsDict;
+-  final Map<String, dynamic> routeInfo;
+-
+-  const RouteDisplay({
+-    super.key,
+-    required this.coreTransferStationsDict,
+-    required this.routeInfo,
+-  });
+-
+-  @override
+-  Widget build(BuildContext context) {
+-    print("TEST125: ${routeInfo['route_data']['legs'].length}");
+-    print("TEST125: ${routeInfo['route_data']['legs'][0]}");
+-    //print("TEST123: ${routeInfo['route_data']?['legs'][0]['stops'][0]}");
+-    //final screenHeight = MediaQuery.of(context).size.height;
+-    return Container(
+-      padding: const EdgeInsets.fromLTRB(15, 10, 15, 5),
+-      child: Column(
+-        children: [
+-          topNavBar(context, coreTransferStationsDict),
+-          TripSummary(
+-            totalTime: routeInfo['time'],
+-            interchanges: routeInfo['interchanges'],
+-            distance: (routeInfo['distance'] as num?)?.toDouble() ?? 0.0,
+-            nonAcFare: routeInfo['price'] as int? ?? 0,
+-            acFare: routeInfo['price_ac'] as int? ?? 0,
+-            stopCount: routeInfo['stop_count'] as int? ?? 0,
+-          ),
+-          Divider(thickness: 1, color: Color.fromARGB(255, 35, 35, 35)),
+-
+-          // Expandable area
+-          Expanded(
+-            child: LayoutBuilder(
+-              builder: (context, constraints) {
+-                return SingleChildScrollView(
+-                  child: ConstrainedBox(
+-                    // force at least full height
+-                    constraints: BoxConstraints(
+-                      minHeight: constraints.maxHeight,
+-                    ),
+-                    child: IntrinsicHeight(
+-                      child: Column(
+-                        crossAxisAlignment: CrossAxisAlignment.stretch,
+-                        children: [
+-                          // Scrollable content
+-                          Column(
+-                            children: List.generate(
+-                              routeInfo['route_data']['legs'].length * 2 - 1,
+-                              (index) {
+-                                if (index.isEven) {
+-                                  final legIndex = index ~/ 2;
+-                                  final leg =
+-                                      routeInfo['route_data']['legs'][legIndex];
+-                                  return RouteCluster(
+-                                    lineColor: leg['line_color'],
+-                                    startStation: routeInfo['start'],
+-                                    endStation: routeInfo['end'],
+-                                    stations: leg,
+-                                  );
+-                                } else {
+-                                  return interchangeInfo();
+-                                }
+-                              },
+-                            ),
+-                          ),
+-
+-                          // Spacer pushes footer down when space available
+-                          Spacer(),
+-
+-                          SizedBox(height: 40),
+-                          // Footer inside the container
+-                          Column(
+-                            children: [
+-                              reportError(),
+-                              SizedBox(height: 20),
+-                              companyFooter(),
+-                            ],
+-                          ),
+-                        ],
+-                      ),
+-                    ),
+-                  ),
+-                );
+-              },
+-            ),
+-          ),
+-        ],
+-      ),
+-    );
+-  }
+-}
+-
+-topNavBar(context, coreTransferStationsDict) {
+-  return Container(
+-    //color: Colors.white,
+-    width: double.infinity,
+-    height: 50.h,
+-    child: Row(
+-      mainAxisAlignment: MainAxisAlignment.start,
+-      crossAxisAlignment: CrossAxisAlignment.center,
+-      children: [
+-        GestureDetector(
+-          onTap: () {
+-            HitTestBehavior.opaque;
+-            Navigator.pop(context);
+-          },
+-          child: Row(
+-            children: [
+-              Icon(
+-                CupertinoIcons.back,
+-                color: const Color.fromARGB(255, 47, 130, 255),
+-              ),
+-              Text(
+-                "Done",
+-                style: TextStyle(
+-                  color: const Color.fromARGB(255, 47, 130, 255),
+-                  fontWeight: FontWeight.w500,
+-                  fontFamily: 'Poppins',
+-                  fontSize: 18.sp,
+-                ),
+-              ),
+-            ],
+-          ),
+-        ),
+-        Spacer(),
+-        Container(
+-          width: 200.w,
+-          child: Marquee(
+-            text:
+-                "${coreTransferStationsDict['Source']["Name"]} ΓåÆ ${coreTransferStationsDict['Destination']["Name"]}",
+-            showFadingOnlyWhenScrolling: true,
+-            fadingEdgeStartFraction: 0.2,
+-            fadingEdgeEndFraction: 0.1,
+-            blankSpace: 20,
+-            style: TextStyle(
+-              fontFamily: 'Poppins',
+-              color: Color.fromARGB(255, 202, 202, 202),
+-              fontSize: 16.sp,
+-              fontWeight: FontWeight.w500,
+-            ),
+-          ),
+-        ),
+-      ],
+-    ),
+-  );
+-}
+-
+-class TripSummary extends StatelessWidget {
+-  final int totalTime;
+-  final int interchanges;
+-  final double distance;
+-  final int nonAcFare;
+-  final int acFare;
+-  final int stopCount;
+-
+-  const TripSummary({
+-    super.key,
+-    required this.totalTime,
+-    required this.interchanges,
+-    required this.distance,
+-    required this.nonAcFare,
+-    required this.acFare,
+-    required this.stopCount,
+-  });
+-
+-  @override
+-  Widget build(BuildContext context) {
+-    return Padding(
+-      padding: EdgeInsets.symmetric(vertical: 12.h, horizontal: 8.w),
+-      child: Column(
+-        crossAxisAlignment: CrossAxisAlignment.start,
+-        children: [
+-          Row(
+-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+-            children: [
+-              _summaryItem(
+-                context,
+-                icon: CupertinoIcons.clock,
+-                value: "$totalTime min",
+-                label: "Time",
+-              ),
+-              _summaryItem(
+-                context,
+-                icon: CupertinoIcons.arrow_right_arrow_left,
+-                value: interchanges == 0 ? "Direct" : "$interchanges transfer",
+-                label: "Type",
+-              ),
+-              _summaryItem(
+-                context,
+-                icon: CupertinoIcons.location,
+-                value: "${distance.toStringAsFixed(1)} km",
+-                label: "Distance",
+-              ),
+-              _summaryItem(
+-                context,
+-                icon: CupertinoIcons.map_pin,
+-                value: "$stopCount stops",
+-                label: "Stops",
+-              ),
+-            ],
+-          ),
+-          Padding(
+-            padding: EdgeInsets.only(top: 12.h, bottom: 4.h),
+-            child: Divider(color: AppColors.divider, height: 1),
+-          ),
+-          Row(
+-            mainAxisAlignment: MainAxisAlignment.spaceAround,
+-            children: [
+-              Row(
+-                children: [
+-                  Icon(CupertinoIcons.ticket, color: Colors.greenAccent, size: 16.sp),
+-                  SizedBox(width: 6.w),
+-                  Text(
+-                    "Non-AC: ",
+-                    style: TextStyle(
+-                      fontFamily: 'Poppins',
+-                      fontSize: 14.sp,
+-                      color: AppColors.secondaryText,
+-                    ),
+-                  ),
+-                  Text(
+-                    "Γé╣$nonAcFare",
+-                    style: TextStyle(
+-                      fontFamily: 'Poppins',
+-                      fontSize: 15.sp,
+-                      fontWeight: FontWeight.w600,
+-                      color: Colors.white,
+-                    ),
+-                  ),
+-                ],
+-              ),
+-              Container(
+-                width: 1.w,
+-                height: 15.h,
+-                color: AppColors.divider,
+-              ),
+-              Row(
+-                children: [
+-                  Icon(CupertinoIcons.ticket_fill, color: Colors.blueAccent, size: 16.sp),
+-                  SizedBox(width: 6.w),
+-                  Text(
+-                    "AC: ",
+-                    style: TextStyle(
+-                      fontFamily: 'Poppins',
+-                      fontSize: 14.sp,
+-                      color: AppColors.secondaryText,
+-                    ),
+-                  ),
+-                  Text(
+-                    "Γé╣$acFare",
+-                    style: TextStyle(
+-                      fontFamily: 'Poppins',
+-                      fontSize: 15.sp,
+-                      fontWeight: FontWeight.w600,
+-                      color: Colors.white,
+-                    ),
+-                  ),
+-                ],
+-              ),
+-            ],
+-          ),
+-        ],
+-      ),
+-    );
+-  }
+-
+-  Widget _summaryItem(
+-    BuildContext context, {
+-    required IconData icon,
+-    required String value,
+-    required String label,
+-  }) {
+-    return Column(
+-      children: [
+-        Icon(icon, color: AppColors.primaryAccent, size: 18.sp),
+-        SizedBox(height: 4.h),
+-        Text(
+-          value,
+-          style: TextStyle(
+-            fontFamily: 'Poppins',
+-            fontSize: 14.sp,
+-            fontWeight: FontWeight.w600,
+-            color: AppColors.primaryText,
+-          ),
+-        ),
+-        Text(
+-          label,
+-          style: TextStyle(
+-            fontFamily: 'Poppins',
+-            fontSize: 11.sp,
+-            color: AppColors.tertiaryText,
+-          ),
+-        ),
+-      ],
+-    );
+-  }
+-}
+-
+-class RouteCluster extends StatefulWidget {
+-  final String lineColor;
+-  final String startStation;
+-  final String endStation;
+-  final Map<String, dynamic> stations;
+-
+-  const RouteCluster({
+-    super.key,
+-    required this.lineColor,
+-    required this.startStation,
+-    required this.endStation,
+-    required this.stations,
+-  });
+-
+-  @override
+-  State<RouteCluster> createState() => _RouteClusterState();
+-}
+-
+-class _RouteClusterState extends State<RouteCluster> {
+-  int extraStations = 0;
+-  double stationHeight = 25.h;
+-  double height =
+-      220.h; //presetting height at one place so that text and line indicator stay at same height
+-  double collapsableHeight = 30.h;
+-  double collapsableWidth = 150.w;
+-  bool isExpanded = false;
+-  void _containerToggle() {
+-    print("TEST5244${widget.stations["stops"]}");
+-    setState(() {
+-      isExpanded = !isExpanded;
+-      extraStations = widget.stations['stops'].length;
+-      print(isExpanded);
+-      if (isExpanded) {
+-        collapsableHeight =
+-            0.h +
+-            extraStations * stationHeight; //collapsed and increased height
+-        collapsableWidth = 250.w; //collapsed and increased width
+-        height = height + collapsableHeight;
+-        //height = height + collapsableHeight;
+-      } else {
+-        collapsableWidth = 150.w;
+-        height = height - collapsableHeight;
+-        //collapsableHeight = 30;
+-        //height = height - collapsableHeight;
+-      }
+-    });
+-  }
+-
+-  @override
+-  Widget build(BuildContext context) {
+-    return InkWell(
+-      splashColor: const Color.fromARGB(255, 16, 16, 16),
+-      highlightColor: const Color.fromARGB(255, 0, 0, 0),
+-      onTap: _containerToggle,
+-      child: AnimatedContainer(
+-        duration: Duration(milliseconds: 100),
+-        height: height,
+-        padding: EdgeInsets.fromLTRB(0, 15, 0, 0),
+-        child: Row(
+-          mainAxisAlignment: MainAxisAlignment.start,
+-          children: [
+-            LineIndicator(
+-              height: height,
+-              lineColor: widget.lineColor,
+-              extraStations: 5,
+-            ),
+-            Expanded(
+-              child: InfoIndicator(
+-                start: widget.startStation,
+-                end: widget.endStation,
+-                height: height,
+-                collapsableHeight: collapsableHeight,
+-                collapsableWidth: collapsableWidth,
+-                isExpanded: isExpanded,
+-                // heading:
+-                //     widget.stations['legs'][0]['line_name']
+-                //         .toString()
+-                //         .split("to")
+-                //         .last
+-                //         .trim(), //gives only heading part
+-                // colorName:
+-                //     widget.stations['legs'][0]['line_color']
+-                //         .toString()
+-                //         .toLowerCase(),
+-                legs: widget.stations,
+-              ),
+-            ),
+-            // InkWell(
+-            //   child: //bar line indicator on left
+-            //       Expanded(child: infoIndicator(height: height)),
+-            // ), //station info and other info on right
+-          ],
+-        ),
+-      ),
+-    );
+-  }
+-}
+-
+-class InfoIndicator extends StatefulWidget {
+-  final double height;
+-  final double collapsableWidth;
+-  final double collapsableHeight;
+-  final bool isExpanded;
+-  final String start;
+-  final String end;
+-  final Map<String, dynamic> legs;
+-
+-  const InfoIndicator({
+-    super.key,
+-    required this.height,
+-    required this.collapsableHeight,
+-    required this.collapsableWidth,
+-    required this.isExpanded,
+-    required this.start,
+-    required this.end,
+-    required this.legs,
+-  });
+-
+-  @override
+-  State<InfoIndicator> createState() => _InfoIndicatorState();
+-}
+-
+-class _InfoIndicatorState extends State<InfoIndicator> {
+-  @override
+-  Widget build(BuildContext context) {
+-    String heading =
+-        widget.legs['line_name'].toString().split(" to ").last.trim();
+-    String colorName = widget.legs['line_color'].toString().toLowerCase();
+-    String StartStnName = widget.legs['stops'][0];
+-    String EndStnName = widget.legs['stops'][widget.legs['stops'].length - 1];
+-    print("TEST525 $StartStnName to $EndStnName"); //First leg of route
+-    //right line info
+-    return Container(
+-      margin: EdgeInsets.fromLTRB(10, 0, 0, 0),
+-      height: widget.height,
+-      //decoration: BoxDecoration(color: const Color.fromARGB(255, 93, 93, 93)),
+-      child: Column(
+-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+-        crossAxisAlignment: CrossAxisAlignment.start,
+-        children: [
+-          Row(
+-            children: [
+-              Text(
+-                //heading
+-                "${StartStnName}", //-------------------HERE--------------------------------------------
+-                style: TextStyle(
+-                  color: AppColors.primaryText,
+-                  fontSize: 18.sp,
+-                  fontWeight: FontWeight.w500,
+-                ),
+-              ),
+-              Spacer(),
+-              Icon(Icons.login_rounded, color: AppColors.primaryText, size: 20),
+-            ],
+-          ),
+-          SizedBox(height: 10.h),
+-          Container(
+-            //train heading info
+-            child: Row(
+-              children: [
+-                Icon(
+-                  CupertinoIcons.train_style_two,
+-                  color: Colors.grey,
+-                  size: 15,
+-                ),
+-                Text(
+-                  " Heading towards ${heading}",
+-                  maxLines: 2,
+-                  overflow: TextOverflow.visible,
+-                  softWrap: true,
+-                  style: TextStyle(
+-                    overflow: TextOverflow.visible,
+-                    color: AppColors.secondaryText,
+-                    fontSize: 15.sp,
+-                    fontWeight: FontWeight.w500,
+-                  ),
+-                ),
+-              ],
+-            ),
+-          ),
+-          SizedBox(height: 2.h),
+-          Text(
+-            "${colorName} line",
+-            style: TextStyle(
+-              color: AppColors.secondaryText,
+-              fontSize: 15.sp,
+-              fontWeight: FontWeight.w500,
+-            ),
+-          ),
+-          SizedBox(height: 2.h),
+-          // Text(
+-          //   "Every 2 min",
+-          //   style: TextStyle(
+-          //     color: AppColors.secondaryText,
+-          //     fontSize: 15.sp,
+-          //     fontWeight: FontWeight.w300,
+-          //   ),
+-          // ),
+-          //SizedBox(height: 10),
+-          Spacer(),
+-          (widget.isExpanded == true)
+-              ? collapsedExpandedView(
+-                widget.legs['stops'],
+-              ) //add the collapsed station expanded display logo
+-              : Row(
+-                children: [
+-                  Text(
+-                    "${widget.legs['stops'].length - 2} Stations",
+-                    style: TextStyle(
+-                      color: Colors.grey,
+-                      fontSize: 15.sp,
+-                      fontWeight: FontWeight.w500,
+-                    ),
+-                  ),
+-                  SizedBox(width: 5.w),
+-                  Icon(CupertinoIcons.sort_down, color: Colors.grey, size: 20),
+-                ],
+-              ),
+-          Spacer(), //SPACERRRR
+-          Row(
+-            children: [
+-              Text(
+-                //heading
+-                "${EndStnName}",
+-                style: TextStyle(
+-                  color: AppColors.primaryText,
+-                  fontSize: 18.sp,
+-                  fontWeight: FontWeight.w500,
+-                ),
+-              ),
+-              Spacer(),
+-              Icon(
+-                Icons.logout_rounded,
+-                color: AppColors.primaryText,
+-                size: 20,
+-              ),
+-            ],
+-          ),
+-        ],
+-      ),
+-    ); ////
+-  }
+-}
+-
+-class LineIndicator extends StatefulWidget {
+-  final double height;
+-  final int extraStations;
+-  final double stationHeight;
+-  final String lineColor;
+-
+-  LineIndicator({
+-    super.key,
+-    required this.height,
+-    required this.lineColor,
+-    required this.extraStations,
+-  }) : stationHeight = 5.h;
+-
+-  @override
+-  State<LineIndicator> createState() => _LineIndicatorState();
+-}
+-
+-class _LineIndicatorState extends State<LineIndicator> {
+-  @override
+-  Widget build(BuildContext context) {
+-    return AnimatedContainer(
+-      duration: Duration(milliseconds: 100),
+-      width: 7.w,
+-      height: widget.height,
+-      decoration: BoxDecoration(
+-        color: _getLineColor(
+-          widget.lineColor,
+-        ), //impllemt line color to change dynamically
+-        borderRadius: BorderRadius.all(Radius.circular(50)),
+-      ),
+-      child: Column(
+-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+-        children: [
+-          Container(
+-            width: 6.w,
+-            height: 6.h,
+-            decoration: BoxDecoration(
+-              color: Colors.white,
+-              borderRadius: BorderRadius.all(Radius.circular(50)),
+-            ),
+-          ),
+-          Container(
+-            width: 6.w,
+-            height: 6.h,
+-            decoration: BoxDecoration(
+-              color: Colors.white,
+-              borderRadius: BorderRadius.all(Radius.circular(50)),
+-            ),
+-          ),
+-        ],
+-      ),
+-    );
+-  }
+-}
+-
+-Color _getLineColor(String lineColor) {
+-  return getColorFromRouteName(lineColor);
+-}
+-
+-interchangeInfo() {
+-  return Container(
+-    height: 70.h,
+-    margin: EdgeInsets.fromLTRB(0, 15, 0, 0),
+-    width: double.infinity,
+-    //decoration: BoxDecoration(color: const Color.fromARGB(255, 54, 54, 54)),
+-    child: Row(
+-      mainAxisAlignment: MainAxisAlignment.start,
+-      children: [
+-        Container(
+-          width: 7.w,
+-          height: 100.h,
+-          decoration: BoxDecoration(
+-            gradient: LinearGradient(
+-              colors: [
+-                const Color.fromARGB(0, 80, 80, 80),
+-                const Color.fromARGB(255, 200, 200, 200),
+-              ],
+-              begin: Alignment.topCenter,
+-              end: Alignment.bottomCenter,
+-            ),
+-            borderRadius: BorderRadius.all(Radius.circular(50)),
+-          ),
+-        ),
+-        Expanded(
+-          child: Container(
+-            margin: EdgeInsets.fromLTRB(10, 0, 0, 0),
+-            child: Column(
+-              mainAxisAlignment: MainAxisAlignment.center,
+-              crossAxisAlignment: CrossAxisAlignment.start,
+-              children: [
+-                Text(
+-                  "Make transfer",
+-                  style: TextStyle(
+-                    color: Colors.grey,
+-                    fontSize: 15.sp,
+-                    fontWeight: FontWeight.w500,
+-                  ),
+-                ),
+-
+-                SizedBox(height: 2.h),
+-                Container(
+-                  child: Row(
+-                    children: [
+-                      Icon(Icons.directions_walk, color: Colors.grey, size: 15),
+-                      Text(
+-                        "5 Min",
+-                        style: TextStyle(
+-                          color: Colors.grey,
+-                          fontSize: 15.sp,
+-                          fontWeight: FontWeight.w500,
+-                        ),
+-                      ),
+-                    ],
+-                  ),
+-                ),
+-              ],
+-            ),
+-          ),
+-        ),
+-      ],
+-    ),
+-  );
+-}
+-
+-collapsedExpandedView(insideStations) {
+-  //List<String> middleStations = insideStations.sublist(1, insideStations.length - 1);
+-  List<dynamic> middleStations = insideStations.sublist(
+-    1,
+-    insideStations.length - 1,
+-  );
+-  return Column(
+-    crossAxisAlignment: CrossAxisAlignment.start,
+-    children:
+-        middleStations
+-            .map((station) {
+-              return Padding(
+-                padding: const EdgeInsets.symmetric(vertical: 2.0),
+-                child: Row(
+-                  crossAxisAlignment: CrossAxisAlignment.center,
+-                  mainAxisAlignment: MainAxisAlignment.start,
+-                  children: [
+-                    Icon(
+-                      Icons.arrow_right_rounded,
+-                      color: Colors.grey,
+-                      size: 15,
+-                    ),
+-                    SizedBox(width: 8),
+-                    Text(
+-                      station,
+-                      style: TextStyle(
+-                        fontSize: 16.sp,
+-                        color: Colors.grey,
+-                        fontWeight: FontWeight.w500,
+-                      ),
+-                    ),
+-                  ],
+-                ),
+-              );
+-            })
+-            .toList()
+-            .cast<Widget>(),
+-  );
+-}
+-
+-reportError() {
+-  return Row(
+-    children: [
+-      Container(
+-        height: 50.h,
+-        width: 170.w,
+-        decoration: BoxDecoration(
+-          borderRadius: BorderRadius.all(Radius.circular(2)),
+-          //color: const Color.fromARGB(255, 17, 17, 17),
+-          border: Border.all(color: const Color.fromARGB(255, 35, 35, 35)),
+-        ),
+-        child: GestureDetector(
+-          behavior:
+-              HitTestBehavior
+-                  .opaque, // to make sure that when tapped on white space the button is tapped
+-          onTap: () {
+-            try {
+-              sendToGoogleForm();
+-            } catch (e) {
+-              debugPrint("Error sending email: $e");
+-            }
+-          },
+-          child: Align(
+-            alignment: Alignment.center,
+-            child: Text(
+-              "report error",
+-              style: TextStyle(
+-                color: const Color.fromARGB(255, 187, 187, 187),
+-                fontSize: 18.sp, //processedFontheight(context),
+-                fontFamily: 'Poppins',
+-                fontWeight: FontWeight.w500,
+-              ),
+-            ),
+-          ),
+-        ),
+-      ),
+-    ],
+-  );
+-}
+-
+-companyFooter() {
+-  return Container(
+-    decoration: BoxDecoration(
+-      //color: const Color.fromARGB(255, 11, 11, 11),
+-      //borderRadius: BorderRadius.all(Radius.circular(10)),
+-    ),
+-    width: double.infinity,
+-    height: 50.h,
+-    //color: const Color.fromARGB(255, 57, 57, 57),
+-    child: Column(
+-      mainAxisAlignment: MainAxisAlignment.center,
+-      crossAxisAlignment: CrossAxisAlignment.center,
+-      children: [
+-        Text(
+-          "DELHI\nTRANSIT",
+-          textAlign: TextAlign.center,
+-          style: TextStyle(
+-            height: 1.h,
+-            color: const Color.fromARGB(255, 90, 90, 90),
+-            fontWeight: FontWeight.w700,
+-            fontSize: 14.sp,
+-          ),
+-        ),
+-        // Text(
+-        //   "From New Delhi",
+-        //   textAlign: TextAlign.center,
+-        //   style: TextStyle(
+-        //     color: Colors.grey,
+-        //     fontWeight: FontWeight.w300,
+-        //     fontSize: 12,
+-        //   ),
+-        // ),
+-      ],
+-    ),
+-  );
+-}
+diff --git a/lib/elements/ServicesDir/data_provider.dart b/lib/elements/ServicesDir/data_provider.dart
+index a013676..02dd0f4 100644
+--- a/lib/elements/ServicesDir/data_provider.dart
++++ b/lib/elements/ServicesDir/data_provider.dart
+@@ -83,5 +83,42 @@ class DataProvider extends ChangeNotifier {
+     }
+   }
+ 
+-  //-----------------
++  List<Map<String, String>> _busSearchHistory = [];
++  List<Map<String, String>> get busSearchHistory => _busSearchHistory;
++
++  Future<void> loadBusSearchHistory() async {
++    final prefs = await SharedPreferences.getInstance();
++    final saved = prefs.getString('busSearchHistory');
++    if (saved != null) {
++      try {
++        final List<dynamic> decoded = jsonDecode(saved);
++        _busSearchHistory = decoded.map((e) => Map<String, String>.from(e as Map)).toList();
++        notifyListeners();
++      } catch (e) {
++        // ignore
++      }
++    }
++  }
++
++  Future<void> addBusToHistory(String routeId, String routeLongName, String headsign) async {
++    _busSearchHistory.removeWhere((item) => item['route_long_name'] == routeLongName);
++    _busSearchHistory.insert(0, {
++      'route_id': routeId,
++      'route_long_name': routeLongName,
++      'headsign': headsign,
++    });
++    if (_busSearchHistory.length > 5) {
++      _busSearchHistory = _busSearchHistory.sublist(0, 5);
++    }
++    final prefs = await SharedPreferences.getInstance();
++    await prefs.setString('busSearchHistory', jsonEncode(_busSearchHistory));
++    notifyListeners();
++  }
++
++  Future<void> clearBusSearchHistory() async {
++    _busSearchHistory = [];
++    final prefs = await SharedPreferences.getInstance();
++    await prefs.remove('busSearchHistory');
++    notifyListeners();
++  }
+ }
+diff --git a/lib/elements/ServicesDir/new_schedule_service.dart b/lib/elements/ServicesDir/new_schedule_service.dart
+index 03e0341..bcac43c 100644
+--- a/lib/elements/ServicesDir/new_schedule_service.dart
++++ b/lib/elements/ServicesDir/new_schedule_service.dart
+@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
+ import 'package:flutter/services.dart';
+ import 'package:sqflite/sqflite.dart';
+ import 'package:path/path.dart';
++import '../search.dart';
+ 
+ // -------------------- LINE COLORS --------------------
+ Color getColorFromRouteName(String routeName) {
+@@ -37,49 +38,7 @@ class ScheduleInfo {
+ }
+ 
+ // -------------------- DATABASE ACCESS --------------------
+-Database? _db;
+-
+-Future<Database> getDatabase() async {
+-  if (_db != null && _db!.isOpen) return _db!;
+-  final dbPath = await getDatabasesPath();
+-  final path = join(dbPath, "routes.db");
+-  
+-  bool needsCopy = false;
+-  final exists = await databaseExists(path);
+-  if (!exists) {
+-    needsCopy = true;
+-  } else {
+-    try {
+-      final tempDb = await openDatabase(path, readOnly: true);
+-      final tables = await tempDb.rawQuery(
+-        "SELECT name FROM sqlite_master WHERE type='table' AND name='stop_times'"
+-      );
+-      await tempDb.close();
+-      if (tables.isEmpty) {
+-        needsCopy = true;
+-      }
+-    } catch (e) {
+-      needsCopy = true;
+-    }
+-  }
+-
+-  if (needsCopy) {
+-    try {
+-      final file = File(path);
+-      if (await file.exists()) {
+-        await file.delete();
+-      }
+-    } catch (e) {
+-      // ignore
+-    }
+-    final data = await rootBundle.load("assets/routes.db");
+-    final bytes = data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
+-    await File(path).writeAsBytes(bytes, flush: true);
+-  }
+-
+-  _db = await openDatabase(path, readOnly: true);
+-  return _db!;
+-}
++// Reused from BusDatabaseHelper in search.dart
+ 
+ int _getMinutesFromTimeStr(String timeStr) {
+   try {
+@@ -110,7 +69,7 @@ String formatTime12h(String timeStr) {
+ 
+ // -------------------- FETCHING --------------------
+ Future<List<ScheduleInfo>> getScheduleForStation(String stationCode) async {
+-  final db = await getDatabase();
++  final db = await BusDatabaseHelper.getDatabase();
+ 
+   final now = DateTime.now();
+   final currentTimeStr = "${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}:${now.second.toString().padLeft(2, '0')}";
+diff --git a/lib/elements/metro.dart b/lib/elements/metro.dart
+index 2356b70..b0f78f7 100644
+--- a/lib/elements/metro.dart
++++ b/lib/elements/metro.dart
+@@ -1,8 +1,6 @@
+-import 'dart:convert';
+ import 'package:liquid_glass_renderer/liquid_glass_renderer.dart';
+ import 'package:metroapp/elements/ServicesDir/geolocator_service.dart';
+ import 'package:metroapp/elements/StationDir/stop_info.dart';
+-import 'package:metroapp/elements/route.dart';
+ import 'package:metroapp/main.dart';
+ import 'package:skeletonizer/skeletonizer.dart';
+ import 'package:url_launcher/url_launcher.dart';
+@@ -15,6 +13,7 @@ import 'package:flutter/material.dart';
+ import 'package:marquee/marquee.dart';
+ import './ServicesDir/station_element.dart';
+ import 'search.dart';
++import 'bus_info.dart';
+ import 'StationDir/station_search.dart';
+ import 'ServicesDir/data_provider.dart';
+ import 'package:provider/provider.dart';
+@@ -72,12 +71,7 @@ class _MetroHomeScreenState extends State<MetroHomeScreen> {
+           searchBar(
+             context,
+           ), //there is a feature in flutter for hero widget that transitions smoothly between screen transitions
+-          suggestions(context),
+-          Divider(
+-            thickness: 0,
+-            color: const Color.fromARGB(0, 35, 35, 35),
+-            //height: 10,
+-          ),
++          busHistory(context),
+           nearYou(context),
+           Divider(
+             thickness: 0,
+@@ -160,7 +154,7 @@ searchBar(context) {
+         crossAxisAlignment: CrossAxisAlignment.center,
+         children: [
+           Text(
+-            'Where to',
++            'Buses',
+             style: TextStyle(
+               fontFamily: 'Poppins',
+               fontWeight: FontWeight.w600,
+@@ -175,35 +169,52 @@ searchBar(context) {
+   );
+ }
+ 
+-Widget _buildHistoryItem(BuildContext context, Map<String, dynamic>? item) {
+-  if (item == null) return const SizedBox.shrink();
+-  
+-  final source = item["Source"];
+-  final dest = item["Destination"];
+-  
+-  String sourceName = source?["Name"]?.toString() ?? "Unknown Stop";
+-  String destName = dest?["Name"]?.toString() ?? "Unknown Stop";
+-  
+-  String mainSrc = sourceName;
+-  String? subSrc;
+-  if (mainSrc.contains('/')) {
+-    final parts = mainSrc.split('/');
+-    mainSrc = parts[0].trim();
+-    subSrc = parts[1].trim();
+-  }
+-  
+-  String mainDest = destName;
+-  String? subDest;
+-  if (mainDest.contains('/')) {
+-    final parts = mainDest.split('/');
+-    mainDest = parts[0].trim();
+-    subDest = parts[1].trim();
+-  }
++Widget busHistory(BuildContext context) {
++  return Consumer<DataProvider>(
++    builder: (context, dataProvider, child) {
++      final history = dataProvider.busSearchHistory;
++      if (history.isEmpty) {
++        return const SizedBox.shrink();
++      }
++
++      return Container(
++        margin: const EdgeInsets.all(5),
++        width: double.infinity,
++        child: Column(
++          crossAxisAlignment: CrossAxisAlignment.start,
++          mainAxisSize: MainAxisSize.min,
++          children: [
++            ...history.take(2).map((item) {
++              return GestureDetector(
++                behavior: HitTestBehavior.opaque,
++                onTap: () {
++                  Navigator.push(
++                    context,
++                    MaterialPageRoute(
++                      builder: (context) => BusInfoScreen(
++                        routeId: item['route_id'] ?? '',
++                        routeLongName: item['route_long_name'] ?? '',
++                      ),
++                    ),
++                  );
++                },
++                child: _buildBusHistoryItem(context, item),
++              );
++            }),
++          ],
++        ),
++      );
++    },
++  );
++}
++
++Widget _buildBusHistoryItem(BuildContext context, Map<String, String> item) {
++  final routeName = item['route_long_name'] ?? '';
++  final headsign = item['headsign'] ?? '';
+ 
+   return Container(
+-    padding: EdgeInsets.symmetric(vertical: 2.h),
++    padding: EdgeInsets.symmetric(vertical: 4.h),
+     child: Row(
+-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+       children: [
+         Expanded(
+           child: Column(
+@@ -211,201 +222,39 @@ Widget _buildHistoryItem(BuildContext context, Map<String, dynamic>? item) {
+             mainAxisSize: MainAxisSize.min,
+             children: [
+               Text(
+-                mainSrc + (subSrc != null ? " ($subSrc)" : ""),
++                "Route $routeName",
+                 style: TextStyle(
+                   fontFamily: 'Poppins',
+                   color: Colors.white,
+-                  fontSize: 16.sp,
++                  fontSize: 15.sp,
+                   fontWeight: FontWeight.w600,
+                 ),
+-                maxLines: 1,
+-                overflow: TextOverflow.ellipsis,
+               ),
+               SizedBox(height: 2.h),
+-              Row(
+-                children: [
+-                  Icon(
+-                    CupertinoIcons.arrow_right_circle_fill,
+-                    color: Colors.white38,
+-                    size: 13.sp,
+-                  ),
+-                  SizedBox(width: 6.w),
+-                  Expanded(
+-                    child: Text(
+-                      mainDest + (subDest != null ? " ($subDest)" : ""),
+-                      style: TextStyle(
+-                        fontFamily: 'Poppins',
+-                        color: Colors.white70,
+-                        fontSize: 13.sp,
+-                        fontWeight: FontWeight.w400,
+-                      ),
+-                      maxLines: 1,
+-                      overflow: TextOverflow.ellipsis,
+-                    ),
+-                  ),
+-                ],
++              Text(
++                headsign.isNotEmpty ? "To $headsign" : "DTC Bus Service",
++                style: TextStyle(
++                  fontFamily: 'Poppins',
++                  color: AppColors.secondaryText,
++                  fontSize: 12.sp,
++                  fontWeight: FontWeight.w400,
++                ),
++                maxLines: 1,
++                overflow: TextOverflow.ellipsis,
+               ),
+             ],
+           ),
+         ),
+-        SizedBox(width: 10.w),
+         Icon(
+-          CupertinoIcons.arrow_right,
+-          color: const Color.fromARGB(255, 179, 179, 179),
+-          size: 20.sp,
++          CupertinoIcons.chevron_forward,
++          color: AppColors.tertiaryText,
++          size: 16.sp,
+         ),
+       ],
+     ),
+   );
+ }
+ 
+-suggestions(context) {
+-  return Container(
+-    margin: const EdgeInsets.all(5),
+-    width: double.infinity,
+-    height: 115.h,
+-    child: Consumer<DataProvider>(
+-      builder: (context, dataProvider, child) {
+-        final data = dataProvider.coreTransferStationsDict;
+-        print("transfer data NOT JSON is **$data");
+-        print(data);
+-        var just = data["just"];
+-        var justBefore = data["justBefore"];
+-        if (data.isNotEmpty &&
+-            just is List &&
+-            just.isNotEmpty &&
+-            justBefore is List &&
+-            justBefore.isNotEmpty) {
+-          return Column(
+-            mainAxisAlignment: MainAxisAlignment.center,
+-            crossAxisAlignment: CrossAxisAlignment.start,
+-            children: [
+-              GestureDetector(
+-                behavior: HitTestBehavior.opaque,
+-                onTap: () {
+-                  Navigator.push(
+-                    context,
+-                    CupertinoPageRoute(
+-                      builder:
+-                          (context) => RouteScreen(
+-                            coreTransferStationsDict: data["just"]?[0],
+-                          ),
+-                    ),
+-                  );
+-                },
+-                child: _buildHistoryItem(context, data["just"]?[0]),
+-              ),
+-              SizedBox(height: 8.h),
+-              GestureDetector(
+-                behavior: HitTestBehavior.opaque,
+-                onTap: () {
+-                  Navigator.push(
+-                    context,
+-                    CupertinoPageRoute(
+-                      builder:
+-                          (context) => RouteScreen(
+-                            coreTransferStationsDict: data["justBefore"]?[0],
+-                          ),
+-                    ),
+-                  );
+-                },
+-                child: _buildHistoryItem(context, data["justBefore"]?[0]),
+-              ),
+-            ],
+-          );
+-        } else {
+-          //DEFAULT DATA WHEN SAVED SUGGESTIONS ARE NOT AVAILABLE
+-          final String defaultData = '''
+-                        {
+-                          "just": [
+-                            {
+-                              "Source": {
+-                                "StationCode": "0",
+-                                "Name": "Narela Terminal",
+-                                "Hindi": "Narela Terminal",
+-                                "Line": "828AUP",
+-                                "Latitude": "28.851958",
+-                                "Longitude": "77.088107"
+-                              },
+-                              "Destination": {
+-                                "StationCode": "1",
+-                                "Name": "Police Station Narela",
+-                                "Hindi": "Police Station Narela",
+-                                "Line": "828AUP",
+-                                "Latitude": "28.853311",
+-                                "Longitude": "77.088548"
+-                              }
+-                            }
+-                          ],
+-                          "justBefore": [
+-                            {
+-                              "Source": {
+-                                "StationCode": "2",
+-                                "Name": "Safiyabad Crossing",
+-                                "Hindi": "Safiyabad Crossing",
+-                                "Line": "828AUP",
+-                                "Latitude": "28.854965",
+-                                "Longitude": "77.089322"
+-                              },
+-                              "Destination": {
+-                                "StationCode": "3",
+-                                "Name": "Ramdev Chowk / Pitori Johad",
+-                                "Hindi": "Ramdev Chowk / Pitori Johad",
+-                                "Line": "828AUP",
+-                                "Latitude": "28.857713",
+-                                "Longitude": "77.092846"
+-                              }
+-                            }
+-                          ]
+-                        }
+-                        ''';
+-          final Map<String, dynamic> defaultDataParsed = jsonDecode(
+-            defaultData,
+-          );
+-          return Column(
+-            mainAxisAlignment: MainAxisAlignment.center,
+-            crossAxisAlignment: CrossAxisAlignment.start,
+-            children: [
+-              GestureDetector(
+-                behavior: HitTestBehavior.opaque,
+-                onTap: () {
+-                  Navigator.push(
+-                    context,
+-                    MaterialPageRoute(
+-                      builder:
+-                          (context) => RouteScreen(
+-                            coreTransferStationsDict: defaultDataParsed["just"]?[0],
+-                          ),
+-                    ),
+-                  );
+-                },
+-                child: _buildHistoryItem(context, defaultDataParsed["just"]?[0]),
+-              ),
+-              SizedBox(height: 8.h),
+-              GestureDetector(
+-                behavior: HitTestBehavior.opaque,
+-                onTap: () {
+-                  Navigator.push(
+-                    context,
+-                    MaterialPageRoute(
+-                      builder:
+-                          (context) => RouteScreen(
+-                            coreTransferStationsDict:
+-                                defaultDataParsed["justBefore"]?[0],
+-                          ),
+-                    ),
+-                  );
+-                },
+-                child: _buildHistoryItem(context, defaultDataParsed["justBefore"]?[0]),
+-              ),
+-            ],
+-          );
+-        }
+-      },
+-    ),
+-  );
+-}
+-
+ Map<String, Map<String, dynamic>> coreTransferStationsDictNE = {'Source': {}};
+ Map<String, Map<String, dynamic>> coreTransferStationsDictN = {'Source': {}};
+ 
+@@ -870,7 +719,7 @@ appFooter(context) {
+         Container(
+           margin: EdgeInsets.all(20),
+           child: Text(
+-            "Delhi\nUnderground",
++            "Delhi\nOverground",
+             textAlign: TextAlign.left,
+             style: TextStyle(
+               color: const Color.fromARGB(255, 255, 255, 255),
+diff --git a/lib/elements/route.dart b/lib/elements/route.dart
+deleted file mode 100644
+index f3a2e02..0000000
+--- a/lib/elements/route.dart
++++ /dev/null
+@@ -1,37 +0,0 @@
+-import 'package:flutter/material.dart';
+-import 'package:metroapp/elements/RouteDir/route_data_provider.dart';
+-import 'package:metroapp/elements/ServicesDir/data_provider.dart';
+-import 'package:provider/provider.dart';
+-
+-class RouteScreen extends StatefulWidget {
+-  final Map<String, dynamic> coreTransferStationsDict;
+-  const RouteScreen({super.key, required this.coreTransferStationsDict});
+-
+-  @override
+-  State<RouteScreen> createState() => _RouteScreenState();
+-}
+-
+-class _RouteScreenState extends State<RouteScreen> {
+-  @override
+-  void initState() {
+-    super.initState();
+-    debugPrint("CORE STATIONS: ${widget.coreTransferStationsDict}");
+-    WidgetsBinding.instance.addPostFrameCallback((_) {
+-      final dataProvider = context.read<DataProvider>();
+-      debugPrint("CORE STATIONS: ${widget.coreTransferStationsDict}");
+-      dataProvider.updateJustData(widget.coreTransferStationsDict);
+-    });
+-  }
+-
+-  @override
+-  Widget build(BuildContext context) {
+-    return SafeArea(
+-      child: Scaffold(
+-        backgroundColor: const Color.fromARGB(255, 0, 0, 0),
+-        body: RouteScreenNew(
+-          coreTransferStationsDict: widget.coreTransferStationsDict,
+-        ),
+-      ),
+-    );
+-  }
+-}
+diff --git a/lib/elements/search.dart b/lib/elements/search.dart
+index 7fd6be9..92ecb0d 100644
+--- a/lib/elements/search.dart
++++ b/lib/elements/search.dart
+@@ -1,20 +1,73 @@
+-import 'dart:convert';
+-
++import 'dart:io';
+ import 'package:flutter/services.dart';
+ import 'package:flutter_screenutil/flutter_screenutil.dart';
+ import 'package:metroapp/main.dart';
+-import 'route.dart';
+ import 'package:flutter/cupertino.dart';
+ import 'package:flutter/material.dart';
+-import './ServicesDir/station_element.dart';
+-import 'package:string_similarity/string_similarity.dart';
++import 'package:sqflite/sqflite.dart';
++import 'package:path/path.dart';
++import 'bus_info.dart';
++import 'package:provider/provider.dart';
++import 'package:metroapp/elements/ServicesDir/data_provider.dart';
++import 'package:shared_preferences/shared_preferences.dart';
++
++class BusDatabaseHelper {
++  static Database? _db;
++
++  static Future<Database> getDatabase() async {
++    if (_db != null && _db!.isOpen) return _db!;
++    final dbPath = await getDatabasesPath();
++    final path = join(dbPath, "routes.db");
++
++    final prefs = await SharedPreferences.getInstance();
++    final currentDbVersion = prefs.getInt('db_version_key') ?? 0;
++    const targetDbVersion = 2; // Increment this whenever the database asset changes
++
++    bool needsCopy = false;
++    final exists = await databaseExists(path);
++    if (!exists || currentDbVersion < targetDbVersion) {
++      needsCopy = true;
++    } else {
++      try {
++        final tempDb = await openDatabase(path, readOnly: true);
++        final tables = await tempDb.rawQuery(
++          "SELECT name FROM sqlite_master WHERE type='table' AND name='stop_times'"
++        );
++        await tempDb.close();
++        if (tables.isEmpty) {
++          needsCopy = true;
++        }
++      } catch (e) {
++        needsCopy = true;
++      }
++    }
++
++    if (needsCopy) {
++      try {
++        final file = File(path);
++        if (await file.exists()) {
++          await file.delete();
++        }
++      } catch (e) {
++        // ignore
++      }
++      final data = await rootBundle.load("assets/routes.db");
++      final bytes = data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
++      await File(path).writeAsBytes(bytes, flush: true);
++      await prefs.setInt('db_version_key', targetDbVersion);
++    }
++
++    _db = await openDatabase(path, readOnly: true);
++    return _db!;
++  }
++}
+ 
+ class SearchScreen extends StatefulWidget {
+   final String? destination;
+   const SearchScreen({
+     super.key,
+     this.destination,
+-  }); //if destination comes as an argument aslo calulate sopurce station with gps location if gps not available use homestation if that too now available leave that space empty
++  });
+ 
+   @override
+   State<SearchScreen> createState() => _SearchScreenState();
+@@ -23,139 +76,118 @@ class SearchScreen extends StatefulWidget {
+ class _SearchScreenState extends State<SearchScreen> {
+   @override
+   Widget build(BuildContext context) {
+-    return SafeArea(
++    return const SafeArea(
+       child: Scaffold(
+-        backgroundColor: const Color.fromARGB(255, 0, 0, 0),
+-        body: SearchBody(context: context, destination: widget.destination),
+-        //resizeToAvoidBottomInset: true,
++        backgroundColor: Colors.black,
++        body: SearchBody(),
+       ),
+     );
+   }
+ }
+ 
+ class SearchBody extends StatefulWidget {
+-  final dynamic context;
+-  final String? destination;
+-
+-  const SearchBody({super.key, required this.context, this.destination});
++  const SearchBody({super.key});
+ 
+   @override
+   State<SearchBody> createState() => _SearchBodyState();
+ }
+ 
+ class _SearchBodyState extends State<SearchBody> {
+-  final FocusNode _focusNode1 = FocusNode();
+-  final FocusNode _focusNode2 = FocusNode();
+-  final TextEditingController _controller1 = TextEditingController();
+-  final TextEditingController _controller2 = TextEditingController();
+-  List<dynamic> orignalStations = [];
+-  List<dynamic> filteredStations = [];
+-  //bool _shouldClear = false;
++  final FocusNode _focusNode = FocusNode();
++  final TextEditingController _controller = TextEditingController();
++  List<Map<String, dynamic>> _allRoutes = [];
++  List<Map<String, dynamic>> _filteredRoutes = [];
++  bool _isLoading = true;
+ 
+   @override
+   void initState() {
+     super.initState();
+-    _focusNode1.addListener(() {
+-      setState(() {
+-        filterStationsLogic(_controller1.text);
+-      });
+-    });
+-    _focusNode2.addListener(() {
+-      setState(() {
+-        filterStationsLogic(_controller2.text);
+-      });
+-    });
+-
+     WidgetsBinding.instance.addPostFrameCallback((_) {
+-      _focusNode1.requestFocus();
+-    });
+-    loadStationsFromJson().then((stations) {
+-      setState(() {
+-        orignalStations = stations;
+-        filteredStations = stations;
+-      });
++      _focusNode.requestFocus();
+     });
++    _loadInitialRoutes();
+   }
+ 
+-  @override
+-  void deactivate() {
+-    // when the router is poped and user goes back to home screen this is triggered
+-    super.deactivate();
+-    // context.read<DataProvider>().updateCoreTransferStationsDict({
+-    // });
+-    if (!Navigator.canPop(context)) {
+-      coreTransferStationsDict.clear();
++  Future<void> _loadInitialRoutes() async {
++    try {
++      final db = await BusDatabaseHelper.getDatabase();
++      final results = await db.rawQuery('''
++        SELECT r.route_id, r.route_long_name, 
++               (SELECT DISTINCT trip_headsign FROM trips t WHERE t.route_id = r.route_id LIMIT 1) as headsign
++        FROM routes r
++        GROUP BY r.route_long_name
++        ORDER BY r.route_long_name ASC
++        LIMIT 100
++      ''');
++      
++      if (mounted) {
++        setState(() {
++          _allRoutes = List<Map<String, dynamic>>.from(results);
++          _filteredRoutes = _allRoutes;
++          _isLoading = false;
++        });
++      }
++    } catch (e) {
++      if (mounted) {
++        setState(() {
++          _isLoading = false;
++        });
++      }
+     }
+   }
+-  //////////////
+-
+-  void filterStationsLogic(String query) {
+-    //TODO: MAKE THIS COMPAITABLE WITH JSON
+-    //Logiv to find the best match
+-    final lowerQuery = query.toLowerCase();
+ 
++  Future<void> _searchRoutes(String query) async {
++    if (query.trim().isEmpty) {
++      setState(() {
++        _filteredRoutes = _allRoutes;
++      });
++      return;
++    }
++    
+     setState(() {
+-      if (query.isNotEmpty) {
+-        // Create list of entries with scores
+-        final scoredList =
+-            orignalStations
+-                .where(
+-                  (station) =>
+-                      station["Name"] != null && station["Hindi"] != null,
+-                )
+-                //print("JSON STATIONS IS $orignalStations")
+-                .map((station) {
+-                  final name = station["Name"]?.toString().toLowerCase() ?? "";
+-                  final zone = station["Hindi"]?.toString().toLowerCase() ?? "";
+-                  print("JSON ZONE IS $zone");
+-                  final nameScore = StringSimilarity.compareTwoStrings(
+-                    name,
+-                    lowerQuery,
+-                  );
+-                  final zoneScore = StringSimilarity.compareTwoStrings(
+-                    zone,
+-                    lowerQuery,
+-                  );
+-
+-                  // Combine both scores (weight name higher if needed)
+-                  final combinedScore = (nameScore + zoneScore);
++      _isLoading = true;
++    });
+ 
+-                  return MapEntry(station, combinedScore);
+-                })
+-                .where(
+-                  (entry) =>
+-                      entry.value > 0.7 || // Similarity threshold
+-                      entry.key["Name"]?.toString().toLowerCase().contains(
+-                            lowerQuery,
+-                          ) ==
+-                          true || //checks if the query matches the name or hindi name/common name
+-                      entry.key["Hindi"]?.toString().toLowerCase().contains(
+-                            lowerQuery,
+-                          ) ==
+-                          true,
+-                )
+-                .toList();
++    try {
++      final db = await BusDatabaseHelper.getDatabase();
++      final results = await db.rawQuery('''
++        SELECT r.route_id, r.route_long_name, 
++               (SELECT DISTINCT trip_headsign FROM trips t WHERE t.route_id = r.route_id LIMIT 1) as headsign
++        FROM routes r
++        WHERE r.route_long_name LIKE ?
++        GROUP BY r.route_long_name
++        LIMIT 50
++      ''', ['%$query%']);
+ 
+-        // Sort stations by score descending
+-        scoredList.sort((a, b) => b.value.compareTo(a.value));
++      final sortedResults = List<Map<String, dynamic>>.from(results);
++      final lowerQuery = query.toLowerCase().trim();
++      sortedResults.sort((a, b) {
++        final aName = (a['route_long_name'] as String).toLowerCase();
++        final bName = (b['route_long_name'] as String).toLowerCase();
++        
++        if (aName == lowerQuery && bName != lowerQuery) return -1;
++        if (bName == lowerQuery && aName != lowerQuery) return 1;
++        
++        final aStarts = aName.startsWith(lowerQuery);
++        final bStarts = bName.startsWith(lowerQuery);
++        if (aStarts && !bStarts) return -1;
++        if (bStarts && !aStarts) return 1;
++        
++        return aName.compareTo(bName);
++      });
+ 
+-        // Extract only the station entries
+-        filteredStations = scoredList.map((entry) => entry.key).toList();
+-      } else {
+-        filteredStations = orignalStations;
++      if (mounted) {
++        setState(() {
++          _filteredRoutes = sortedResults;
++          _isLoading = false;
++        });
+       }
+-    });
+-  }
+-
+-  Future<List> loadStationsFromJson() async {
+-    try {
+-      final jsonRawData = await rootBundle.loadString(
+-        "assets/Map/stationsjson.json",
+-      );
+-      final List<dynamic> jsonList = jsonDecode(jsonRawData);
+-      return jsonList;
+     } catch (e) {
+-      return [];
++      if (mounted) {
++        setState(() {
++          _isLoading = false;
++        });
++      }
+     }
+   }
+ 
+@@ -164,440 +196,247 @@ class _SearchBodyState extends State<SearchBody> {
+     return Container(
+       width: double.infinity,
+       height: double.infinity,
+-      //decoration: BoxDecoration(color: const Color.fromARGB(255, 8, 8, 8)),
+-      padding: EdgeInsets.symmetric(horizontal: 10),
++      padding: EdgeInsets.symmetric(horizontal: 12.w),
+       child: Column(
++        crossAxisAlignment: CrossAxisAlignment.start,
+         children: [
+-          backBox(context, _controller1, _controller2), //leave as is
+-          screenName(), //leave as is
+-          Stack(
+-            //adding the search cluster here
+-            alignment: Alignment.centerLeft,
+-            children: [
+-              Column(
+-                children: [
+-                  Container(
+-                    margin: EdgeInsets.only(
+-                      bottom: 10, //left: 40,
+-                      top: 20,
+-                    ),
+-                    decoration: BoxDecoration(
+-                      color: const Color.fromARGB(255, 208, 208, 208),
+-                      //color: const Color.fromARGB(255, 8, 8, 8),
+-                      // border: Border.all(
+-                      //   color: const Color.fromARGB(255, 234, 234, 234),
+-                      //   width: 1,
+-                      // ),
+-                      borderRadius: BorderRadius.circular(0), //40
+-                    ),
+-                    //width: double.infinity,
+-                    height: 90.h,
+-                    child: Column(
+-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+-                      crossAxisAlignment: CrossAxisAlignment.start,
+-                      children: [
+-                        Container(
+-                          margin: const EdgeInsets.fromLTRB(15, 0, 10, 0),
+-                          child: TextField(
+-                            textCapitalization:
+-                                TextCapitalization
+-                                    .sentences, //makes the keyboard open with caps on for first letter
+-                            focusNode: _focusNode1,
+-                            cursorOpacityAnimates: true,
+-                            controller: _controller1,
+-                            onChanged: filterStationsLogic,
+-                            decoration: InputDecoration.collapsed(
+-                              border: InputBorder.none,
+-                              hintText: "From",
+-                              hintStyle: TextStyle(
+-                                color: const Color.fromARGB(200, 68, 68, 68),
+-                                fontWeight: FontWeight.w500,
+-                              ),
+-                            ),
+-                            style: TextStyle(
+-                              color: const Color.fromARGB(225, 15, 15, 15),
+-                              fontSize: 18.sp,
+-                              fontFamily: 'Poppins',
+-                              fontWeight: FontWeight.w500,
+-                            ),
+-                          ),
+-                        ),
+-                        Divider(
+-                          color: const Color.fromARGB(255, 8, 8, 8),
+-                          height: 1.h,
+-                          thickness: 2,
+-                        ),
+-                        Container(
+-                          margin: const EdgeInsets.fromLTRB(15, 0, 10, 0),
+-                          child: TextField(
+-                            textCapitalization: TextCapitalization.sentences,
+-                            focusNode: _focusNode2,
+-                            cursorOpacityAnimates: true,
+-                            controller: _controller2,
+-                            onChanged: filterStationsLogic,
+-                            decoration: InputDecoration.collapsed(
+-                              border: InputBorder.none,
+-                              hintText: "To",
+-                              hintStyle: TextStyle(
+-                                color: const Color.fromARGB(200, 68, 68, 68),
+-                                fontWeight: FontWeight.w500,
+-                              ),
+-                            ),
+-                            style: TextStyle(
+-                              color: const Color.fromARGB(225, 15, 15, 15),
+-                              fontSize: 18.sp,
+-                              fontFamily: 'Poppins',
+-                              fontWeight: FontWeight.w500,
+-                            ),
+-                          ),
+-                        ),
+-                      ],
+-                    ),
+-                  ),
+-                  Divider(
+-                    color: AppColors.divider,
+-                    thickness: 0.2,
+-                    height: 1.h,
+-                  ),
+-                ],
+-              ),
+-              //fromToIcon(),
+-            ], //add flip circle function flipcircle()
++          _buildBackBox(context),
++          _buildScreenTitle(),
++          _buildSearchField(),
++          Divider(
++            color: AppColors.divider,
++            thickness: 0.2,
++            height: 15.h,
+           ),
+-          stationList(
+-            filteredStations,
+-            _controller1,
+-            _controller2,
+-            _focusNode1,
+-            _focusNode2,
++          Expanded(
++            child: _isLoading
++                ? const Center(child: CupertinoActivityIndicator(color: Colors.white))
++                : _buildRoutesList(),
+           ),
+         ],
+       ),
+     );
+   }
+-}
+ 
+-backBox(BuildContext context, controller1, controller2) {
+-  return Row(
+-    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+-    children: [
+-      Container(
+-        //back button sized box
+-        padding: EdgeInsets.fromLTRB(0, 20, 15, 20),
+-        //height: 50.h,
+-        child: GestureDetector(
+-          onTap: () {
+-            HitTestBehavior.opaque;
+-            if (MediaQuery.of(context).viewInsets.bottom != 0) {
+-              //if keyboard is open it closes first then the screen goes back
+-              FocusScope.of(context).unfocus();
+-              Navigator.pop(context);
+-            } else {
++  Widget _buildBackBox(BuildContext context) {
++    return Row(
++      mainAxisAlignment: MainAxisAlignment.spaceBetween,
++      children: [
++        Container(
++          padding: EdgeInsets.fromLTRB(0, 15.h, 15.w, 15.h),
++          child: GestureDetector(
++            onTap: () {
++              if (MediaQuery.of(context).viewInsets.bottom != 0) {
++                FocusScope.of(context).unfocus();
++              }
+               Navigator.pop(context);
+-            }
+-          },
+-          child: Row(
+-            children: [
+-              Icon(
+-                CupertinoIcons
+-                    .back, //check if the icon gesture detector working
+-                color: const Color.fromARGB(255, 47, 130, 255),
+-              ),
+-              Text(
+-                "Back",
+-                style: TextStyle(
+-                  color: const Color.fromARGB(255, 47, 130, 255),
+-                  fontWeight: FontWeight.w500,
+-                  fontFamily: 'Poppins',
+-                  fontSize: 18.sp,
++            },
++            child: Row(
++              children: [
++                Icon(
++                  CupertinoIcons.back,
++                  color: AppColors.primaryAccent,
++                  size: 20.sp,
+                 ),
+-              ),
+-            ],
++                SizedBox(width: 4.w),
++                Text(
++                  "Back",
++                  style: TextStyle(
++                    color: AppColors.primaryAccent,
++                    fontWeight: FontWeight.w600,
++                    fontFamily: 'Poppins',
++                    fontSize: 16.sp,
++                  ),
++                ),
++              ],
++            ),
+           ),
+         ),
+-      ),
+-      //Icon(Icons.route, color: const Color.fromARGB(255, 175, 175, 175)),
+-    ],
+-  );
+-}
++      ],
++    );
++  }
+ 
+-screenName() {
+-  //Plan your trip box
+-  return Center(
+-    child: Text(
+-      "Plan your trip",
+-      style: TextStyle(
+-        color: Color.fromARGB(255, 220, 220, 220),
+-        fontSize: 20.sp,
+-        fontWeight: FontWeight.w500,
++  Widget _buildScreenTitle() {
++    return Container(
++      margin: EdgeInsets.only(bottom: 12.h),
++      child: Text(
++        "Search Buses",
++        style: TextStyle(
++          color: AppColors.primaryText,
++          fontSize: 22.sp,
++          fontWeight: FontWeight.w700,
++          fontFamily: 'Poppins',
++        ),
+       ),
+-    ),
+-  );
+-}
+-
+-Widget fromToIcon() {
+-  //icons on the left side of the search box
+-  return Column(
+-    children: [
+-      Icon(CupertinoIcons.circle, color: Colors.white),
+-      Icon(Icons.arrow_drop_down, color: Colors.white),
+-      Icon(CupertinoIcons.square, color: Colors.white),
+-    ],
+-  );
+-}
+-
+-Map<String, Map<String, dynamic>> coreTransferStationsDict = {
+-  //used for transfer screen process, making sure both source and destination are available
+-  //Dictionary format
+-  'Source': {}, //adding some defaults
+-  'Destination': {},
+-};
++    );
++  }
+ 
+-Widget stationList(
+-  // widget that is expanded and scrollable of stations at bottom
+-  List<dynamic> stations,
+-  controller1,
+-  controller2,
+-  focusNode1,
+-  focusNode2,
+-) {
+-  if (stations.isEmpty) {
+-    return const Center(
+-      child: Column(
++  Widget _buildSearchField() {
++    return Container(
++      margin: EdgeInsets.only(bottom: 10.h),
++      decoration: BoxDecoration(
++        color: AppColors.whiteAccent,
++        borderRadius: BorderRadius.zero, // NeoPop Sharp Corners
++      ),
++      height: 48.h,
++      alignment: Alignment.centerLeft,
++      padding: EdgeInsets.symmetric(horizontal: 12.w),
++      child: Row(
+         children: [
+-          SizedBox(height: 30),
+-          //CupertinoActivityIndicator(color: Colors.white, radius: 15),
+           Icon(
+-            CupertinoIcons.exclamationmark_circle_fill,
+-            color: Color.fromARGB(255, 255, 145, 145),
++            CupertinoIcons.search,
++            color: AppColors.background,
++            size: 20.sp,
+           ),
+-          Text(
+-            "no matches found",
+-            style: TextStyle(
+-              color: Color.fromARGB(255, 255, 145, 145),
+-              fontSize: 20,
+-              fontWeight: FontWeight.w500,
++          SizedBox(width: 8.w),
++          Expanded(
++            child: TextField(
++              textCapitalization: TextCapitalization.characters, // Bus numbers are often alphanumeric uppercase
++              focusNode: _focusNode,
++              controller: _controller,
++              onChanged: _searchRoutes,
++              decoration: InputDecoration.collapsed(
++                border: InputBorder.none,
++                hintText: "Search Bus / Route No (e.g. 502)",
++                hintStyle: TextStyle(
++                  color: const Color.fromARGB(150, 15, 15, 15),
++                  fontWeight: FontWeight.w500,
++                  fontSize: 15.sp,
++                ),
++              ),
++              style: TextStyle(
++                color: AppColors.background,
++                fontSize: 16.sp,
++                fontFamily: 'Poppins',
++                fontWeight: FontWeight.w600,
++              ),
+             ),
+           ),
++          if (_controller.text.isNotEmpty)
++            GestureDetector(
++              onTap: () {
++                _controller.clear();
++                _searchRoutes("");
++              },
++              child: Icon(
++                CupertinoIcons.clear,
++                color: AppColors.background,
++                size: 16.sp,
++              ),
++            ),
+         ],
+       ),
+     );
+   }
+ 
+-  return Expanded(
+-    child: ListView.separated(
+-      itemCount: stations.length,
+-      itemBuilder: (context, index) {
+-        var station = stations[index];
++  Widget _buildRoutesList() {
++    if (_filteredRoutes.isEmpty) {
++      return Center(
++        child: Column(
++          mainAxisAlignment: MainAxisAlignment.center,
++          children: [
++            Icon(
++              CupertinoIcons.exclamationmark_circle_fill,
++              color: AppColors.destructive,
++              size: 28.sp,
++            ),
++            SizedBox(height: 10.h),
++            Text(
++              "No matching routes found",
++              style: TextStyle(
++                color: AppColors.destructive,
++                fontSize: 16.sp,
++                fontWeight: FontWeight.w500,
++                fontFamily: 'Poppins',
++              ),
++            ),
++          ],
++        ),
++      );
++    }
+ 
+-        // Defensive check
+-        if (station.length < 3) {
+-          return const SizedBox(); // or some error placeholder
+-        }
+-        print("Later JSON station is $station");
+-        print("Later JSON station name is ${station["Name"]}");
+-        String line = station["Line"] ?? "";
+-        line = line.replaceAll(RegExp(r'[\[\]]'), '');
+-        List<String> lineNumbers = line.isNotEmpty ? line.split('-') : [];
+-        //List<int> lineNumbers = [1, 4];
+-        //HARD CODED LINE NUMBERS FOR NOW
+-        //print("Line numbers: $lineNumbers");
+-        String name = station["Name"]; // Station Name
+-        String hindiName =
+-            station["Hindi"]; // not hindiName actually hindi name
++    return ListView.separated(
++      itemCount: _filteredRoutes.length,
++      separatorBuilder: (context, index) => Divider(
++        color: AppColors.divider,
++        thickness: 0.5,
++        height: 1,
++      ),
++      itemBuilder: (context, index) {
++        final route = _filteredRoutes[index];
++        final routeName = route['route_long_name'] as String;
++        final headsign = route['headsign'] as String? ?? "DTC Bus Route";
+ 
+         return InkWell(
+-          focusColor: const Color.fromARGB(0, 255, 255, 255),
+-          splashColor: const Color.fromARGB(86, 76, 76, 76),
+           onTap: () {
+-            //print("ControllerName: $name");
+-            if (focusNode1.hasFocus) {
+-              print("coreTransferStationsDict is focus node 2 fault");
+-              //inputs text in the text filed on tap
+-              controller1.text = name;
+-              //FocusScope.of(context).requestFocus(focusNode2);
+-              print("JSON STATION CODE IS ${station["Station Code"]}");
+-              coreTransferStationsDict['Source'] = //TODO: MAKE IT COMAPITABLE WITH TRAFER DICT SO THAT SUGGESTION ON HOMESCREEN ADAPT TO FORMAT
+-                  station;
+-              if (ifDestinationSelected() && ifSourceSelected()) {
+-                /////////NEWLY ADDED-------------
+-                print("Destination selected ${controller2.text}");
+-                screenTransferController(
+-                  context,
+-                  controller1, //changed
+-                  controller2,
+-                );
+-              } else {
+-                focusNode2.requestFocus();
+-              }
+-            }
+-            if (focusNode2.hasFocus) {
+-              print("coreTransferStationsDict is focus node 2 fault");
+-              controller2.text = name;
+-              coreTransferStationsDict['Destination'] = station;
+-
+-              // screenTransferController(
+-              //   context,
+-              //   controller1.text,
+-              //   controller2.text,
+-              // );
+-              if (ifSourceSelected() && ifDestinationSelected()) {
+-                /////////NEWLY ADDED-------------
+-                screenTransferController(context, controller1, controller2);
+-              } else {
+-                focusNode1.requestFocus();
+-              }
+-            }
+-            //  else {
+-            //   focusNode1.requestFocus();
+-            //   controller1.text = name;
+-            //   FocusScope.of(context).requestFocus(focusNode2);
+-            // }
+-          },
+-          child: StationUnit(
+-            name: name,
+-            hindiName: hindiName,
+-            lines: lineNumbers,
+-          ),
+-        );
+-      },
+-      separatorBuilder: (context, index) {
+-        return const Divider(color: Color.fromARGB(255, 27, 27, 27), height: 1);
+-      },
+-    ),
+-  );
+-}
+-
+-screenTransferController(context, controller1, controller2) {
+-  String source = controller1.text;
+-  String destination = controller2.text;
+-  //sends user to next route screen
+-  if (
+-  // ifSourceSelected() &&
+-  //   ifDestinationSelected() &&
+-  source.isNotEmpty &&
+-      destination.isNotEmpty &&
+-      coreTransferStationsDict['Source'] !=
+-          coreTransferStationsDict['Destination']) {
+-    //checks for source and destination in dectinory and the text controller text if all are valid only then proceed and destination is not same as source
+-    if (coreTransferStationsDict['Source']!["Name"] != source ||
+-        coreTransferStationsDict['Destination']!["Name"] != destination) {
+-      //confirms user input if there is a mismatch between dictionary and textfield
+-      showDialog(
+-        //warns user with that BIG GREEN BOX for mis match
+-        context: context,
+-        builder:
+-            (context) => AlertDialog(
+-              backgroundColor: const Color.fromARGB(255, 31, 200, 127),
+-              title: Text(
+-                "${coreTransferStationsDict['Source']!['Name']} to ${coreTransferStationsDict['Destination']!['Name']}",
+-                style: TextStyle(
+-                  fontWeight: FontWeight.w800,
+-                  fontFamily: "Poppins",
++            FocusScope.of(context).unfocus();
++            Provider.of<DataProvider>(context, listen: false).addBusToHistory(
++              route['route_id'] as String,
++              routeName,
++              headsign,
++            );
++            Navigator.push(
++              context,
++              MaterialPageRoute(
++                builder: (context) => BusInfoScreen(
++                  routeId: route['route_id'] as String,
++                  routeLongName: routeName,
+                 ),
+               ),
+-              shape: RoundedRectangleBorder(
+-                borderRadius: BorderRadius.circular(2),
+-              ),
+-              content: Text(
+-                'Is this correct?',
+-                style: TextStyle(
+-                  fontFamily: "Poppins",
+-                  color: Colors.black,
+-                  fontWeight: FontWeight.w300,
+-                ),
+-              ),
+-              actions: [
+-                TextButton(
+-                  style: TextButton.styleFrom(
+-                    backgroundColor: Colors.black,
+-                    foregroundColor: const Color.fromARGB(255, 255, 255, 255),
+-                  ),
+-                  onPressed: () {
+-                    Navigator.pop(context);
+-                    coreTransferStationsDict
+-                        .clear(); //reset just so user does not gets even more confused
+-                    controller1.text = ''; //reset
+-                    controller2.text = ''; //reset
+-                  },
+-                  child: Text(
+-                    'Cancel',
+-                    style: TextStyle(fontFamily: "Poppins"),
++            );
++          },
++          child: Container(
++            padding: EdgeInsets.symmetric(vertical: 14.h, horizontal: 8.w),
++            child: Row(
++              children: [
++                Container(
++                  width: 52.w,
++                  height: 36.h,
++                  padding: EdgeInsets.all(4.w),
++                  child: Image.asset(
++                    'assets/Image/dtc.png',
++                    fit: BoxFit.contain,
+                   ),
+                 ),
+-                TextButton(
+-                  style: TextButton.styleFrom(
+-                    backgroundColor: Colors.black,
+-                    foregroundColor: const Color.fromARGB(255, 255, 255, 255),
+-                  ),
+-                  onPressed: () {
+-                    Navigator.push(
+-                      context,
+-                      CupertinoPageRoute(
+-                        builder:
+-                            (context) => RouteScreen(
+-                              coreTransferStationsDict:
+-                                  coreTransferStationsDict,
+-                            ),
++                SizedBox(width: 14.w),
++                Expanded(
++                  child: Column(
++                    crossAxisAlignment: CrossAxisAlignment.start,
++                    children: [
++                      Text(
++                        "Route $routeName",
++                        style: TextStyle(
++                          color: AppColors.primaryText,
++                          fontSize: 15.sp,
++                          fontWeight: FontWeight.w600,
++                          fontFamily: 'Poppins',
++                        ),
++                      ),
++                      SizedBox(height: 2.h),
++                      Text(
++                        headsign.isNotEmpty ? "To $headsign" : "DTC Bus Service",
++                        style: TextStyle(
++                          color: AppColors.secondaryText,
++                          fontSize: 12.sp,
++                          fontWeight: FontWeight.w400,
++                          fontFamily: 'Poppins',
++                        ),
++                        maxLines: 1,
++                        overflow: TextOverflow.ellipsis,
+                       ),
+-                    );
+-                  },
+-                  child: Text(
+-                    'Continue',
+-                    style: TextStyle(fontFamily: "Poppins"),
++                    ],
+                   ),
+                 ),
++                Icon(
++                  CupertinoIcons.chevron_forward,
++                  color: AppColors.tertiaryText,
++                  size: 16.sp,
++                ),
+               ],
+             ),
+-      );
+-    } else {
+-      Navigator.push(
+-        context,
+-        MaterialPageRoute(
+-          builder:
+-              (context) => RouteScreen(
+-                coreTransferStationsDict: coreTransferStationsDict,
+-              ),
+-        ),
+-      );
+-    }
+-  } else {
+-    final snackBar = SnackBar(
+-      backgroundColor: const Color.fromARGB(255, 31, 200, 127),
+-      content: const Text(
+-        'Please select both departure and arrival correctly',
+-        style: TextStyle(
+-          color: Colors.black,
+-          fontWeight: FontWeight.w300,
+-          fontFamily: "Poppins",
+-        ),
+-      ),
+-      action: SnackBarAction(
+-        backgroundColor: Colors.black,
+-        label: 'Okay',
+-        textColor: Colors.white,
+-        onPressed: () {
+-          //if you think of anyhting that would be good for UX add here
+-        },
+-      ),
++          ),
++        );
++      },
+     );
+-    ScaffoldMessenger.of(context).showSnackBar(snackBar);
+-  }
+-}
+-
+-bool ifSourceSelected() {
+-  //put these checks on different and opposite text fields
+-  try {
+-    return coreTransferStationsDict['Source']?.isNotEmpty ?? false;
+-  } catch (e) {
+-    return false;
+-  }
+-}
+-
+-bool ifDestinationSelected() {
+-  try {
+-    return coreTransferStationsDict['Destination']?.isNotEmpty ?? false;
+-  } catch (e) {
+-    return false;
+   }
+ }
+diff --git a/lib/main.dart b/lib/main.dart
+index 7ce10d7..876f819 100644
+--- a/lib/main.dart
++++ b/lib/main.dart
+@@ -5,12 +5,11 @@ import 'package:provider/provider.dart';
+ import 'package:skeletonizer/skeletonizer.dart';
+ import 'elements/metro.dart';
+ import 'package:flutter_screenutil/flutter_screenutil.dart';
+-
+ void main() async {
+   WidgetsFlutterBinding.ensureInitialized();
+-  final dataProvider =
+-      DataProvider(); // UPDATES MOST RECENT SEARCHES FROM MEMORY
++  final dataProvider = DataProvider();
+   await dataProvider.loadTransferDictFromPrefs();
++  await dataProvider.loadBusSearchHistory();
+ 
+   // Set global status bar style
+   SystemChrome.setSystemUIOverlayStyle(

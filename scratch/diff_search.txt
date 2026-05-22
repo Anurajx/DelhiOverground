@@ -1,0 +1,949 @@
+﻿diff --git a/lib/elements/search.dart b/lib/elements/search.dart
+index 7fd6be9..6988a87 100644
+--- a/lib/elements/search.dart
++++ b/lib/elements/search.dart
+@@ -1,20 +1,73 @@
+-import 'dart:convert';
+-
++import 'dart:io';
+ import 'package:flutter/services.dart';
+ import 'package:flutter_screenutil/flutter_screenutil.dart';
+ import 'package:metroapp/main.dart';
+-import 'route.dart';
+ import 'package:flutter/cupertino.dart';
+ import 'package:flutter/material.dart';
+-import './ServicesDir/station_element.dart';
+-import 'package:string_similarity/string_similarity.dart';
++import 'package:sqflite/sqflite.dart';
++import 'package:path/path.dart';
++import 'bus_info.dart';
++import 'package:provider/provider.dart';
++import 'package:metroapp/elements/ServicesDir/data_provider.dart';
++import 'package:shared_preferences/shared_preferences.dart';
++
++class BusDatabaseHelper {
++  static Database? _db;
++
++  static Future<Database> getDatabase() async {
++    if (_db != null && _db!.isOpen) return _db!;
++    final dbPath = await getDatabasesPath();
++    final path = join(dbPath, "routes.db");
++
++    final prefs = await SharedPreferences.getInstance();
++    final currentDbVersion = prefs.getInt('db_version_key') ?? 0;
++    const targetDbVersion = 3; // Increment this whenever the database asset changes
++
++    bool needsCopy = false;
++    final exists = await databaseExists(path);
++    if (!exists || currentDbVersion < targetDbVersion) {
++      needsCopy = true;
++    } else {
++      try {
++        final tempDb = await openDatabase(path, readOnly: true);
++        final tables = await tempDb.rawQuery(
++          "SELECT name FROM sqlite_master WHERE type='table' AND name='stop_times'"
++        );
++        await tempDb.close();
++        if (tables.isEmpty) {
++          needsCopy = true;
++        }
++      } catch (e) {
++        needsCopy = true;
++      }
++    }
++
++    if (needsCopy) {
++      try {
++        final file = File(path);
++        if (await file.exists()) {
++          await file.delete();
++        }
++      } catch (e) {
++        // ignore
++      }
++      final data = await rootBundle.load("assets/routes.db");
++      final bytes = data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
++      await File(path).writeAsBytes(bytes, flush: true);
++      await prefs.setInt('db_version_key', targetDbVersion);
++    }
++
++    _db = await openDatabase(path, readOnly: true);
++    return _db!;
++  }
++}
+ 
+ class SearchScreen extends StatefulWidget {
+   final String? destination;
+   const SearchScreen({
+     super.key,
+     this.destination,
+-  }); //if destination comes as an argument aslo calulate sopurce station with gps location if gps not available use homestation if that too now available leave that space empty
++  });
+ 
+   @override
+   State<SearchScreen> createState() => _SearchScreenState();
+@@ -23,139 +76,118 @@ class SearchScreen extends StatefulWidget {
+ class _SearchScreenState extends State<SearchScreen> {
+   @override
+   Widget build(BuildContext context) {
+-    return SafeArea(
++    return const SafeArea(
+       child: Scaffold(
+-        backgroundColor: const Color.fromARGB(255, 0, 0, 0),
+-        body: SearchBody(context: context, destination: widget.destination),
+-        //resizeToAvoidBottomInset: true,
++        backgroundColor: Colors.black,
++        body: SearchBody(),
+       ),
+     );
+   }
+ }
+ 
+ class SearchBody extends StatefulWidget {
+-  final dynamic context;
+-  final String? destination;
+-
+-  const SearchBody({super.key, required this.context, this.destination});
++  const SearchBody({super.key});
+ 
+   @override
+   State<SearchBody> createState() => _SearchBodyState();
+ }
+ 
+ class _SearchBodyState extends State<SearchBody> {
+-  final FocusNode _focusNode1 = FocusNode();
+-  final FocusNode _focusNode2 = FocusNode();
+-  final TextEditingController _controller1 = TextEditingController();
+-  final TextEditingController _controller2 = TextEditingController();
+-  List<dynamic> orignalStations = [];
+-  List<dynamic> filteredStations = [];
+-  //bool _shouldClear = false;
++  final FocusNode _focusNode = FocusNode();
++  final TextEditingController _controller = TextEditingController();
++  List<Map<String, dynamic>> _allRoutes = [];
++  List<Map<String, dynamic>> _filteredRoutes = [];
++  bool _isLoading = true;
+ 
+   @override
+   void initState() {
+     super.initState();
+-    _focusNode1.addListener(() {
+-      setState(() {
+-        filterStationsLogic(_controller1.text);
+-      });
+-    });
+-    _focusNode2.addListener(() {
+-      setState(() {
+-        filterStationsLogic(_controller2.text);
+-      });
+-    });
+-
+     WidgetsBinding.instance.addPostFrameCallback((_) {
+-      _focusNode1.requestFocus();
+-    });
+-    loadStationsFromJson().then((stations) {
+-      setState(() {
+-        orignalStations = stations;
+-        filteredStations = stations;
+-      });
++      _focusNode.requestFocus();
+     });
++    _loadInitialRoutes();
+   }
+ 
+-  @override
+-  void deactivate() {
+-    // when the router is poped and user goes back to home screen this is triggered
+-    super.deactivate();
+-    // context.read<DataProvider>().updateCoreTransferStationsDict({
+-    // });
+-    if (!Navigator.canPop(context)) {
+-      coreTransferStationsDict.clear();
++  Future<void> _loadInitialRoutes() async {
++    try {
++      final db = await BusDatabaseHelper.getDatabase();
++      final results = await db.rawQuery('''
++        SELECT r.route_id, r.route_long_name, 
++               (SELECT DISTINCT trip_headsign FROM trips t WHERE t.route_id = r.route_id LIMIT 1) as headsign
++        FROM routes r
++        GROUP BY r.route_long_name
++        ORDER BY r.route_long_name ASC
++        LIMIT 100
++      ''');
++      
++      if (mounted) {
++        setState(() {
++          _allRoutes = List<Map<String, dynamic>>.from(results);
++          _filteredRoutes = _allRoutes;
++          _isLoading = false;
++        });
++      }
++    } catch (e) {
++      if (mounted) {
++        setState(() {
++          _isLoading = false;
++        });
++      }
+     }
+   }
+-  //////////////
+-
+-  void filterStationsLogic(String query) {
+-    //TODO: MAKE THIS COMPAITABLE WITH JSON
+-    //Logiv to find the best match
+-    final lowerQuery = query.toLowerCase();
+ 
++  Future<void> _searchRoutes(String query) async {
++    if (query.trim().isEmpty) {
++      setState(() {
++        _filteredRoutes = _allRoutes;
++      });
++      return;
++    }
++    
+     setState(() {
+-      if (query.isNotEmpty) {
+-        // Create list of entries with scores
+-        final scoredList =
+-            orignalStations
+-                .where(
+-                  (station) =>
+-                      station["Name"] != null && station["Hindi"] != null,
+-                )
+-                //print("JSON STATIONS IS $orignalStations")
+-                .map((station) {
+-                  final name = station["Name"]?.toString().toLowerCase() ?? "";
+-                  final zone = station["Hindi"]?.toString().toLowerCase() ?? "";
+-                  print("JSON ZONE IS $zone");
+-                  final nameScore = StringSimilarity.compareTwoStrings(
+-                    name,
+-                    lowerQuery,
+-                  );
+-                  final zoneScore = StringSimilarity.compareTwoStrings(
+-                    zone,
+-                    lowerQuery,
+-                  );
+-
+-                  // Combine both scores (weight name higher if needed)
+-                  final combinedScore = (nameScore + zoneScore);
++      _isLoading = true;
++    });
+ 
+-                  return MapEntry(station, combinedScore);
+-                })
+-                .where(
+-                  (entry) =>
+-                      entry.value > 0.7 || // Similarity threshold
+-                      entry.key["Name"]?.toString().toLowerCase().contains(
+-                            lowerQuery,
+-                          ) ==
+-                          true || //checks if the query matches the name or hindi name/common name
+-                      entry.key["Hindi"]?.toString().toLowerCase().contains(
+-                            lowerQuery,
+-                          ) ==
+-                          true,
+-                )
+-                .toList();
++    try {
++      final db = await BusDatabaseHelper.getDatabase();
++      final results = await db.rawQuery('''
++        SELECT r.route_id, r.route_long_name, 
++               (SELECT DISTINCT trip_headsign FROM trips t WHERE t.route_id = r.route_id LIMIT 1) as headsign
++        FROM routes r
++        WHERE r.route_long_name LIKE ?
++        GROUP BY r.route_long_name
++        LIMIT 50
++      ''', ['%$query%']);
+ 
+-        // Sort stations by score descending
+-        scoredList.sort((a, b) => b.value.compareTo(a.value));
++      final sortedResults = List<Map<String, dynamic>>.from(results);
++      final lowerQuery = query.toLowerCase().trim();
++      sortedResults.sort((a, b) {
++        final aName = (a['route_long_name'] as String).toLowerCase();
++        final bName = (b['route_long_name'] as String).toLowerCase();
++        
++        if (aName == lowerQuery && bName != lowerQuery) return -1;
++        if (bName == lowerQuery && aName != lowerQuery) return 1;
++        
++        final aStarts = aName.startsWith(lowerQuery);
++        final bStarts = bName.startsWith(lowerQuery);
++        if (aStarts && !bStarts) return -1;
++        if (bStarts && !aStarts) return 1;
++        
++        return aName.compareTo(bName);
++      });
+ 
+-        // Extract only the station entries
+-        filteredStations = scoredList.map((entry) => entry.key).toList();
+-      } else {
+-        filteredStations = orignalStations;
++      if (mounted) {
++        setState(() {
++          _filteredRoutes = sortedResults;
++          _isLoading = false;
++        });
+       }
+-    });
+-  }
+-
+-  Future<List> loadStationsFromJson() async {
+-    try {
+-      final jsonRawData = await rootBundle.loadString(
+-        "assets/Map/stationsjson.json",
+-      );
+-      final List<dynamic> jsonList = jsonDecode(jsonRawData);
+-      return jsonList;
+     } catch (e) {
+-      return [];
++      if (mounted) {
++        setState(() {
++          _isLoading = false;
++        });
++      }
+     }
+   }
+ 
+@@ -164,440 +196,247 @@ class _SearchBodyState extends State<SearchBody> {
+     return Container(
+       width: double.infinity,
+       height: double.infinity,
+-      //decoration: BoxDecoration(color: const Color.fromARGB(255, 8, 8, 8)),
+-      padding: EdgeInsets.symmetric(horizontal: 10),
++      padding: EdgeInsets.symmetric(horizontal: 12.w),
+       child: Column(
++        crossAxisAlignment: CrossAxisAlignment.start,
+         children: [
+-          backBox(context, _controller1, _controller2), //leave as is
+-          screenName(), //leave as is
+-          Stack(
+-            //adding the search cluster here
+-            alignment: Alignment.centerLeft,
+-            children: [
+-              Column(
+-                children: [
+-                  Container(
+-                    margin: EdgeInsets.only(
+-                      bottom: 10, //left: 40,
+-                      top: 20,
+-                    ),
+-                    decoration: BoxDecoration(
+-                      color: const Color.fromARGB(255, 208, 208, 208),
+-                      //color: const Color.fromARGB(255, 8, 8, 8),
+-                      // border: Border.all(
+-                      //   color: const Color.fromARGB(255, 234, 234, 234),
+-                      //   width: 1,
+-                      // ),
+-                      borderRadius: BorderRadius.circular(0), //40
+-                    ),
+-                    //width: double.infinity,
+-                    height: 90.h,
+-                    child: Column(
+-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+-                      crossAxisAlignment: CrossAxisAlignment.start,
+-                      children: [
+-                        Container(
+-                          margin: const EdgeInsets.fromLTRB(15, 0, 10, 0),
+-                          child: TextField(
+-                            textCapitalization:
+-                                TextCapitalization
+-                                    .sentences, //makes the keyboard open with caps on for first letter
+-                            focusNode: _focusNode1,
+-                            cursorOpacityAnimates: true,
+-                            controller: _controller1,
+-                            onChanged: filterStationsLogic,
+-                            decoration: InputDecoration.collapsed(
+-                              border: InputBorder.none,
+-                              hintText: "From",
+-                              hintStyle: TextStyle(
+-                                color: const Color.fromARGB(200, 68, 68, 68),
+-                                fontWeight: FontWeight.w500,
+-                              ),
+-                            ),
+-                            style: TextStyle(
+-                              color: const Color.fromARGB(225, 15, 15, 15),
+-                              fontSize: 18.sp,
+-                              fontFamily: 'Poppins',
+-                              fontWeight: FontWeight.w500,
+-                            ),
+-                          ),
+-                        ),
+-                        Divider(
+-                          color: const Color.fromARGB(255, 8, 8, 8),
+-                          height: 1.h,
+-                          thickness: 2,
+-                        ),
+-                        Container(
+-                          margin: const EdgeInsets.fromLTRB(15, 0, 10, 0),
+-                          child: TextField(
+-                            textCapitalization: TextCapitalization.sentences,
+-                            focusNode: _focusNode2,
+-                            cursorOpacityAnimates: true,
+-                            controller: _controller2,
+-                            onChanged: filterStationsLogic,
+-                            decoration: InputDecoration.collapsed(
+-                              border: InputBorder.none,
+-                              hintText: "To",
+-                              hintStyle: TextStyle(
+-                                color: const Color.fromARGB(200, 68, 68, 68),
+-                                fontWeight: FontWeight.w500,
+-                              ),
+-                            ),
+-                            style: TextStyle(
+-                              color: const Color.fromARGB(225, 15, 15, 15),
+-                              fontSize: 18.sp,
+-                              fontFamily: 'Poppins',
+-                              fontWeight: FontWeight.w500,
+-                            ),
+-                          ),
+-                        ),
+-                      ],
+-                    ),
+-                  ),
+-                  Divider(
+-                    color: AppColors.divider,
+-                    thickness: 0.2,
+-                    height: 1.h,
+-                  ),
+-                ],
+-              ),
+-              //fromToIcon(),
+-            ], //add flip circle function flipcircle()
++          _buildBackBox(context),
++          _buildScreenTitle(),
++          _buildSearchField(),
++          Divider(
++            color: AppColors.divider,
++            thickness: 0.2,
++            height: 15.h,
+           ),
+-          stationList(
+-            filteredStations,
+-            _controller1,
+-            _controller2,
+-            _focusNode1,
+-            _focusNode2,
++          Expanded(
++            child: _isLoading
++                ? const Center(child: CupertinoActivityIndicator(color: Colors.white))
++                : _buildRoutesList(),
+           ),
+         ],
+       ),
+     );
+   }
+-}
+ 
+-backBox(BuildContext context, controller1, controller2) {
+-  return Row(
+-    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+-    children: [
+-      Container(
+-        //back button sized box
+-        padding: EdgeInsets.fromLTRB(0, 20, 15, 20),
+-        //height: 50.h,
+-        child: GestureDetector(
+-          onTap: () {
+-            HitTestBehavior.opaque;
+-            if (MediaQuery.of(context).viewInsets.bottom != 0) {
+-              //if keyboard is open it closes first then the screen goes back
+-              FocusScope.of(context).unfocus();
+-              Navigator.pop(context);
+-            } else {
++  Widget _buildBackBox(BuildContext context) {
++    return Row(
++      mainAxisAlignment: MainAxisAlignment.spaceBetween,
++      children: [
++        Container(
++          padding: EdgeInsets.fromLTRB(0, 15.h, 15.w, 15.h),
++          child: GestureDetector(
++            onTap: () {
++              if (MediaQuery.of(context).viewInsets.bottom != 0) {
++                FocusScope.of(context).unfocus();
++              }
+               Navigator.pop(context);
+-            }
+-          },
+-          child: Row(
+-            children: [
+-              Icon(
+-                CupertinoIcons
+-                    .back, //check if the icon gesture detector working
+-                color: const Color.fromARGB(255, 47, 130, 255),
+-              ),
+-              Text(
+-                "Back",
+-                style: TextStyle(
+-                  color: const Color.fromARGB(255, 47, 130, 255),
+-                  fontWeight: FontWeight.w500,
+-                  fontFamily: 'Poppins',
+-                  fontSize: 18.sp,
++            },
++            child: Row(
++              children: [
++                Icon(
++                  CupertinoIcons.back,
++                  color: AppColors.primaryAccent,
++                  size: 20.sp,
+                 ),
+-              ),
+-            ],
++                SizedBox(width: 4.w),
++                Text(
++                  "Back",
++                  style: TextStyle(
++                    color: AppColors.primaryAccent,
++                    fontWeight: FontWeight.w600,
++                    fontFamily: 'Poppins',
++                    fontSize: 16.sp,
++                  ),
++                ),
++              ],
++            ),
+           ),
+         ),
+-      ),
+-      //Icon(Icons.route, color: const Color.fromARGB(255, 175, 175, 175)),
+-    ],
+-  );
+-}
++      ],
++    );
++  }
+ 
+-screenName() {
+-  //Plan your trip box
+-  return Center(
+-    child: Text(
+-      "Plan your trip",
+-      style: TextStyle(
+-        color: Color.fromARGB(255, 220, 220, 220),
+-        fontSize: 20.sp,
+-        fontWeight: FontWeight.w500,
++  Widget _buildScreenTitle() {
++    return Container(
++      margin: EdgeInsets.only(bottom: 12.h),
++      child: Text(
++        "Search Buses",
++        style: TextStyle(
++          color: AppColors.primaryText,
++          fontSize: 22.sp,
++          fontWeight: FontWeight.w700,
++          fontFamily: 'Poppins',
++        ),
+       ),
+-    ),
+-  );
+-}
+-
+-Widget fromToIcon() {
+-  //icons on the left side of the search box
+-  return Column(
+-    children: [
+-      Icon(CupertinoIcons.circle, color: Colors.white),
+-      Icon(Icons.arrow_drop_down, color: Colors.white),
+-      Icon(CupertinoIcons.square, color: Colors.white),
+-    ],
+-  );
+-}
+-
+-Map<String, Map<String, dynamic>> coreTransferStationsDict = {
+-  //used for transfer screen process, making sure both source and destination are available
+-  //Dictionary format
+-  'Source': {}, //adding some defaults
+-  'Destination': {},
+-};
++    );
++  }
+ 
+-Widget stationList(
+-  // widget that is expanded and scrollable of stations at bottom
+-  List<dynamic> stations,
+-  controller1,
+-  controller2,
+-  focusNode1,
+-  focusNode2,
+-) {
+-  if (stations.isEmpty) {
+-    return const Center(
+-      child: Column(
++  Widget _buildSearchField() {
++    return Container(
++      margin: EdgeInsets.only(bottom: 10.h),
++      decoration: BoxDecoration(
++        color: AppColors.whiteAccent,
++        borderRadius: BorderRadius.zero, // NeoPop Sharp Corners
++      ),
++      height: 48.h,
++      alignment: Alignment.centerLeft,
++      padding: EdgeInsets.symmetric(horizontal: 12.w),
++      child: Row(
+         children: [
+-          SizedBox(height: 30),
+-          //CupertinoActivityIndicator(color: Colors.white, radius: 15),
+           Icon(
+-            CupertinoIcons.exclamationmark_circle_fill,
+-            color: Color.fromARGB(255, 255, 145, 145),
++            CupertinoIcons.search,
++            color: AppColors.background,
++            size: 20.sp,
+           ),
+-          Text(
+-            "no matches found",
+-            style: TextStyle(
+-              color: Color.fromARGB(255, 255, 145, 145),
+-              fontSize: 20,
+-              fontWeight: FontWeight.w500,
++          SizedBox(width: 8.w),
++          Expanded(
++            child: TextField(
++              textCapitalization: TextCapitalization.characters, // Bus numbers are often alphanumeric uppercase
++              focusNode: _focusNode,
++              controller: _controller,
++              onChanged: _searchRoutes,
++              decoration: InputDecoration.collapsed(
++                border: InputBorder.none,
++                hintText: "Search Bus / Route No (e.g. 502)",
++                hintStyle: TextStyle(
++                  color: const Color.fromARGB(150, 15, 15, 15),
++                  fontWeight: FontWeight.w500,
++                  fontSize: 15.sp,
++                ),
++              ),
++              style: TextStyle(
++                color: AppColors.background,
++                fontSize: 16.sp,
++                fontFamily: 'Poppins',
++                fontWeight: FontWeight.w600,
++              ),
+             ),
+           ),
++          if (_controller.text.isNotEmpty)
++            GestureDetector(
++              onTap: () {
++                _controller.clear();
++                _searchRoutes("");
++              },
++              child: Icon(
++                CupertinoIcons.clear,
++                color: AppColors.background,
++                size: 16.sp,
++              ),
++            ),
+         ],
+       ),
+     );
+   }
+ 
+-  return Expanded(
+-    child: ListView.separated(
+-      itemCount: stations.length,
+-      itemBuilder: (context, index) {
+-        var station = stations[index];
++  Widget _buildRoutesList() {
++    if (_filteredRoutes.isEmpty) {
++      return Center(
++        child: Column(
++          mainAxisAlignment: MainAxisAlignment.center,
++          children: [
++            Icon(
++              CupertinoIcons.exclamationmark_circle_fill,
++              color: AppColors.destructive,
++              size: 28.sp,
++            ),
++            SizedBox(height: 10.h),
++            Text(
++              "No matching routes found",
++              style: TextStyle(
++                color: AppColors.destructive,
++                fontSize: 16.sp,
++                fontWeight: FontWeight.w500,
++                fontFamily: 'Poppins',
++              ),
++            ),
++          ],
++        ),
++      );
++    }
+ 
+-        // Defensive check
+-        if (station.length < 3) {
+-          return const SizedBox(); // or some error placeholder
+-        }
+-        print("Later JSON station is $station");
+-        print("Later JSON station name is ${station["Name"]}");
+-        String line = station["Line"] ?? "";
+-        line = line.replaceAll(RegExp(r'[\[\]]'), '');
+-        List<String> lineNumbers = line.isNotEmpty ? line.split('-') : [];
+-        //List<int> lineNumbers = [1, 4];
+-        //HARD CODED LINE NUMBERS FOR NOW
+-        //print("Line numbers: $lineNumbers");
+-        String name = station["Name"]; // Station Name
+-        String hindiName =
+-            station["Hindi"]; // not hindiName actually hindi name
++    return ListView.separated(
++      itemCount: _filteredRoutes.length,
++      separatorBuilder: (context, index) => Divider(
++        color: AppColors.divider,
++        thickness: 0.5,
++        height: 1,
++      ),
++      itemBuilder: (context, index) {
++        final route = _filteredRoutes[index];
++        final routeName = route['route_long_name'] as String;
++        final headsign = route['headsign'] as String? ?? "DTC Bus Route";
+ 
+         return InkWell(
+-          focusColor: const Color.fromARGB(0, 255, 255, 255),
+-          splashColor: const Color.fromARGB(86, 76, 76, 76),
+           onTap: () {
+-            //print("ControllerName: $name");
+-            if (focusNode1.hasFocus) {
+-              print("coreTransferStationsDict is focus node 2 fault");
+-              //inputs text in the text filed on tap
+-              controller1.text = name;
+-              //FocusScope.of(context).requestFocus(focusNode2);
+-              print("JSON STATION CODE IS ${station["Station Code"]}");
+-              coreTransferStationsDict['Source'] = //TODO: MAKE IT COMAPITABLE WITH TRAFER DICT SO THAT SUGGESTION ON HOMESCREEN ADAPT TO FORMAT
+-                  station;
+-              if (ifDestinationSelected() && ifSourceSelected()) {
+-                /////////NEWLY ADDED-------------
+-                print("Destination selected ${controller2.text}");
+-                screenTransferController(
+-                  context,
+-                  controller1, //changed
+-                  controller2,
+-                );
+-              } else {
+-                focusNode2.requestFocus();
+-              }
+-            }
+-            if (focusNode2.hasFocus) {
+-              print("coreTransferStationsDict is focus node 2 fault");
+-              controller2.text = name;
+-              coreTransferStationsDict['Destination'] = station;
+-
+-              // screenTransferController(
+-              //   context,
+-              //   controller1.text,
+-              //   controller2.text,
+-              // );
+-              if (ifSourceSelected() && ifDestinationSelected()) {
+-                /////////NEWLY ADDED-------------
+-                screenTransferController(context, controller1, controller2);
+-              } else {
+-                focusNode1.requestFocus();
+-              }
+-            }
+-            //  else {
+-            //   focusNode1.requestFocus();
+-            //   controller1.text = name;
+-            //   FocusScope.of(context).requestFocus(focusNode2);
+-            // }
+-          },
+-          child: StationUnit(
+-            name: name,
+-            hindiName: hindiName,
+-            lines: lineNumbers,
+-          ),
+-        );
+-      },
+-      separatorBuilder: (context, index) {
+-        return const Divider(color: Color.fromARGB(255, 27, 27, 27), height: 1);
+-      },
+-    ),
+-  );
+-}
+-
+-screenTransferController(context, controller1, controller2) {
+-  String source = controller1.text;
+-  String destination = controller2.text;
+-  //sends user to next route screen
+-  if (
+-  // ifSourceSelected() &&
+-  //   ifDestinationSelected() &&
+-  source.isNotEmpty &&
+-      destination.isNotEmpty &&
+-      coreTransferStationsDict['Source'] !=
+-          coreTransferStationsDict['Destination']) {
+-    //checks for source and destination in dectinory and the text controller text if all are valid only then proceed and destination is not same as source
+-    if (coreTransferStationsDict['Source']!["Name"] != source ||
+-        coreTransferStationsDict['Destination']!["Name"] != destination) {
+-      //confirms user input if there is a mismatch between dictionary and textfield
+-      showDialog(
+-        //warns user with that BIG GREEN BOX for mis match
+-        context: context,
+-        builder:
+-            (context) => AlertDialog(
+-              backgroundColor: const Color.fromARGB(255, 31, 200, 127),
+-              title: Text(
+-                "${coreTransferStationsDict['Source']!['Name']} to ${coreTransferStationsDict['Destination']!['Name']}",
+-                style: TextStyle(
+-                  fontWeight: FontWeight.w800,
+-                  fontFamily: "Poppins",
++            FocusScope.of(context).unfocus();
++            Provider.of<DataProvider>(context, listen: false).addBusToHistory(
++              route['route_id'] as String,
++              routeName,
++              headsign,
++            );
++            Navigator.push(
++              context,
++              MaterialPageRoute(
++                builder: (context) => BusInfoScreen(
++                  routeId: route['route_id'] as String,
++                  routeLongName: routeName,
+                 ),
+               ),
+-              shape: RoundedRectangleBorder(
+-                borderRadius: BorderRadius.circular(2),
+-              ),
+-              content: Text(
+-                'Is this correct?',
+-                style: TextStyle(
+-                  fontFamily: "Poppins",
+-                  color: Colors.black,
+-                  fontWeight: FontWeight.w300,
+-                ),
+-              ),
+-              actions: [
+-                TextButton(
+-                  style: TextButton.styleFrom(
+-                    backgroundColor: Colors.black,
+-                    foregroundColor: const Color.fromARGB(255, 255, 255, 255),
+-                  ),
+-                  onPressed: () {
+-                    Navigator.pop(context);
+-                    coreTransferStationsDict
+-                        .clear(); //reset just so user does not gets even more confused
+-                    controller1.text = ''; //reset
+-                    controller2.text = ''; //reset
+-                  },
+-                  child: Text(
+-                    'Cancel',
+-                    style: TextStyle(fontFamily: "Poppins"),
++            );
++          },
++          child: Container(
++            padding: EdgeInsets.symmetric(vertical: 14.h, horizontal: 8.w),
++            child: Row(
++              children: [
++                Container(
++                  width: 52.w,
++                  height: 36.h,
++                  padding: EdgeInsets.all(4.w),
++                  child: Image.asset(
++                    'assets/Image/dtc.png',
++                    fit: BoxFit.contain,
+                   ),
+                 ),
+-                TextButton(
+-                  style: TextButton.styleFrom(
+-                    backgroundColor: Colors.black,
+-                    foregroundColor: const Color.fromARGB(255, 255, 255, 255),
+-                  ),
+-                  onPressed: () {
+-                    Navigator.push(
+-                      context,
+-                      CupertinoPageRoute(
+-                        builder:
+-                            (context) => RouteScreen(
+-                              coreTransferStationsDict:
+-                                  coreTransferStationsDict,
+-                            ),
++                SizedBox(width: 14.w),
++                Expanded(
++                  child: Column(
++                    crossAxisAlignment: CrossAxisAlignment.start,
++                    children: [
++                      Text(
++                        "Route $routeName",
++                        style: TextStyle(
++                          color: AppColors.primaryText,
++                          fontSize: 15.sp,
++                          fontWeight: FontWeight.w600,
++                          fontFamily: 'Poppins',
++                        ),
++                      ),
++                      SizedBox(height: 2.h),
++                      Text(
++                        headsign.isNotEmpty ? "To $headsign" : "DTC Bus Service",
++                        style: TextStyle(
++                          color: AppColors.secondaryText,
++                          fontSize: 12.sp,
++                          fontWeight: FontWeight.w400,
++                          fontFamily: 'Poppins',
++                        ),
++                        maxLines: 1,
++                        overflow: TextOverflow.ellipsis,
+                       ),
+-                    );
+-                  },
+-                  child: Text(
+-                    'Continue',
+-                    style: TextStyle(fontFamily: "Poppins"),
++                    ],
+                   ),
+                 ),
++                Icon(
++                  CupertinoIcons.chevron_forward,
++                  color: AppColors.tertiaryText,
++                  size: 16.sp,
++                ),
+               ],
+             ),
+-      );
+-    } else {
+-      Navigator.push(
+-        context,
+-        MaterialPageRoute(
+-          builder:
+-              (context) => RouteScreen(
+-                coreTransferStationsDict: coreTransferStationsDict,
+-              ),
+-        ),
+-      );
+-    }
+-  } else {
+-    final snackBar = SnackBar(
+-      backgroundColor: const Color.fromARGB(255, 31, 200, 127),
+-      content: const Text(
+-        'Please select both departure and arrival correctly',
+-        style: TextStyle(
+-          color: Colors.black,
+-          fontWeight: FontWeight.w300,
+-          fontFamily: "Poppins",
+-        ),
+-      ),
+-      action: SnackBarAction(
+-        backgroundColor: Colors.black,
+-        label: 'Okay',
+-        textColor: Colors.white,
+-        onPressed: () {
+-          //if you think of anyhting that would be good for UX add here
+-        },
+-      ),
++          ),
++        );
++      },
+     );
+-    ScaffoldMessenger.of(context).showSnackBar(snackBar);
+-  }
+-}
+-
+-bool ifSourceSelected() {
+-  //put these checks on different and opposite text fields
+-  try {
+-    return coreTransferStationsDict['Source']?.isNotEmpty ?? false;
+-  } catch (e) {
+-    return false;
+-  }
+-}
+-
+-bool ifDestinationSelected() {
+-  try {
+-    return coreTransferStationsDict['Destination']?.isNotEmpty ?? false;
+-  } catch (e) {
+-    return false;
+   }
+ }
