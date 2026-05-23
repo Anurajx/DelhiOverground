@@ -99,6 +99,7 @@ flutter:
     - assets/Image/bus.png
     - assets/Map/map_style.json
     - assets/Image/branding.png
+    - assets/Image/Vector.png
     - assets/Image/Vector2.png
     - assets/Image/carfooter.jpg
     - assets/Map/stationsjson.json

@@ -306,7 +306,7 @@ class _SearchBodyState extends State<SearchBody> {
               onChanged: _searchRoutes,
               decoration: InputDecoration.collapsed(
                 border: InputBorder.none,
-                hintText: "Search Bus / Route No (e.g. 502)",
+                hintText: "727",
                 hintStyle: TextStyle(
                   color: const Color.fromARGB(150, 15, 15, 15),
                   fontWeight: FontWeight.w500,
@@ -403,9 +403,9 @@ class _SearchBodyState extends State<SearchBody> {
             child: Row(
               children: [
                 Container(
-                  width: 52.w,
-                  height: 36.h,
-                  padding: EdgeInsets.all(4.w),
+                  width: 36.w,
+                  height: 24.h,
+                  padding: EdgeInsets.all(2.w),
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.zero,
                   ),
@@ -419,7 +419,7 @@ class _SearchBodyState extends State<SearchBody> {
                             "DIMTS",
                             style: TextStyle(
                               color: Colors.orange,
-                              fontSize: 9.sp,
+                              fontSize: 8.sp,
                               fontWeight: FontWeight.w800,
                               fontFamily: 'Poppins',
                               letterSpacing: 0.5,

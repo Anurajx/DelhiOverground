@@ -229,24 +229,26 @@ class _ScheduleWidgetState extends State<ScheduleWidget> {
     }
   }
 
-  Widget _buildDestinationText(String destination) {
-    final style = TextStyle(
-      color: AppColors.primaryText,
-      fontWeight: FontWeight.w600,
-      fontSize: 14.sp,
-      fontFamily: 'Poppins',
-    );
+  Widget _buildDestinationText(String destination, {TextStyle? style}) {
+    final defaultStyle =
+        style ??
+        TextStyle(
+          color: AppColors.primaryText,
+          fontWeight: FontWeight.w600,
+          fontSize: 14.sp,
+          fontFamily: 'Poppins',
+        );
     if (destination.contains(" to ")) {
       final parts = destination.split(" to ");
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(parts[0], style: style),
-          Text("till ${parts[1]}", style: style),
+          Text(parts[0], style: defaultStyle),
+          Text("till ${parts[1]}", style: defaultStyle),
         ],
       );
     } else {
-      return Text(destination, style: style);
+      return Text(destination, style: defaultStyle);
     }
   }
 
@@ -268,7 +270,23 @@ class _ScheduleWidgetState extends State<ScheduleWidget> {
       child: Container(
         margin: const EdgeInsets.only(bottom: 6.0),
         decoration: BoxDecoration(
-          border: Border.all(color: AppColors.inputBorder),
+          color: Colors.black, // background black
+          border: Border.all(
+            color: const Color.fromARGB(31, 58, 58, 58), // AppColors.inputBorder at 0.12 opacity
+            width: 0.8,
+          ),
+          gradient: const LinearGradient(
+            begin: Alignment.centerRight,
+            end: Alignment.centerLeft,
+            colors: [
+              Color.fromARGB(8, 0, 229, 255), // M-series Cyan (ultra low opacity)
+              Color.fromARGB(6, 41, 121, 255), // M-series Royal Blue (ultra low opacity)
+              Color.fromARGB(4, 213, 0, 249), // M-series Pink/Purple (ultra low opacity)
+              Color.fromARGB(3, 255, 109, 0), // M-series Amber/Gold (ultra low opacity)
+              Color.fromARGB(0, 255, 109, 0), // fade to transparent amber
+            ],
+            stops: [0.0, 0.25, 0.55, 0.8, 1.0],
+          ),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -283,10 +301,18 @@ class _ScheduleWidgetState extends State<ScheduleWidget> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      _buildDestinationText("To ${schedule.destination}"),
-                      const SizedBox(height: 4.0),
                       Text(
                         schedule.lineId,
+                        style: TextStyle(
+                          color: AppColors.primaryText,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14.sp,
+                          fontFamily: 'Poppins',
+                        ),
+                      ),
+                      const SizedBox(height: 4.0),
+                      _buildDestinationText(
+                        "To ${schedule.destination}",
                         style: TextStyle(
                           color: AppColors.secondaryText,
                           fontWeight: FontWeight.w400,
@@ -301,62 +327,53 @@ class _ScheduleWidgetState extends State<ScheduleWidget> {
             ),
             Container(
               decoration: const BoxDecoration(
-                border: Border(top: BorderSide(color: AppColors.divider)),
+                border: Border(
+                  top: BorderSide(
+                    color: Color.fromARGB(31, 44, 44, 44), // AppColors.divider at 0.12 opacity
+                    width: 0.8,
+                  ),
+                ),
               ),
-              padding: const EdgeInsets.only(left: 10.0),
+              padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 4.0),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    "Time",
-                    style: TextStyle(
-                      color: AppColors.secondaryText,
-                      fontWeight: FontWeight.w200,
-                      fontSize: 15.sp,
-                      fontFamily: 'Poppins',
+                  Container(
+                    constraints: const BoxConstraints(minHeight: 30),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8.0,
+                      vertical: 2.0,
                     ),
-                  ),
-                  Row(
-                    children: [
-                      Text(
-                        schedule.frequencyText,
+                    decoration: BoxDecoration(
+                      color:
+                          schedule.minutesLeft <= 15
+                              ? const Color.fromARGB(77, 105, 240, 175)
+                              : const Color.fromARGB(85, 255, 172, 64),
+                      borderRadius: BorderRadius.zero,
+                    ),
+                    child: Center(
+                      child: Text(
+                        schedule.relativeText,
                         style: TextStyle(
-                          color: AppColors.secondaryText,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 15.sp,
+                          color:
+                              schedule.minutesLeft <= 15
+                                  ? Colors.greenAccent
+                                  : Colors.orangeAccent,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 12.sp,
                           fontFamily: 'Poppins',
                         ),
                       ),
-                      const SizedBox(width: 10),
-                      Container(
-                        constraints: const BoxConstraints(minHeight: 30),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8.0,
-                          vertical: 2.0,
-                        ),
-                        decoration: BoxDecoration(
-                          color:
-                              schedule.minutesLeft <= 15
-                                  ? const Color.fromARGB(77, 105, 240, 175)
-                                  : const Color.fromARGB(85, 255, 172, 64),
-                          borderRadius: BorderRadius.zero,
-                        ),
-                        child: Center(
-                          child: Text(
-                            schedule.relativeText,
-                            style: TextStyle(
-                              color:
-                                  schedule.minutesLeft <= 15
-                                      ? Colors.greenAccent
-                                      : Colors.orangeAccent,
-                              fontWeight: FontWeight.w700,
-                              fontSize: 12.sp,
-                              fontFamily: 'Poppins',
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
+                    ),
+                  ),
+                  Text(
+                    schedule.frequencyText,
+                    style: TextStyle(
+                      color: AppColors.secondaryText,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 15.sp,
+                      fontFamily: 'Poppins',
+                    ),
                   ),
                 ],
               ),

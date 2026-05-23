@@ -26,13 +26,11 @@ class _BusInfoScreenState extends State<BusInfoScreen> {
   List<Map<String, dynamic>> _stops = [];
   bool _isLoadingDirections = true;
   bool _isLoadingStops = false;
-  Color _routeColor = Colors.blueAccent;
   String _agencyId = 'DTC';
 
   @override
   void initState() {
     super.initState();
-    _routeColor = AppColors.primaryAccent;
     _loadDirections();
   }
 
@@ -276,7 +274,6 @@ class _BusInfoScreenState extends State<BusInfoScreen> {
               _buildEmptyState()
             else ...[
               _buildStatsCard(),
-              _buildDirectionToggle(),
               Expanded(
                 child:
                     _isLoadingStops
@@ -302,18 +299,12 @@ class _BusInfoScreenState extends State<BusInfoScreen> {
     final totalTrips = _selectedDirection!['total_trips'] as int? ?? 0;
     final stopCount = _selectedDirection!['stop_count'] as int? ?? 0;
 
-    return Container(
-      margin: EdgeInsets.symmetric(horizontal: 12.w, vertical: 4.h),
-      padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 12.h),
-      decoration: BoxDecoration(
-        color: Color.fromARGB(38, 59, 131, 246),
-        //borderRadius: BorderRadius.zero,
-        //border: Border.all(color: AppColors.inputBorder, width: 1.5),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 4.h),
+          child: Text(
             "ROUTE SUMMARY",
             style: TextStyle(
               color: AppColors.tertiaryText,
@@ -323,40 +314,97 @@ class _BusInfoScreenState extends State<BusInfoScreen> {
               letterSpacing: 1.0,
             ),
           ),
-          SizedBox(height: 8.h),
-          Row(
+        ),
+        Padding(
+          padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 4.h),
+          child: Column(
             children: [
-              Expanded(
-                child: _buildStatItem(
-                  icon: CupertinoIcons.clock,
-                  label: "First Bus",
-                  value: firstBus,
-                ),
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildGridStatItem(
+                      icon: CupertinoIcons.clock,
+                      label: "First Bus",
+                      value: firstBus,
+                    ),
+                  ),
+                  SizedBox(width: 3.w),
+                  Expanded(
+                    child: _buildGridStatItem(
+                      icon: CupertinoIcons.clock_solid,
+                      label: "Last Bus",
+                      value: lastBus,
+                    ),
+                  ),
+                ],
               ),
-              Expanded(
-                child: _buildStatItem(
-                  icon: CupertinoIcons.clock_solid,
-                  label: "Last Bus",
-                  value: lastBus,
-                ),
+              SizedBox(height: 3.h),
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildGridStatItem(
+                      icon: CupertinoIcons.refresh,
+                      label: "Trips / Day",
+                      value: "$totalTrips trips",
+                    ),
+                  ),
+                  SizedBox(width: 3.w),
+                  Expanded(
+                    child: _buildGridStatItem(
+                      icon: CupertinoIcons.map_pin_ellipse,
+                      label: "Total Stops",
+                      value: "$stopCount stops",
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
-          SizedBox(height: 10.h),
-          Row(
+        ),
+      ],
+    );
+  }
+
+  Widget _buildGridStatItem({
+    required IconData icon,
+    required String label,
+    required String value,
+  }) {
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 6.h),
+      decoration: const BoxDecoration(
+        color: Color.fromARGB(38, 59, 131, 246),
+        borderRadius: BorderRadius.zero,
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.start,
+        children: [
+          Icon(
+            icon,
+            color: Colors.white,
+            size: 16.sp,
+          ),
+          SizedBox(width: 8.w),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Expanded(
-                child: _buildStatItem(
-                  icon: CupertinoIcons.refresh,
-                  label: "Trips / Day",
-                  value: "$totalTrips trips",
+              Text(
+                label,
+                style: TextStyle(
+                  color: AppColors.secondaryText,
+                  fontSize: 10.sp,
+                  fontWeight: FontWeight.w500,
+                  fontFamily: 'Poppins',
                 ),
               ),
-              Expanded(
-                child: _buildStatItem(
-                  icon: CupertinoIcons.map_pin_ellipse,
-                  label: "Total Stops",
-                  value: "$stopCount stops",
+              Text(
+                value,
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 12.sp,
+                  fontWeight: FontWeight.w700,
+                  fontFamily: 'Poppins',
                 ),
               ),
             ],
@@ -366,56 +414,9 @@ class _BusInfoScreenState extends State<BusInfoScreen> {
     );
   }
 
-  Widget _buildStatItem({
-    required IconData icon,
-    required String label,
-    required String value,
-  }) {
-    return Row(
-      children: [
-        Container(
-          padding: EdgeInsets.all(5.w),
-          decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: 0.3),
-            borderRadius: BorderRadius.zero,
-            border: Border.all(
-              color: AppColors.inputBorder.withValues(alpha: 0.5),
-              width: 1,
-            ),
-          ),
-          child: Icon(icon, color: _routeColor, size: 14.sp),
-        ),
-        SizedBox(width: 8.w),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              label,
-              style: TextStyle(
-                color: AppColors.secondaryText,
-                fontSize: 10.sp,
-                fontWeight: FontWeight.w500,
-                fontFamily: 'Poppins',
-              ),
-            ),
-            Text(
-              value,
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 12.sp,
-                fontWeight: FontWeight.w700,
-                fontFamily: 'Poppins',
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
   Widget _buildHeader(BuildContext context) {
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 12.h),
+      padding: EdgeInsets.only(left: 12.w, right: 12.w, top: 12.h, bottom: 4.h),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -443,69 +444,83 @@ class _BusInfoScreenState extends State<BusInfoScreen> {
             ),
           ),
           SizedBox(height: 15.h),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      "Bus Route Details",
-                      style: TextStyle(
-                        color: AppColors.primaryText,
-                        fontSize: 20.sp,
-                        fontWeight: FontWeight.w700,
-                        fontFamily: 'Poppins',
+          Padding(
+            padding: EdgeInsets.symmetric(vertical: 22.h),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        "Route ${widget.routeLongName}",
+                        style: TextStyle(
+                          color: AppColors.primaryText,
+                          fontSize: 16.sp,
+                          fontWeight: FontWeight.w700,
+                          fontFamily: 'Poppins',
+                        ),
                       ),
-                    ),
-                    SizedBox(height: 4.h),
-                    Row(
-                      children: [
-                        Container(
-                          padding: EdgeInsets.symmetric(
-                            horizontal: 8.w,
-                            vertical: 3.h,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Color.fromARGB(38, 59, 131, 246),
-                            borderRadius:
-                                BorderRadius.zero, // NeoPop Sharp Corners
-                          ),
-                          child: Text(
-                            "Route ${widget.routeLongName}",
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 12.sp,
-                              fontWeight: FontWeight.w800,
-                              fontFamily: 'Poppins',
-                            ),
-                          ),
+                      if (!_isLoadingDirections && _directions.isNotEmpty) ...[
+                        SizedBox(height: 2.h),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: _directions.map((dir) {
+                            final index = _directions.indexOf(dir);
+                            final isSelected =
+                                _selectedDirection?['trip_id'] == dir['trip_id'];
+
+                            return GestureDetector(
+                              onTap: () {
+                                setState(() {
+                                  _selectedDirection = dir;
+                                  _loadStopsForTrip(dir['trip_id'] as String);
+                                });
+                              },
+                              child: Container(
+                                color: Colors.transparent,
+                                padding: EdgeInsets.symmetric(vertical: 2.h),
+                                alignment: Alignment.centerLeft,
+                                child: Text(
+                                  dir['trip_headsign'] ?? "Option ${index + 1}",
+                                  style: TextStyle(
+                                    color: isSelected
+                                        ? AppColors.secondaryText
+                                        : AppColors.tertiaryText,
+                                    fontSize: 12.sp,
+                                    fontWeight: isSelected
+                                        ? FontWeight.w700
+                                        : FontWeight.w500,
+                                    fontFamily: 'Poppins',
+                                  ),
+                                ),
+                              ),
+                            );
+                          }).toList(),
                         ),
                       ],
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-              SizedBox(width: 12.w),
-              SizedBox(
-                width: 60.w,
-                child: Center(
-                  child:
-                      _agencyId == 'DTC'
-                          ? Image.asset(
+                SizedBox(width: 8.w),
+                SizedBox(
+                  width: 32.w,
+                  child: Center(
+                    child: _agencyId == 'DTC'
+                        ? Image.asset(
                             'assets/Image/dtc.png',
-                            height: 32.h,
+                            height: 14.h,
                             fit: BoxFit.contain,
-                          )
-                          : Container(
-                            width: 52.w,
-                            height: 22.h,
+                        )
+                        : Container(
+                            width: 30.w,
+                            height: 13.h,
                             alignment: Alignment.center,
                             decoration: BoxDecoration(
                               border: Border.all(
                                 color: Colors.orange,
-                                width: 1.5,
+                                width: 1.0,
                               ),
                               borderRadius: BorderRadius.zero,
                             ),
@@ -513,82 +528,15 @@ class _BusInfoScreenState extends State<BusInfoScreen> {
                               "DIMTS",
                               style: TextStyle(
                                 color: Colors.orange,
-                                fontSize: 9.sp,
+                                fontSize: 5.5,
                                 fontWeight: FontWeight.w800,
                                 fontFamily: 'Poppins',
-                                letterSpacing: 0.5,
                               ),
                             ),
                           ),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDirectionToggle() {
-    return Container(
-      padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            "DIRECTION",
-            style: TextStyle(
-              color: AppColors.tertiaryText,
-              fontSize: 11.sp,
-              fontWeight: FontWeight.w700,
-              fontFamily: 'Poppins',
-              letterSpacing: 1.0,
-            ),
-          ),
-          SizedBox(height: 8.h),
-          SizedBox(
-            height: 40.h,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              itemCount: _directions.length,
-              separatorBuilder: (context, index) => SizedBox(width: 8.w),
-              itemBuilder: (context, index) {
-                final dir = _directions[index];
-                final isSelected =
-                    _selectedDirection?['trip_id'] == dir['trip_id'];
-
-                return GestureDetector(
-                  onTap: () {
-                    setState(() {
-                      _selectedDirection = dir;
-                      _loadStopsForTrip(dir['trip_id'] as String);
-                    });
-                  },
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Colors.transparent,
-                      borderRadius: BorderRadius.zero, // NeoPop Sharp Corners
-                      border: Border.all(
-                        color: isSelected ? _routeColor : AppColors.inputBorder,
-                        width: 1.5,
-                      ),
-                    ),
-                    padding: EdgeInsets.symmetric(horizontal: 14.w),
-                    alignment: Alignment.center,
-                    child: Text(
-                      dir['trip_headsign'] ?? "Option ${index + 1}",
-                      style: TextStyle(
-                        color:
-                            isSelected ? _routeColor : AppColors.secondaryText,
-                        fontSize: 12.sp,
-                        fontWeight:
-                            isSelected ? FontWeight.w700 : FontWeight.w500,
-                        fontFamily: 'Poppins',
-                      ),
-                    ),
                   ),
-                );
-              },
+                ),
+              ],
             ),
           ),
         ],
@@ -687,9 +635,9 @@ class _BusInfoScreenState extends State<BusInfoScreen> {
                     width: 14.w,
                     height: 14.w,
                     decoration: BoxDecoration(
-                      color: _routeColor,
+                      color: AppColors.secondaryText,
                       shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: 2),
+                      border: Border.all(color: Colors.black, width: 1.5),
                     ),
                   ),
                   if (index < _stops.length - 1)
@@ -697,7 +645,7 @@ class _BusInfoScreenState extends State<BusInfoScreen> {
                       width: 2.w,
                       height:
                           48.h, // Adjusted height to accommodate sub-text and details
-                      color: _routeColor.withValues(alpha: 0.5),
+                      color: AppColors.secondaryText.withValues(alpha: 0.5),
                     ),
                 ],
               ),
@@ -710,7 +658,7 @@ class _BusInfoScreenState extends State<BusInfoScreen> {
                     Text(
                       mainName,
                       style: TextStyle(
-                        color: Colors.white,
+                        color: AppColors.secondaryText,
                         fontSize: 15.sp,
                         fontWeight: FontWeight.w600,
                         fontFamily: 'Poppins',
