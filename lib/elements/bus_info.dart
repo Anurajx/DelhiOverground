@@ -26,6 +26,7 @@ class _BusInfoScreenState extends State<BusInfoScreen> {
   bool _isLoadingDirections = true;
   bool _isLoadingStops = false;
   Color _routeColor = Colors.blueAccent;
+  String _agencyId = 'DTC';
 
   @override
   void initState() {
@@ -68,6 +69,21 @@ class _BusInfoScreenState extends State<BusInfoScreen> {
   Future<void> _loadDirections() async {
     try {
       final db = await BusDatabaseHelper.getDatabase();
+      
+      // Query agency_id
+      var routeResults = await db.rawQuery('''
+        SELECT agency_id FROM routes WHERE route_id = ? LIMIT 1
+      ''', [widget.routeId]);
+      if (routeResults.isEmpty) {
+        routeResults = await db.rawQuery('''
+          SELECT agency_id FROM routes WHERE route_long_name = ? LIMIT 1
+        ''', [widget.routeLongName]);
+      }
+      if (routeResults.isNotEmpty && mounted) {
+        setState(() {
+          _agencyId = routeResults.first['agency_id'] as String? ?? 'DTC';
+        });
+      }
       
       // Try querying by routeId first
       var dirResults = await db.rawQuery('''
@@ -402,26 +418,8 @@ class _BusInfoScreenState extends State<BusInfoScreen> {
           ),
           SizedBox(height: 15.h),
           Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Container(
-                width: 60.w,
-                height: 36.h,
-                decoration: BoxDecoration(
-                  color: _routeColor,
-                  borderRadius: BorderRadius.zero, // NeoPop Sharp Corners
-                ),
-                alignment: Alignment.center,
-                child: Text(
-                  widget.routeLongName,
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 16.sp,
-                    fontWeight: FontWeight.w800,
-                    fontFamily: 'Poppins',
-                  ),
-                ),
-              ),
-              SizedBox(width: 12.w),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -435,21 +433,59 @@ class _BusInfoScreenState extends State<BusInfoScreen> {
                         fontFamily: 'Poppins',
                       ),
                     ),
-                    if (_selectedDirection != null) ...[
-                      SizedBox(height: 2.h),
-                      Text(
-                        _selectedDirection!['trip_headsign'] as String? ?? "",
-                        style: TextStyle(
-                          color: AppColors.secondaryText,
-                          fontSize: 11.sp,
-                          fontWeight: FontWeight.w500,
-                          fontFamily: 'Poppins',
+                    SizedBox(height: 4.h),
+                    Row(
+                      children: [
+                        Container(
+                          padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 3.h),
+                          decoration: BoxDecoration(
+                            color: _routeColor,
+                            borderRadius: BorderRadius.zero, // NeoPop Sharp Corners
+                          ),
+                          child: Text(
+                            "Route ${widget.routeLongName}",
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 12.sp,
+                              fontWeight: FontWeight.w800,
+                              fontFamily: 'Poppins',
+                            ),
+                          ),
                         ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
+                      ],
+                    ),
                   ],
+                ),
+              ),
+              SizedBox(width: 12.w),
+              SizedBox(
+                width: 60.w,
+                child: Center(
+                  child: _agencyId == 'DTC'
+                      ? Image.asset(
+                          'assets/Image/dtc.png',
+                          height: 32.h,
+                          fit: BoxFit.contain,
+                        )
+                      : Container(
+                          width: 52.w,
+                          height: 22.h,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            border: Border.all(color: Colors.orange, width: 1.5),
+                            borderRadius: BorderRadius.zero,
+                          ),
+                          child: Text(
+                            "DIMTS",
+                            style: TextStyle(
+                              color: Colors.orange,
+                              fontSize: 9.sp,
+                              fontWeight: FontWeight.w800,
+                              fontFamily: 'Poppins',
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ),
                 ),
               ),
             ],
@@ -495,7 +531,7 @@ class _BusInfoScreenState extends State<BusInfoScreen> {
                   },
                   child: Container(
                     decoration: BoxDecoration(
-                      color: isSelected ? _routeColor : Colors.transparent,
+                      color: Colors.transparent,
                       borderRadius: BorderRadius.zero, // NeoPop Sharp Corners
                       border: Border.all(
                         color: isSelected ? _routeColor : AppColors.inputBorder,
@@ -507,7 +543,7 @@ class _BusInfoScreenState extends State<BusInfoScreen> {
                     child: Text(
                       dir['trip_headsign'] ?? "Option ${index + 1}",
                       style: TextStyle(
-                        color: isSelected ? Colors.white : AppColors.secondaryText,
+                        color: isSelected ? _routeColor : AppColors.secondaryText,
                         fontSize: 12.sp,
                         fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
                         fontFamily: 'Poppins',
@@ -580,12 +616,11 @@ class _BusInfoScreenState extends State<BusInfoScreen> {
           subName = parts[1].trim();
         }
 
-        // Transfer routes serving this stop
-        final otherRoutes = routesList.isNotEmpty 
-            ? routesList.split('-').where((r) => r != widget.routeLongName).toList()
-            : <String>[];
+        final stopId = stop['stop_id']?.toString() ?? "N/A";
+        final stopDetails = "Stop ID: $stopId";
 
         return GestureDetector(
+          behavior: HitTestBehavior.opaque,
           onTap: () {
             // Navigate to existing StopInfoScreen
             final stationDict = {
@@ -625,7 +660,7 @@ class _BusInfoScreenState extends State<BusInfoScreen> {
                   if (index < _stops.length - 1)
                     Container(
                       width: 2.w,
-                      height: 58.h, // Adjusted height to accommodate sub-text and badges
+                      height: 48.h, // Adjusted height to accommodate sub-text and details
                       color: _routeColor.withValues(alpha: 0.5),
                     ),
                 ],
@@ -657,35 +692,16 @@ class _BusInfoScreenState extends State<BusInfoScreen> {
                         ),
                       ),
                     ],
-                    if (otherRoutes.isNotEmpty) ...[
-                      SizedBox(height: 6.h),
-                      Wrap(
-                        spacing: 4.w,
-                        runSpacing: 4.h,
-                        children: otherRoutes.take(4).map((rName) {
-                          return Container(
-                            padding: EdgeInsets.symmetric(horizontal: 5.w, vertical: 2.h),
-                            decoration: BoxDecoration(
-                              color: Colors.transparent,
-                              borderRadius: BorderRadius.zero,
-                              border: Border.all(
-                                color: _getColorFromRouteName(rName).withValues(alpha: 0.6),
-                                width: 1,
-                              ),
-                            ),
-                            child: Text(
-                              rName,
-                              style: TextStyle(
-                                color: _getColorFromRouteName(rName),
-                                fontSize: 9.sp,
-                                fontWeight: FontWeight.w700,
-                                fontFamily: 'Poppins',
-                              ),
-                            ),
-                          );
-                        }).toList(),
+                    SizedBox(height: 4.h),
+                    Text(
+                      stopDetails,
+                      style: TextStyle(
+                        color: AppColors.tertiaryText,
+                        fontSize: 10.sp,
+                        fontWeight: FontWeight.w400,
+                        fontFamily: 'Poppins',
                       ),
-                    ],
+                    ),
                     SizedBox(height: 12.h),
                   ],
                 ),

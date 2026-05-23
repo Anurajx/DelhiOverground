@@ -113,7 +113,11 @@ class _SearchBodyState extends State<SearchBody> {
       final db = await BusDatabaseHelper.getDatabase();
       final results = await db.rawQuery('''
         SELECT r.route_id, r.route_long_name, r.agency_id,
-               (SELECT DISTINCT trip_headsign FROM trips t WHERE t.route_id = r.route_id LIMIT 1) as headsign
+               (SELECT s.stop_name 
+                FROM stop_times st 
+                JOIN stops s ON st.stop_id = s.stop_id 
+                WHERE st.trip_id = (SELECT trip_id FROM trips WHERE route_id = r.route_id LIMIT 1) 
+                ORDER BY st.stop_sequence DESC LIMIT 1) as headsign
         FROM routes r
         ORDER BY r.route_long_name ASC
       ''');
@@ -150,7 +154,11 @@ class _SearchBodyState extends State<SearchBody> {
       final db = await BusDatabaseHelper.getDatabase();
       final results = await db.rawQuery('''
         SELECT r.route_id, r.route_long_name, r.agency_id,
-               (SELECT DISTINCT trip_headsign FROM trips t WHERE t.route_id = r.route_id LIMIT 1) as headsign
+               (SELECT s.stop_name 
+                FROM stop_times st 
+                JOIN stops s ON st.stop_id = s.stop_id 
+                WHERE st.trip_id = (SELECT trip_id FROM trips WHERE route_id = r.route_id LIMIT 1) 
+                ORDER BY st.stop_sequence DESC LIMIT 1) as headsign
         FROM routes r
         WHERE r.route_long_name LIKE ?
       ''', ['%$query%']);
@@ -374,7 +382,7 @@ class _SearchBodyState extends State<SearchBody> {
             FocusScope.of(context).unfocus();
             final displaySubtitle = headsign.isNotEmpty
                 ? "To $headsign"
-                : "${agencyId == 'DTC' ? 'DTC' : 'DIMTS'} Bus Service";
+                : "To Destination";
             Provider.of<DataProvider>(context, listen: false).addBusToHistory(
               route['route_id'] as String,
               routeName,
@@ -434,7 +442,7 @@ class _SearchBodyState extends State<SearchBody> {
                       Text(
                         headsign.isNotEmpty
                             ? "To $headsign"
-                            : "${agencyId == 'DTC' ? 'DTC' : 'DIMTS'} Bus Service",
+                            : "To Destination",
                         style: TextStyle(
                           color: AppColors.secondaryText,
                           fontSize: 12.sp,

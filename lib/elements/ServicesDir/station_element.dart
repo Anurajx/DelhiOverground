@@ -23,27 +23,20 @@ class StationUnit extends StatelessWidget {
       final parts = mainText.split('/');
       mainText = parts[0].trim();
       subText = parts[1].trim();
-    } else {
-      final cleanedLines = lines.map((l) {
-        String s = l.toString().trim();
-        s = s.replaceAll(RegExp(r'(UP|DOWN|STL|LNK|Dwn|Up|stl|down|up)$', caseSensitive: false), '');
-        return s.trim();
-      }).where((s) => s.isNotEmpty).toSet().toList();
-      if (cleanedLines.isNotEmpty) {
-        subText = "Buses: ${cleanedLines.join(', ')}";
-      }
     }
 
     return Container(
-      margin: EdgeInsets.symmetric(vertical: 16.h),
-      padding: EdgeInsets.symmetric(vertical: 6.h, horizontal: 8.w),
+      height: 72.h,
+      margin: EdgeInsets.symmetric(vertical: 2.h),
+      padding: EdgeInsets.symmetric(horizontal: 8.w),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Text(
                   mainText,
@@ -61,7 +54,7 @@ class StationUnit extends StatelessWidget {
                     style: TextStyle(
                       fontFamily: 'Poppins',
                       color: AppColors.secondaryText,
-                      fontSize: 13.sp,
+                      fontSize: 10.sp,
                       fontWeight: FontWeight.w400,
                     ),
                   ),
@@ -286,10 +279,13 @@ class BigNameInfo extends StatelessWidget {
       subName = parts[1].trim();
     }
 
-    final showHindi = stationNameHindiCommon != null &&
+    final showHindi =
+        stationNameHindiCommon != null &&
         stationNameHindiCommon.toString().isNotEmpty &&
-        stationNameHindiCommon.toString().toLowerCase() != stationName.toString().toLowerCase() &&
-        stationNameHindiCommon.toString().toLowerCase() != mainName.toLowerCase();
+        stationNameHindiCommon.toString().toLowerCase() !=
+            stationName.toString().toLowerCase() &&
+        stationNameHindiCommon.toString().toLowerCase() !=
+            mainName.toLowerCase();
 
     return Padding(
       padding: EdgeInsets.symmetric(vertical: 15.h),

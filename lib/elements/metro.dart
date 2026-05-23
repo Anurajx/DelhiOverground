@@ -178,7 +178,7 @@ Widget busHistory(BuildContext context) {
       }
 
       return Container(
-        margin: const EdgeInsets.all(5),
+        margin: const EdgeInsets.only(left: 2, right: 2, top: 1, bottom: 2),
         width: double.infinity,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -213,7 +213,7 @@ Widget _buildBusHistoryItem(BuildContext context, Map<String, String> item) {
   final headsign = item['headsign'] ?? '';
 
   return Container(
-    padding: EdgeInsets.symmetric(vertical: 4.h, horizontal: 8.w),
+    padding: EdgeInsets.symmetric(vertical: 2.h, horizontal: 4.w),
     child: Row(
       children: [
         Expanded(
