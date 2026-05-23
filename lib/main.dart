@@ -43,6 +43,7 @@ class MyApp extends StatelessWidget {
           title: 'DTC Bus Service',
           debugShowCheckedModeBanner: false,
           theme: ThemeData(
+            fontFamily: 'Poppins',
             brightness: Brightness.dark,
             scaffoldBackgroundColor: AppColors.background,
             cardColor: AppColors.surface,

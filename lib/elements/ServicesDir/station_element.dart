@@ -65,7 +65,7 @@ class StationUnit extends StatelessWidget {
           SizedBox(width: 10.w),
           Icon(
             CupertinoIcons.arrow_right,
-            color: const Color.fromARGB(255, 179, 179, 179),
+            color: AppColors.tertiaryText,
             size: 20.sp,
           ),
         ],
@@ -218,41 +218,60 @@ class StationNearby extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Flexible(
-          child: Text(
-            '$name',
-            style: TextStyle(
-              fontFamily: 'Poppins',
-              color: AppColors.primaryText,
-              fontSize: 18.sp, //18
-              fontWeight: FontWeight.w600,
+    String mainText = name.toString();
+    String? subText;
+    if (mainText.contains('/')) {
+      final parts = mainText.split('/');
+      mainText = parts[0].trim();
+      subText = parts[1].trim();
+    }
+
+    return Container(
+      padding: EdgeInsets.symmetric(vertical: 10.h, horizontal: 8.w),
+      child: Row(
+        children: [
+          Icon(
+            CupertinoIcons.location,
+            color: AppColors.tertiaryText,
+            size: 20.sp,
+          ),
+          SizedBox(width: 14.w),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  mainText,
+                  style: TextStyle(
+                    fontFamily: 'Poppins',
+                    color: AppColors.primaryText,
+                    fontSize: 14.sp,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                SizedBox(height: 2.h),
+                Text(
+                  subText ?? "Nearby Stop",
+                  style: TextStyle(
+                    fontFamily: 'Poppins',
+                    color: AppColors.secondaryText,
+                    fontSize: 11.sp,
+                    fontWeight: FontWeight.w400,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
             ),
           ),
-        ),
-        //SizedBox(width: 10),
-        //stationLineBadgeBuilder(line),
-        // Spacer(),
-        Icon(Icons.info_outline_rounded, color: AppColors.primaryText),
-        // Container(
-        //   // height: 20,
-        //   // width: 50,
-        //   padding: const EdgeInsets.all(2.0),
-        //   color: const Color.fromARGB(255, 199, 199, 199),
-        //   child: Center(
-        //     child: Text(
-        //       "1.2 KM",
-        //       style: TextStyle(
-        //         color: const Color.fromARGB(255, 0, 0, 0),
-        //         fontSize: 14,
-        //         fontWeight: FontWeight.w500,
-        //       ),
-        //     ),
-        //   ),
-        // ),
-      ],
+          Icon(
+            CupertinoIcons.chevron_forward,
+            color: AppColors.tertiaryText,
+            size: 16.sp,
+          ),
+        ],
+      ),
     );
   }
 }
@@ -288,43 +307,41 @@ class BigNameInfo extends StatelessWidget {
             mainName.toLowerCase();
 
     return Padding(
-      padding: EdgeInsets.symmetric(vertical: 15.h),
+      padding: EdgeInsets.symmetric(vertical: 24.h),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(
-            mainName,
-            style: TextStyle(
-              height: 1.2,
-              color: const Color.fromARGB(255, 255, 255, 255),
-              fontWeight: FontWeight.w600,
-              fontSize: 24.sp,
+          Padding(
+            padding: const EdgeInsets.fromLTRB(0, 25, 0, 25),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  mainName,
+                  style: TextStyle(
+                    height: 1.2,
+                    color: AppColors.primaryText,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 24.sp,
+                    fontFamily: 'Poppins',
+                  ),
+                ),
+                if (subName != null) ...[
+                  Text(
+                    subName,
+                    style: TextStyle(
+                      color: AppColors.secondaryText,
+                      fontWeight: FontWeight.w400,
+                      fontSize: 16.sp,
+                      fontFamily: 'Poppins',
+                    ),
+                  ),
+                ],
+              ],
             ),
           ),
-          SizedBox(height: 8.h),
-          if (subName != null) ...[
-            Text(
-              subName,
-              style: TextStyle(
-                color: const Color.fromARGB(255, 200, 200, 200),
-                fontWeight: FontWeight.w400,
-                fontSize: 16.sp,
-              ),
-            ),
-            SizedBox(height: 8.h),
-          ],
-          if (showHindi) ...[
-            Text(
-              "$stationNameHindiCommon",
-              style: TextStyle(
-                color: const Color.fromARGB(255, 240, 240, 240),
-                fontWeight: FontWeight.w300,
-                fontSize: 18.sp,
-              ),
-            ),
-            SizedBox(height: 8.h),
-          ],
           stationLineBadgeBuilderForBIG(lineofStation),
         ],
       ),

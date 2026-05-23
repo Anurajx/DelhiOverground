@@ -115,7 +115,7 @@ class _MapMetroScreenState extends State<MapMetroScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: AppColors.background,
       body: SafeArea(
         child: Stack(
           children: [
@@ -166,27 +166,27 @@ class _MapMetroScreenState extends State<MapMetroScreen> {
             onTap: () => Navigator.pop(context),
             child: Row(
               children: [
-                Icon(CupertinoIcons.back, color: AppColors.primaryAccent),
+                Icon(CupertinoIcons.back, color: AppColors.primaryAccent, size: 20.sp),
                 SizedBox(width: 4.w),
                 Text(
-                  "Done",
+                  "Back",
                   style: TextStyle(
                     color: AppColors.primaryAccent,
-                    fontWeight: FontWeight.w500,
+                    fontWeight: FontWeight.w600,
                     fontFamily: 'Poppins',
-                    fontSize: 18.sp,
+                    fontSize: 16.sp,
                   ),
                 ),
               ],
             ),
           ),
-          const Text(
+          Text(
             "DTC Bus Stops  ",
             style: TextStyle(
-              color: Colors.white,
+              color: AppColors.primaryText,
               fontFamily: 'Poppins',
               fontWeight: FontWeight.w600,
-              fontSize: 16,
+              fontSize: 16.sp,
             ),
           ),
         ],

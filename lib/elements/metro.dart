@@ -177,31 +177,45 @@ Widget busHistory(BuildContext context) {
         return const SizedBox.shrink();
       }
 
+      final items = history.take(2).toList();
+      final List<Widget> children = [];
+      for (int i = 0; i < items.length; i++) {
+        final item = items[i];
+        children.add(
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => BusInfoScreen(
+                    routeId: item['route_id'] ?? '',
+                    routeLongName: item['route_long_name'] ?? '',
+                  ),
+                ),
+              );
+            },
+            child: _buildBusHistoryItem(context, item),
+          ),
+        );
+        if (i < items.length - 1) {
+          children.add(
+            Divider(
+              color: AppColors.divider,
+              thickness: 0.5,
+              height: 1,
+            ),
+          );
+        }
+      }
+
       return Container(
         margin: const EdgeInsets.only(left: 2, right: 2, top: 1, bottom: 2),
         width: double.infinity,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
-          children: [
-            ...history.take(2).map((item) {
-              return GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => BusInfoScreen(
-                        routeId: item['route_id'] ?? '',
-                        routeLongName: item['route_long_name'] ?? '',
-                      ),
-                    ),
-                  );
-                },
-                child: _buildBusHistoryItem(context, item),
-              );
-            }),
-          ],
+          children: children,
         ),
       );
     },
@@ -213,9 +227,15 @@ Widget _buildBusHistoryItem(BuildContext context, Map<String, String> item) {
   final headsign = item['headsign'] ?? '';
 
   return Container(
-    padding: EdgeInsets.symmetric(vertical: 2.h, horizontal: 4.w),
+    padding: EdgeInsets.symmetric(vertical: 14.h, horizontal: 8.w),
     child: Row(
       children: [
+        Icon(
+          CupertinoIcons.time,
+          color: AppColors.tertiaryText,
+          size: 20.sp,
+        ),
+        SizedBox(width: 14.w),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -225,8 +245,8 @@ Widget _buildBusHistoryItem(BuildContext context, Map<String, String> item) {
                 "Route $routeName",
                 style: TextStyle(
                   fontFamily: 'Poppins',
-                  color: Colors.white,
-                  fontSize: 18.sp,
+                  color: AppColors.primaryText,
+                  fontSize: 15.sp,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -249,8 +269,8 @@ Widget _buildBusHistoryItem(BuildContext context, Map<String, String> item) {
         ),
         Icon(
           CupertinoIcons.chevron_forward,
-          color: AppColors.primaryText,
-          size: 24.sp,
+          color: AppColors.tertiaryText,
+          size: 16.sp,
         ),
       ],
     ),
@@ -261,63 +281,49 @@ Map<String, Map<String, dynamic>> coreTransferStationsDictNE = {'Source': {}};
 Map<String, Map<String, dynamic>> coreTransferStationsDictN = {'Source': {}};
 
 nearYou(context) {
-  //bool isNear = false;
   return Container(
     width: double.infinity,
-    height: 125.h,
-    //height: MediaQuery.of(context).size.height * 0.18,
-    margin: EdgeInsets.all(5),
+    margin: const EdgeInsets.all(5),
     child: Consumer<DataProvider>(
-      builder: (context, data, child) {
-        final data = Provider.of<DataProvider>(context).coreNearestStationsDict;
-        print("data is $data");
-        //print(data.coreNearestStationsDict);
+      builder: (context, dataProvider, child) {
+        final data = dataProvider.coreNearestStationsDict;
         if (data["Near"] != null && data["NearEnough"] != null) {
-          //isNear= !isNear;
-          /////////////
-          coreTransferStationsDictNE['Source'] =
-              data["NearEnough"]![0]; //handles forwording of screen
+          coreTransferStationsDictNE['Source'] = data["NearEnough"]![0];
           String lineNE = data["NearEnough"]![0]["Line"].toString();
           lineNE = lineNE.replaceAll(RegExp(r'[\[\]]'), '');
-          List<String> partsNE = lineNE.split('-');
-          List<String> lineNumbersNE = partsNE;
-          /////
-          coreTransferStationsDictN['Source'] =
-              data["Near"]![0]; //handles forwording of screen
+          List<String> lineNumbersNE = lineNE.split('-');
+
+          coreTransferStationsDictN['Source'] = data["Near"]![0];
           String lineN = data["Near"]![0]["Line"].toString();
           lineN = lineN.replaceAll(RegExp(r'[\[\]]'), '');
-          List<String> partsN = lineN.split('-');
-          List<String> lineNumbersN = partsN;
-          /////////////
+          List<String> lineNumbersN = lineN.split('-');
+
           return Column(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             crossAxisAlignment: CrossAxisAlignment.start,
-            //mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
-                "NEAR YOU",
-                style: TextStyle(
-                  color: AppColors.tertiaryText,
-                  fontSize: 16.sp, //processedFontheight(context),
-                  fontFamily: 'Poppins',
-                  fontWeight: FontWeight.w500,
+              Padding(
+                padding: EdgeInsets.symmetric(vertical: 8.h),
+                child: Text(
+                  "NEAR YOU",
+                  style: TextStyle(
+                    color: AppColors.tertiaryText,
+                    fontSize: 16.sp,
+                    fontWeight: FontWeight.w700,
+                    fontFamily: 'Poppins',
+                    letterSpacing: 1.0,
+                  ),
                 ),
               ),
-
-              // if(isNear){
-
-              // },
               GestureDetector(
                 behavior: HitTestBehavior.opaque,
                 onTap: () {
-                  print("NEAR ENOUGH TRIAL69 ${coreTransferStationsDictNE}");
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder:
-                          (context) => StopInfoScreen(
-                            stationDict: coreTransferStationsDictNE,
-                          ),
+                      builder: (context) => StopInfoScreen(
+                        stationDict: coreTransferStationsDictNE,
+                      ),
                     ),
                   );
                 },
@@ -326,18 +332,20 @@ nearYou(context) {
                   line: lineNumbersNE,
                 ),
               ),
-              //Spacer(),
+              Divider(
+                color: AppColors.divider,
+                thickness: 0.5,
+                height: 1,
+              ),
               GestureDetector(
                 behavior: HitTestBehavior.opaque,
                 onTap: () {
-                  print("NEAR ENOUGH TRIAL69 ${coreTransferStationsDictN}");
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder:
-                          (context) => StopInfoScreen(
-                            stationDict: coreTransferStationsDictN,
-                          ),
+                      builder: (context) => StopInfoScreen(
+                        stationDict: coreTransferStationsDictN,
+                      ),
                     ),
                   );
                 },
@@ -350,108 +358,46 @@ nearYou(context) {
           );
         } else {
           return Column(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
-                "NEAR YOU",
-                style: TextStyle(
-                  color: const Color.fromARGB(255, 109, 109, 109),
-                  fontSize: 16.sp, //processedFontheight(context),
-                  fontFamily: 'Poppins',
-                  fontWeight: FontWeight.w500,
+              Padding(
+                padding: EdgeInsets.symmetric(vertical: 8.h),
+                child: Text(
+                  "NEAR YOU",
+                  style: TextStyle(
+                    color: AppColors.tertiaryText,
+                    fontSize: 16.sp,
+                    fontWeight: FontWeight.w700,
+                    fontFamily: 'Poppins',
+                    letterSpacing: 1.0,
+                  ),
                 ),
               ),
-
               Skeletonizer(
-                //theme: SkeletonizerTheme.dark,
-                //enableShimmer: true,
-                //enableSwitchAnimation: true,
-                child: ListTile(
-                  title: Text('Item numas title'),
-                  subtitle: const Text('Subtitle here'),
-                  trailing: const Icon(Icons.ac_unit),
+                child: Column(
+                  children: [
+                    const StationNearby(
+                      name: "Loading Station Name / Subname",
+                      line: [],
+                    ),
+                    Divider(
+                      color: AppColors.divider,
+                      thickness: 0.5,
+                      height: 1,
+                    ),
+                    const StationNearby(
+                      name: "Loading Station Name / Subname",
+                      line: [],
+                    ),
+                  ],
                 ),
-                // ListTile(
-                //   title: Text('Bhikaji Cama Place'),
-                //   subtitle: const Text('Dwarka Mor'),
-                //   trailing: const Icon(Icons.ac_unit, size: 20),
-                // ),
               ),
             ],
           );
-          // return Container(
-          //   padding: EdgeInsets.all(10),
-          //   //height: 10, width: 10,
-          //   //color: Colors.greenAccent,
-          //   child: Center(
-          //     child: RichText(
-          //       text: TextSpan(
-          //         children: [
-          //           TextSpan(
-          //             text: "Fetching nearby ",
-          //             style: TextStyle(
-          //               color: const Color.fromARGB(255, 161, 161, 161),
-          //               fontSize: 24,
-          //               fontWeight: FontWeight.w500,
-          //             ),
-          //           ),
-          //           TextSpan(
-          //             text: "stations ",
-          //             style: TextStyle(
-          //               color: Colors.white,
-          //               fontSize: 24,
-          //               fontWeight: FontWeight.w500,
-          //             ),
-          //           ),
-
-          //           WidgetSpan(
-          //             child: Icon(Icons.location_on, color: Colors.white),
-          //           ),
-          //           TextSpan(
-          //             text: " just a",
-          //             style: TextStyle(
-          //               color: const Color.fromARGB(255, 161, 161, 161),
-          //               fontSize: 24,
-          //               fontWeight: FontWeight.w500,
-          //             ),
-          //           ),
-          //           TextSpan(
-          //             text: " moment ",
-          //             style: TextStyle(
-          //               color: Colors.white,
-          //               fontSize: 24,
-          //               fontWeight: FontWeight.w500,
-          //             ),
-          //           ),
-          //           WidgetSpan(
-          //             child: Icon(Icons.punch_clock, color: Colors.white),
-          //           ),
-          //           TextSpan(
-          //             text: " check GPS if not.",
-          //             style: TextStyle(
-          //               color: const Color.fromARGB(255, 161, 161, 161),
-          //               fontSize: 24,
-          //               fontWeight: FontWeight.w500,
-          //             ),
-          //           ),
-          //           //WidgetSpan(child: cupertinoprogressindicator),
-          //         ],
-          //       ),
-          //     ),
-          //   ),
-          // );
         }
-
-        //return Column(children: [stationNearby(name: data["Near"]![0])]);
       },
     ),
-    // GestureDetector(
-    //   onTap: () {},
-    //   child: stationNearby(name: "Bhikaji Cama Place"),
-    // ),
-    // stationNearby(name: "South Extension"),
-    //Geolocatorservice(), //HERE TEMPRORY TEST
   );
 }
 
@@ -575,7 +521,7 @@ ticketAndExit(context) {
                     DefaultTextStyle(
                       style: const TextStyle(
                         fontSize: 15.0,
-                        fontFamily: 'poppins',
+                        fontFamily: 'Poppins',
                         color: Color.fromARGB(255, 194, 194, 194),
                         fontWeight: FontWeight.w500,
                       ),

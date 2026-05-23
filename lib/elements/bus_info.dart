@@ -11,6 +11,7 @@ class BusInfoScreen extends StatefulWidget {
 
   const BusInfoScreen({
     super.key,
+
     required this.routeId,
     required this.routeLongName,
   });
@@ -69,47 +70,60 @@ class _BusInfoScreenState extends State<BusInfoScreen> {
   Future<void> _loadDirections() async {
     try {
       final db = await BusDatabaseHelper.getDatabase();
-      
+
       // Query agency_id
-      var routeResults = await db.rawQuery('''
+      var routeResults = await db.rawQuery(
+        '''
         SELECT agency_id FROM routes WHERE route_id = ? LIMIT 1
-      ''', [widget.routeId]);
+      ''',
+        [widget.routeId],
+      );
       if (routeResults.isEmpty) {
-        routeResults = await db.rawQuery('''
+        routeResults = await db.rawQuery(
+          '''
           SELECT agency_id FROM routes WHERE route_long_name = ? LIMIT 1
-        ''', [widget.routeLongName]);
+        ''',
+          [widget.routeLongName],
+        );
       }
       if (routeResults.isNotEmpty && mounted) {
         setState(() {
           _agencyId = routeResults.first['agency_id'] as String? ?? 'DTC';
         });
       }
-      
+
       // Try querying by routeId first
-      var dirResults = await db.rawQuery('''
+      var dirResults = await db.rawQuery(
+        '''
         SELECT DISTINCT direction_id, route_id
         FROM trips
         WHERE route_id = ?
-      ''', [widget.routeId]);
-      
+      ''',
+        [widget.routeId],
+      );
+
       // Fallback using routeLongName
       if (dirResults.isEmpty) {
-        dirResults = await db.rawQuery('''
+        dirResults = await db.rawQuery(
+          '''
           SELECT DISTINCT t.direction_id, t.route_id
           FROM trips t
           JOIN routes r ON t.route_id = r.route_id
           WHERE r.route_long_name = ?
-        ''', [widget.routeLongName]);
+        ''',
+          [widget.routeLongName],
+        );
       }
-      
+
       List<Map<String, dynamic>> directionsList = [];
-      
+
       for (var row in dirResults) {
         final dirId = row['direction_id'];
         final rId = row['route_id'] as String;
-        
+
         // Find representative trip
-        final tripResult = await db.rawQuery('''
+        final tripResult = await db.rawQuery(
+          '''
           SELECT t.trip_id, COUNT(st.stop_id) as stop_count
           FROM trips t
           JOIN stop_times st ON t.trip_id = st.trip_id
@@ -117,37 +131,52 @@ class _BusInfoScreenState extends State<BusInfoScreen> {
           GROUP BY t.trip_id
           ORDER BY stop_count DESC
           LIMIT 1
-        ''', [rId, dirId]);
-        
+        ''',
+          [rId, dirId],
+        );
+
         if (tripResult.isEmpty) continue;
-        
+
         final tripId = tripResult.first['trip_id'] as String;
         final stopCount = tripResult.first['stop_count'] as int;
-        
+
         // Find start stop
-        final startResult = await db.rawQuery('''
+        final startResult = await db.rawQuery(
+          '''
           SELECT s.stop_name
           FROM stop_times st
           JOIN stops s ON st.stop_id = s.stop_id
           WHERE st.trip_id = ?
           ORDER BY st.stop_sequence ASC
           LIMIT 1
-        ''', [tripId]);
-        final startStop = startResult.isNotEmpty ? startResult.first['stop_name'] as String : "Start";
-        
+        ''',
+          [tripId],
+        );
+        final startStop =
+            startResult.isNotEmpty
+                ? startResult.first['stop_name'] as String
+                : "Start";
+
         // Find end stop
-        final endResult = await db.rawQuery('''
+        final endResult = await db.rawQuery(
+          '''
           SELECT s.stop_name
           FROM stop_times st
           JOIN stops s ON st.stop_id = s.stop_id
           WHERE st.trip_id = ?
           ORDER BY st.stop_sequence DESC
           LIMIT 1
-        ''', [tripId]);
-        final endStop = endResult.isNotEmpty ? endResult.first['stop_name'] as String : "End";
-        
+        ''',
+          [tripId],
+        );
+        final endStop =
+            endResult.isNotEmpty
+                ? endResult.first['stop_name'] as String
+                : "End";
+
         // Query timings
-        final timingsResult = await db.rawQuery('''
+        final timingsResult = await db.rawQuery(
+          '''
           SELECT 
               MIN(first_st.arrival_time) as first_bus, 
               MAX(first_st.arrival_time) as last_bus, 
@@ -157,18 +186,20 @@ class _BusInfoScreenState extends State<BusInfoScreen> {
           WHERE t.route_id = ? AND t.direction_id = ? AND first_st.stop_sequence = (
               SELECT MIN(stop_sequence) FROM stop_times WHERE trip_id = t.trip_id
           )
-        ''', [rId, dirId]);
-        
+        ''',
+          [rId, dirId],
+        );
+
         String firstBus = "--";
         String lastBus = "--";
         int totalTrips = 0;
-        
+
         if (timingsResult.isNotEmpty) {
           firstBus = timingsResult.first['first_bus'] as String? ?? "--";
           lastBus = timingsResult.first['last_bus'] as String? ?? "--";
           totalTrips = timingsResult.first['total_trips'] as int? ?? 0;
         }
-        
+
         directionsList.add({
           'route_id': rId,
           'direction_id': dirId,
@@ -182,7 +213,7 @@ class _BusInfoScreenState extends State<BusInfoScreen> {
           'total_trips': totalTrips,
         });
       }
-      
+
       if (mounted) {
         setState(() {
           _directions = directionsList;
@@ -210,13 +241,16 @@ class _BusInfoScreenState extends State<BusInfoScreen> {
 
     try {
       final db = await BusDatabaseHelper.getDatabase();
-      final results = await db.rawQuery('''
+      final results = await db.rawQuery(
+        '''
         SELECT s.stop_id, s.stop_name, s.stop_lat, s.stop_lon, s.routes_list
         FROM stop_times st
         JOIN stops s ON st.stop_id = s.stop_id
         WHERE st.trip_id = ?
         ORDER BY st.stop_sequence ASC
-      ''', [tripId]);
+      ''',
+        [tripId],
+      );
 
       if (mounted) {
         setState(() {
@@ -243,18 +277,27 @@ class _BusInfoScreenState extends State<BusInfoScreen> {
           children: [
             _buildHeader(context),
             if (_isLoadingDirections)
-              const Expanded(child: Center(child: CupertinoActivityIndicator(color: Colors.white)))
+              const Expanded(
+                child: Center(
+                  child: CupertinoActivityIndicator(color: Colors.white),
+                ),
+              )
             else if (_directions.isEmpty)
               _buildEmptyState()
             else ...[
               _buildStatsCard(),
               _buildDirectionToggle(),
               Expanded(
-                child: _isLoadingStops
-                    ? const Center(child: CupertinoActivityIndicator(color: Colors.white))
-                    : _buildStopsTimeline(),
+                child:
+                    _isLoadingStops
+                        ? const Center(
+                          child: CupertinoActivityIndicator(
+                            color: Colors.white,
+                          ),
+                        )
+                        : _buildStopsTimeline(),
               ),
-            ]
+            ],
           ],
         ),
       ),
@@ -263,22 +306,19 @@ class _BusInfoScreenState extends State<BusInfoScreen> {
 
   Widget _buildStatsCard() {
     if (_selectedDirection == null) return const SizedBox.shrink();
-    
+
     final firstBus = _formatTime(_selectedDirection!['first_bus'] as String);
     final lastBus = _formatTime(_selectedDirection!['last_bus'] as String);
     final totalTrips = _selectedDirection!['total_trips'] as int? ?? 0;
     final stopCount = _selectedDirection!['stop_count'] as int? ?? 0;
-    
+
     return Container(
       margin: EdgeInsets.symmetric(horizontal: 12.w, vertical: 4.h),
       padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 12.h),
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.zero,
-        border: Border.all(
-          color: AppColors.inputBorder,
-          width: 1.5,
-        ),
+        border: Border.all(color: AppColors.inputBorder, width: 1.5),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -353,11 +393,7 @@ class _BusInfoScreenState extends State<BusInfoScreen> {
               width: 1,
             ),
           ),
-          child: Icon(
-            icon,
-            color: _routeColor,
-            size: 14.sp,
-          ),
+          child: Icon(icon, color: _routeColor, size: 14.sp),
         ),
         SizedBox(width: 8.w),
         Column(
@@ -437,10 +473,14 @@ class _BusInfoScreenState extends State<BusInfoScreen> {
                     Row(
                       children: [
                         Container(
-                          padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 3.h),
+                          padding: EdgeInsets.symmetric(
+                            horizontal: 8.w,
+                            vertical: 3.h,
+                          ),
                           decoration: BoxDecoration(
                             color: _routeColor,
-                            borderRadius: BorderRadius.zero, // NeoPop Sharp Corners
+                            borderRadius:
+                                BorderRadius.zero, // NeoPop Sharp Corners
                           ),
                           child: Text(
                             "Route ${widget.routeLongName}",
@@ -461,31 +501,35 @@ class _BusInfoScreenState extends State<BusInfoScreen> {
               SizedBox(
                 width: 60.w,
                 child: Center(
-                  child: _agencyId == 'DTC'
-                      ? Image.asset(
-                          'assets/Image/dtc.png',
-                          height: 32.h,
-                          fit: BoxFit.contain,
-                        )
-                      : Container(
-                          width: 52.w,
-                          height: 22.h,
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(
-                            border: Border.all(color: Colors.orange, width: 1.5),
-                            borderRadius: BorderRadius.zero,
-                          ),
-                          child: Text(
-                            "DIMTS",
-                            style: TextStyle(
-                              color: Colors.orange,
-                              fontSize: 9.sp,
-                              fontWeight: FontWeight.w800,
-                              fontFamily: 'Poppins',
-                              letterSpacing: 0.5,
+                  child:
+                      _agencyId == 'DTC'
+                          ? Image.asset(
+                            'assets/Image/dtc.png',
+                            height: 32.h,
+                            fit: BoxFit.contain,
+                          )
+                          : Container(
+                            width: 52.w,
+                            height: 22.h,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              border: Border.all(
+                                color: Colors.orange,
+                                width: 1.5,
+                              ),
+                              borderRadius: BorderRadius.zero,
+                            ),
+                            child: Text(
+                              "DIMTS",
+                              style: TextStyle(
+                                color: Colors.orange,
+                                fontSize: 9.sp,
+                                fontWeight: FontWeight.w800,
+                                fontFamily: 'Poppins',
+                                letterSpacing: 0.5,
+                              ),
                             ),
                           ),
-                        ),
                 ),
               ),
             ],
@@ -520,8 +564,9 @@ class _BusInfoScreenState extends State<BusInfoScreen> {
               separatorBuilder: (context, index) => SizedBox(width: 8.w),
               itemBuilder: (context, index) {
                 final dir = _directions[index];
-                final isSelected = _selectedDirection?['trip_id'] == dir['trip_id'];
-                
+                final isSelected =
+                    _selectedDirection?['trip_id'] == dir['trip_id'];
+
                 return GestureDetector(
                   onTap: () {
                     setState(() {
@@ -543,9 +588,11 @@ class _BusInfoScreenState extends State<BusInfoScreen> {
                     child: Text(
                       dir['trip_headsign'] ?? "Option ${index + 1}",
                       style: TextStyle(
-                        color: isSelected ? _routeColor : AppColors.secondaryText,
+                        color:
+                            isSelected ? _routeColor : AppColors.secondaryText,
                         fontSize: 12.sp,
-                        fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                        fontWeight:
+                            isSelected ? FontWeight.w700 : FontWeight.w500,
                         fontFamily: 'Poppins',
                       ),
                     ),
@@ -606,7 +653,7 @@ class _BusInfoScreenState extends State<BusInfoScreen> {
         final stop = _stops[index];
         final stopName = stop['stop_name'] as String? ?? "Unknown Stop";
         final routesList = stop['routes_list'] as String? ?? "";
-        
+
         // Split stop name by '/'
         String mainName = stopName;
         String? subName;
@@ -631,14 +678,12 @@ class _BusInfoScreenState extends State<BusInfoScreen> {
                 "Line": routesList,
                 "Latitude": stop['stop_lat']?.toString() ?? "",
                 "Longitude": stop['stop_lon']?.toString() ?? "",
-              }
+              },
             };
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (context) => StopInfoScreen(
-                  stationDict: stationDict,
-                ),
+                builder: (context) => StopInfoScreen(stationDict: stationDict),
               ),
             );
           },
@@ -660,7 +705,8 @@ class _BusInfoScreenState extends State<BusInfoScreen> {
                   if (index < _stops.length - 1)
                     Container(
                       width: 2.w,
-                      height: 48.h, // Adjusted height to accommodate sub-text and details
+                      height:
+                          48.h, // Adjusted height to accommodate sub-text and details
                       color: _routeColor.withValues(alpha: 0.5),
                     ),
                 ],

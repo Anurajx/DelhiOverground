@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:metroapp/elements/ServicesDir/station_element.dart';
 import 'package:metroapp/elements/ServicesDir/new_schedule_service.dart';
 import 'package:metroapp/elements/ServicesDir/report_error_service.dart';
+import 'package:metroapp/main.dart';
 
 class StopInfoScreen extends StatelessWidget {
   final dynamic stationDict;
@@ -13,7 +14,7 @@ class StopInfoScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color.fromARGB(255, 0, 0, 0),
+      backgroundColor: AppColors.background,
       body: stationCluster(context, stationDict),
     );
   }
@@ -51,7 +52,7 @@ stationCluster(context, stationDict) {
 
 topNavBar(context) {
   return Container(
-    padding: const EdgeInsets.symmetric(vertical: 20),
+    padding: EdgeInsets.symmetric(vertical: 12.h),
     child: Row(
       mainAxisAlignment: MainAxisAlignment.start,
       crossAxisAlignment: CrossAxisAlignment.center,
@@ -62,17 +63,19 @@ topNavBar(context) {
           },
           child: Row(
             children: [
-              const Icon(
+              Icon(
                 CupertinoIcons.back,
-                color: Color.fromARGB(255, 47, 130, 255),
+                color: AppColors.primaryAccent,
+                size: 20.sp,
               ),
+              SizedBox(width: 4.w),
               Text(
-                "Done",
+                "Back",
                 style: TextStyle(
-                  color: const Color.fromARGB(255, 47, 130, 255),
-                  fontWeight: FontWeight.w500,
+                  color: AppColors.primaryAccent,
+                  fontWeight: FontWeight.w600,
                   fontFamily: 'Poppins',
-                  fontSize: 18.sp,
+                  fontSize: 16.sp,
                 ),
               ),
             ],
@@ -103,7 +106,7 @@ Widget _buildBusStopDetailsCard(BuildContext context, dynamic stationDict) {
   final lon = source["Longitude"]?.toString() ?? "";
 
   return Padding(
-    padding: EdgeInsets.symmetric(vertical: 12.h),
+    padding: EdgeInsets.symmetric(vertical: 24.h),
     child: GestureDetector(
       onTap: () async {
         if (lat.isNotEmpty && lon.isNotEmpty) {
@@ -112,7 +115,10 @@ Widget _buildBusStopDetailsCard(BuildContext context, dynamic stationDict) {
           );
           try {
             if (await canLaunchUrl(googleMapsUrl)) {
-              await launchUrl(googleMapsUrl, mode: LaunchMode.externalApplication);
+              await launchUrl(
+                googleMapsUrl,
+                mode: LaunchMode.externalApplication,
+              );
             } else {
               throw 'Could not launch $googleMapsUrl';
             }
@@ -125,19 +131,8 @@ Widget _buildBusStopDetailsCard(BuildContext context, dynamic stationDict) {
         width: double.infinity,
         padding: EdgeInsets.symmetric(vertical: 12.h),
         decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [Color(0xFF2F82FF), Color(0xFF0055D4)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
+          color: AppColors.primaryAccent,
           borderRadius: BorderRadius.zero,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.blueAccent.withValues(alpha: 0.3),
-              blurRadius: 8,
-              offset: const Offset(0, 4),
-            )
-          ],
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -164,11 +159,12 @@ reportError() {
   return Row(
     children: [
       Container(
-        height: 50.h,
-        width: 170.w,
+        height: 40.h,
+        width: 150.w,
         decoration: BoxDecoration(
-          borderRadius: const BorderRadius.all(Radius.circular(2)),
-          border: Border.all(color: const Color.fromARGB(255, 35, 35, 35)),
+          color: Colors.transparent,
+          borderRadius: BorderRadius.zero,
+          border: Border.all(color: AppColors.inputBorder, width: 1.5),
         ),
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
@@ -182,12 +178,12 @@ reportError() {
           child: Align(
             alignment: Alignment.center,
             child: Text(
-              "report error",
+              "Report Error",
               style: TextStyle(
-                color: const Color.fromARGB(255, 187, 187, 187),
-                fontSize: 18.sp,
+                color: AppColors.secondaryText,
+                fontSize: 12.sp,
                 fontFamily: 'Poppins',
-                fontWeight: FontWeight.w500,
+                fontWeight: FontWeight.w600,
               ),
             ),
           ),
@@ -206,13 +202,14 @@ companyFooter() {
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Text(
-          "DELHI\nUNDERGROUND",
+          "DELHI\nOVERGROUND",
           textAlign: TextAlign.center,
           style: TextStyle(
             height: 1.h,
-            color: const Color.fromARGB(255, 90, 90, 90),
+            color: AppColors.tertiaryText,
             fontWeight: FontWeight.w800,
-            fontSize: 14.sp,
+            fontSize: 12.sp,
+            fontFamily: 'Poppins',
           ),
         ),
       ],

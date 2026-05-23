@@ -1,11 +1,10 @@
 import 'dart:convert';
-import 'dart:io';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:sqflite/sqflite.dart';
-import 'package:path/path.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import '../search.dart';
+import 'package:metroapp/main.dart';
 
 // -------------------- LINE COLORS --------------------
 Color getColorFromRouteName(String routeName) {
@@ -72,14 +71,16 @@ Future<List<ScheduleInfo>> getScheduleForStation(String stationCode) async {
   final db = await BusDatabaseHelper.getDatabase();
 
   final now = DateTime.now();
-  final currentTimeStr = "${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}:${now.second.toString().padLeft(2, '0')}";
+  final currentTimeStr =
+      "${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}:${now.second.toString().padLeft(2, '0')}";
   final currentMinutes = now.hour * 60 + now.minute;
 
   final stopIds = stationCode.split(',').map((id) => id.trim()).toList();
   final placeholders = List.filled(stopIds.length, '?').join(',');
 
   // Query upcoming departures
-  var results = await db.rawQuery('''
+  var results = await db.rawQuery(
+    '''
     SELECT 
       t.trip_id,
       r.route_long_name,
@@ -97,7 +98,9 @@ Future<List<ScheduleInfo>> getScheduleForStation(String stationCode) async {
     WHERE st.stop_id IN ($placeholders) AND st.departure_time >= ?
     ORDER BY st.departure_time ASC
     LIMIT 15
-  ''', [...stopIds, currentTimeStr]);
+  ''',
+    [...stopIds, currentTimeStr],
+  );
 
   // Fallback: If no more departures today, display early morning departures
   if (results.isEmpty) {
@@ -147,14 +150,19 @@ Future<List<ScheduleInfo>> getScheduleForStation(String stationCode) async {
       relativeText = "In $hrs hr $mins mins";
     }
 
-    schedules.add(ScheduleInfo(
-      destination: destinationName.isNotEmpty ? destinationName : (headsign.isNotEmpty ? headsign : "Terminal"),
-      lineId: "Route $routeName",
-      lineColor: getColorFromRouteName(routeName),
-      frequencyText: formatTime12h(departureTime),
-      minutesLeft: diff,
-      relativeText: relativeText,
-    ));
+    schedules.add(
+      ScheduleInfo(
+        destination:
+            destinationName.isNotEmpty
+                ? destinationName
+                : (headsign.isNotEmpty ? headsign : "Terminal"),
+        lineId: "Route $routeName",
+        lineColor: getColorFromRouteName(routeName),
+        frequencyText: formatTime12h(departureTime),
+        minutesLeft: diff,
+        relativeText: relativeText,
+      ),
+    );
   }
 
   return schedules;
@@ -223,10 +231,11 @@ class _ScheduleWidgetState extends State<ScheduleWidget> {
   }
 
   Widget _buildDestinationText(String destination) {
-    const style = TextStyle(
-      color: Colors.white,
-      fontWeight: FontWeight.w500,
-      fontSize: 14.0,
+    final style = TextStyle(
+      color: AppColors.primaryText,
+      fontWeight: FontWeight.w600,
+      fontSize: 14.sp,
+      fontFamily: 'Poppins',
     );
     if (destination.contains(" to ")) {
       final parts = destination.split(" to ");
@@ -244,15 +253,10 @@ class _ScheduleWidgetState extends State<ScheduleWidget> {
 
   Widget _buildScheduleBlock(ScheduleInfo schedule) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 2.0),
+      margin: const EdgeInsets.only(bottom: 6.0),
       decoration: BoxDecoration(
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.1),
-            spreadRadius: 1,
-            blurRadius: 3,
-          ),
-        ],
+        //color: AppColors.surface,
+        border: Border.all(color: AppColors.inputBorder, width: 1.5),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -261,9 +265,7 @@ class _ScheduleWidgetState extends State<ScheduleWidget> {
             children: [
               Container(
                 padding: const EdgeInsets.fromLTRB(15.0, 10.0, 10.0, 10.0),
-                decoration: const BoxDecoration(
-                  color: Color.fromARGB(255, 33, 33, 33),
-                ),
+                decoration: const BoxDecoration(color: Colors.transparent),
                 width: double.infinity,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -273,10 +275,11 @@ class _ScheduleWidgetState extends State<ScheduleWidget> {
                     const SizedBox(height: 4.0),
                     Text(
                       schedule.lineId,
-                      style: const TextStyle(
-                        color: Colors.white70,
+                      style: TextStyle(
+                        color: AppColors.secondaryText,
                         fontWeight: FontWeight.w400,
-                        fontSize: 12.0,
+                        fontSize: 12.sp,
+                        fontFamily: 'Poppins',
                       ),
                     ),
                   ],
@@ -292,52 +295,59 @@ class _ScheduleWidgetState extends State<ScheduleWidget> {
           ),
           Container(
             decoration: const BoxDecoration(
-              border: Border.fromBorderSide(
-                BorderSide(color: Color.fromARGB(255, 33, 33, 33)),
-              ),
+              border: Border(top: BorderSide(color: AppColors.divider)),
             ),
             padding: const EdgeInsets.all(10.0),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
+                Text(
                   "Departure Time",
                   style: TextStyle(
-                    color: Colors.white70,
+                    color: AppColors.primaryText,
                     fontWeight: FontWeight.w500,
-                    fontSize: 15.0,
+                    fontSize: 15.sp,
+                    fontFamily: 'Poppins',
                   ),
                 ),
                 Row(
                   children: [
                     Text(
                       schedule.frequencyText,
-                      style: const TextStyle(
-                        color: Colors.white,
+                      style: TextStyle(
+                        color: AppColors.primaryText,
                         fontWeight: FontWeight.w600,
-                        fontSize: 15.0,
+                        fontSize: 15.sp,
+                        fontFamily: 'Poppins',
                       ),
                     ),
                     const SizedBox(width: 10),
                     Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 8.0,
-                        vertical: 4.0,
+                        vertical: 2.0,
                       ),
                       decoration: BoxDecoration(
-                        color: schedule.minutesLeft <= 15
-                            ? Colors.green.withOpacity(0.2)
-                            : Colors.blueAccent.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(6),
+                        color: Colors.transparent,
+                        borderRadius: BorderRadius.zero,
+                        border: Border.all(
+                          color:
+                              schedule.minutesLeft <= 15
+                                  ? Colors.greenAccent
+                                  : Colors.orangeAccent,
+                          width: 1,
+                        ),
                       ),
                       child: Text(
                         schedule.relativeText,
                         style: TextStyle(
-                          color: schedule.minutesLeft <= 15
-                              ? Colors.greenAccent
-                              : Colors.blueAccent,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 12.0,
+                          color:
+                              schedule.minutesLeft <= 15
+                                  ? Colors.greenAccent
+                                  : Colors.orangeAccent,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 12.sp,
+                          fontFamily: 'Poppins',
                         ),
                       ),
                     ),
@@ -364,7 +374,11 @@ class _ScheduleWidgetState extends State<ScheduleWidget> {
               const SizedBox(height: 16.0),
               Text(
                 errorMessage,
-                style: const TextStyle(color: Colors.red, fontSize: 14.0),
+                style: TextStyle(
+                  color: AppColors.destructive,
+                  fontSize: 14.sp,
+                  fontFamily: 'Poppins',
+                ),
                 textAlign: TextAlign.center,
                 maxLines: 4,
                 overflow: TextOverflow.ellipsis,
@@ -390,7 +404,11 @@ class _ScheduleWidgetState extends State<ScheduleWidget> {
               Text(
                 'No upcoming buses\nfor $stationName',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.grey.shade600, fontSize: 16.0),
+                style: TextStyle(
+                  color: AppColors.tertiaryText,
+                  fontSize: 16.sp,
+                  fontFamily: 'Poppins',
+                ),
               ),
             ],
           ),
@@ -407,16 +425,17 @@ class _ScheduleWidgetState extends State<ScheduleWidget> {
 
   Widget _buildHeader() {
     return Container(
-      margin: const EdgeInsets.only(bottom: 20.0),
-      child: const Row(
+      margin: EdgeInsets.only(bottom: 3.h),
+      child: Row(
         children: [
           Text(
-            "UPCOMING DEPARTURES ",
+            "UPCOMING DEPARTURES",
             style: TextStyle(
-              color: Color.fromARGB(255, 109, 109, 109),
-              fontSize: 16.0,
+              color: AppColors.tertiaryText,
+              fontSize: 14.sp,
+              fontWeight: FontWeight.w700,
               fontFamily: 'Poppins',
-              fontWeight: FontWeight.w500,
+              letterSpacing: 1.0,
             ),
           ),
         ],
