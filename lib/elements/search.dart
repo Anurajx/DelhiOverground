@@ -408,20 +408,23 @@ class _SearchBodyState extends State<SearchBody> {
                   padding: EdgeInsets.all(4.w),
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.zero,
-                    border: Border.all(
-                      color: AppColors.inputBorder,
-                      width: 1.5,
-                    ),
                   ),
                   child: agencyId == 'DTC'
                       ? Image.asset(
                           'assets/Image/dtc.png',
                           fit: BoxFit.contain,
                         )
-                      : Icon(
-                          CupertinoIcons.bus,
-                          color: Colors.white,
-                          size: 24.sp,
+                      : Center(
+                          child: Text(
+                            "DIMTS",
+                            style: TextStyle(
+                              color: Colors.orange,
+                              fontSize: 9.sp,
+                              fontWeight: FontWeight.w800,
+                              fontFamily: 'Poppins',
+                              letterSpacing: 0.5,
+                            ),
+                          ),
                         ),
                 ),
                 SizedBox(width: 14.w),
