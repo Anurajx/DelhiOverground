@@ -15,204 +15,292 @@ class StopInfoScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: stationCluster(context, stationDict),
+      body: _buildStationCluster(context),
     );
   }
-}
 
-stationCluster(context, stationDict) {
-  final stationCode = stationDict["Source"]["StationCode"];
-  print("TRIAL1 THE STATION CODE IS - $stationDict");
-  return SafeArea(
-    child: Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10),
-      child: Column(
-        children: [
-          topNavBar(context),
-          Expanded(
-            child: ListView(
-              shrinkWrap: true,
-              children: [
-                stationLineMarker(stationDict),
-                _buildBusStopDetailsCard(context, stationDict),
-                SizedBox(height: 20.h),
-                ScheduleWidget(stationCode: stationCode),
-                SizedBox(height: 40.h),
-                reportError(),
-                SizedBox(height: 40.h),
-                companyFooter(),
-              ],
-            ),
-          ),
-        ],
-      ),
-    ),
-  );
-}
-
-topNavBar(context) {
-  return Container(
-    padding: EdgeInsets.symmetric(vertical: 12.h),
-    child: Row(
-      mainAxisAlignment: MainAxisAlignment.start,
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        GestureDetector(
-          onTap: () {
-            Navigator.pop(context);
-          },
-          child: Row(
-            children: [
-              Icon(
-                CupertinoIcons.back,
-                color: AppColors.primaryAccent,
-                size: 20.sp,
-              ),
-              SizedBox(width: 4.w),
-              Text(
-                "Back",
-                style: TextStyle(
-                  color: AppColors.primaryAccent,
-                  fontWeight: FontWeight.w600,
-                  fontFamily: 'Poppins',
-                  fontSize: 16.sp,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    ),
-  );
-}
-
-stationLineMarker(stationDict) {
-  dynamic station = stationDict["Source"];
-  String stationName = station["Name"].toString();
-  String stationNameHindiCommon = station["Hindi"].toString();
-  String line = station["Line"];
-  line = line.replaceAll(RegExp(r'[\[\]]'), '');
-  List<String> parts = line.split('-');
-  return BigNameInfo(
-    stationName: stationName,
-    stationNameHindiCommon: stationNameHindiCommon,
-    lineofStation: parts,
-  );
-}
-
-Widget _buildBusStopDetailsCard(BuildContext context, dynamic stationDict) {
-  final source = stationDict["Source"];
-  final lat = source["Latitude"]?.toString() ?? "";
-  final lon = source["Longitude"]?.toString() ?? "";
-
-  return Padding(
-    padding: EdgeInsets.symmetric(vertical: 24.h),
-    child: GestureDetector(
-      onTap: () async {
-        if (lat.isNotEmpty && lon.isNotEmpty) {
-          final googleMapsUrl = Uri.parse(
-            "https://www.google.com/maps/dir/?api=1&destination=$lat,$lon",
-          );
-          try {
-            if (await canLaunchUrl(googleMapsUrl)) {
-              await launchUrl(
-                googleMapsUrl,
-                mode: LaunchMode.externalApplication,
-              );
-            } else {
-              throw 'Could not launch $googleMapsUrl';
-            }
-          } catch (e) {
-            debugPrint("Error launching Google Maps: $e");
-          }
-        }
-      },
+  Widget _buildStationCluster(BuildContext context) {
+    final stationCode = stationDict["Source"]["StationCode"];
+    return SafeArea(
       child: Container(
-        width: double.infinity,
-        padding: EdgeInsets.symmetric(vertical: 12.h),
-        decoration: BoxDecoration(
-          color: AppColors.primaryAccent,
-          borderRadius: BorderRadius.zero,
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        child: Column(
           children: [
-            Icon(CupertinoIcons.compass_fill, color: Colors.white, size: 18.sp),
-            SizedBox(width: 8.w),
-            Text(
-              "Navigate to Stop",
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 14.sp,
-                fontWeight: FontWeight.w600,
-                fontFamily: 'Poppins',
+            _buildTopNavBar(context),
+            Expanded(
+              child: ListView(
+                shrinkWrap: true,
+                children: [
+                  _buildStationLineMarker(),
+                  _buildBusStopDetailsCard(context),
+                  SizedBox(height: 10.h),
+                  ScheduleWidget(stationCode: stationCode),
+                  SizedBox(height: 40.h),
+                  _buildReportError(),
+                  SizedBox(height: 40.h),
+                  _buildCompanyFooter(),
+                ],
               ),
             ),
           ],
         ),
       ),
-    ),
-  );
-}
+    );
+  }
 
-reportError() {
-  return Row(
-    children: [
-      Container(
-        height: 40.h,
-        width: 150.w,
-        decoration: BoxDecoration(
-          color: Colors.transparent,
-          borderRadius: BorderRadius.zero,
-          border: Border.all(color: AppColors.inputBorder, width: 1.5),
-        ),
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: () {
+  Widget _buildTopNavBar(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.symmetric(vertical: 12.h),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          GestureDetector(
+            onTap: () {
+              Navigator.pop(context);
+            },
+            child: Row(
+              children: [
+                Icon(
+                  CupertinoIcons.back,
+                  color: AppColors.primaryAccent,
+                  size: 20.sp,
+                ),
+                SizedBox(width: 4.w),
+                Text(
+                  "Back",
+                  style: TextStyle(
+                    color: AppColors.primaryAccent,
+                    fontWeight: FontWeight.w600,
+                    fontFamily: 'Poppins',
+                    fontSize: 16.sp,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStationLineMarker() {
+    dynamic station = stationDict["Source"];
+    String stationName = station["Name"].toString();
+    String stationNameHindiCommon = station["Hindi"].toString();
+    String line = station["Line"];
+    line = line.replaceAll(RegExp(r'[\[\]]'), '');
+    List<String> parts = line.split('-');
+    return BigNameInfo(
+      stationName: stationName,
+      stationNameHindiCommon: stationNameHindiCommon,
+      lineofStation: parts,
+    );
+  }
+
+  Widget _buildBusStopDetailsCard(BuildContext context) {
+    final source = stationDict["Source"];
+    final lat = source["Latitude"]?.toString() ?? "";
+    final lon = source["Longitude"]?.toString() ?? "";
+
+    return Padding(
+      padding: EdgeInsets.symmetric(vertical: 24.h),
+      child: GestureDetector(
+        onTap: () async {
+          if (lat.isNotEmpty && lon.isNotEmpty) {
+            final googleMapsUrl = Uri.parse(
+              "https://www.google.com/maps/dir/?api=1&destination=$lat,$lon",
+            );
             try {
-              sendToGoogleForm();
+              if (await canLaunchUrl(googleMapsUrl)) {
+                await launchUrl(
+                  googleMapsUrl,
+                  mode: LaunchMode.externalApplication,
+                );
+              } else {
+                throw 'Could not launch $googleMapsUrl';
+              }
             } catch (e) {
-              debugPrint("Error sending email: $e");
+              debugPrint("Error launching Google Maps: $e");
             }
-          },
-          child: Align(
-            alignment: Alignment.center,
-            child: Text(
-              "Report Error",
-              style: TextStyle(
-                color: AppColors.secondaryText,
-                fontSize: 12.sp,
-                fontFamily: 'Poppins',
-                fontWeight: FontWeight.w600,
+          }
+        },
+        child: Column(
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: EdgeInsets.all(12.h),
+                  decoration: const BoxDecoration(
+                    color: Color.fromARGB(38, 59, 131, 246),
+                    borderRadius: BorderRadius.zero,
+                  ),
+                  child: Center(
+                    child: Row(
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              CupertinoIcons.map_pin_ellipse,
+                              color: Colors.white,
+                              size: 18.sp,
+                            ),
+                            SizedBox(width: 8.w),
+                            Text(
+                              "on Map",
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 14.sp,
+                                fontWeight: FontWeight.w600,
+                                fontFamily: 'Poppins',
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                SizedBox(width: 3.w),
+                Expanded(
+                  child: Container(
+                    padding: EdgeInsets.all(12.h),
+                    decoration: const BoxDecoration(
+                      color: Color.fromARGB(38, 59, 131, 246),
+                      borderRadius: BorderRadius.zero,
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Center(
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                CupertinoIcons.arrow_down_circle,
+                                color: Colors.white,
+                                size: 18.sp,
+                              ),
+                              SizedBox(width: 8.w),
+                              Text(
+                                "get Route",
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 14.sp,
+                                  fontWeight: FontWeight.w600,
+                                  fontFamily: 'Poppins',
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: 3.h),
+            Container(
+              padding: EdgeInsets.all(12.h),
+              decoration: const BoxDecoration(
+                color: Color.fromARGB(38, 59, 131, 246),
+                borderRadius: BorderRadius.zero,
+              ),
+              child: Center(
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          CupertinoIcons.radiowaves_right,
+                          color: Colors.white,
+                          size: 18.sp,
+                        ),
+                        SizedBox(width: 8.w),
+                        Text(
+                          "Live Buses",
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 14.sp,
+                            fontWeight: FontWeight.w600,
+                            fontFamily: 'Poppins',
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildReportError() {
+    return Row(
+      children: [
+        Container(
+          height: 40.h,
+          width: 150.w,
+          decoration: BoxDecoration(
+            color: Colors.transparent,
+            borderRadius: BorderRadius.zero,
+            border: Border.all(color: AppColors.inputBorder, width: 1.5),
+          ),
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () {
+              try {
+                sendToGoogleForm();
+              } catch (e) {
+                debugPrint("Error sending email: $e");
+              }
+            },
+            child: Align(
+              alignment: Alignment.center,
+              child: Text(
+                "Report Error",
+                style: TextStyle(
+                  color: AppColors.secondaryText,
+                  fontSize: 12.sp,
+                  fontFamily: 'Poppins',
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
           ),
         ),
-      ),
-    ],
-  );
-}
-
-companyFooter() {
-  return Container(
-    width: double.infinity,
-    height: 50.h,
-    child: Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        Text(
-          "DELHI\nOVERGROUND",
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            height: 1.h,
-            color: AppColors.tertiaryText,
-            fontWeight: FontWeight.w800,
-            fontSize: 12.sp,
-            fontFamily: 'Poppins',
-          ),
-        ),
       ],
-    ),
-  );
+    );
+  }
+
+  Widget _buildCompanyFooter() {
+    return SizedBox(
+      width: double.infinity,
+      height: 50.h,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Text(
+            "DELHI\nOVERGROUND",
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              height: 1.h,
+              color: AppColors.tertiaryText,
+              fontWeight: FontWeight.w800,
+              fontSize: 12.sp,
+              fontFamily: 'Poppins',
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }

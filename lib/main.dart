@@ -8,7 +8,6 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final dataProvider = DataProvider();
-  await dataProvider.loadTransferDictFromPrefs();
   await dataProvider.loadBusSearchHistory();
 
   // Set global status bar style
@@ -90,7 +89,7 @@ class MyApp extends StatelessWidget {
               backgroundColor: const Color.fromARGB(255, 0, 0, 0),
 
               //Color.fromARGB(255, 13, 13, 13),
-              body: const SafeArea(child: Page1()),
+              body: const SafeArea(child: HomeScreen()),
             ),
           ),
           builder: (context, widget) {

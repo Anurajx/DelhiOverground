@@ -2,6 +2,8 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:metroapp/main.dart';
+import 'package:metroapp/elements/bus_info.dart';
+import 'package:metroapp/elements/search.dart';
 
 class StationUnit extends StatelessWidget {
   final dynamic name;
@@ -26,7 +28,7 @@ class StationUnit extends StatelessWidget {
     }
 
     return Container(
-      height: 72.h,
+      height: 60.h,
       margin: EdgeInsets.symmetric(vertical: 2.h),
       padding: EdgeInsets.symmetric(horizontal: 8.w),
       child: Row(
@@ -74,25 +76,6 @@ class StationUnit extends StatelessWidget {
   }
 }
 
-Color getColorFromRouteName(String routeName) {
-  if (routeName.isEmpty) return const Color.fromARGB(226, 255, 255, 255);
-  int hash = 0;
-  for (int i = 0; i < routeName.length; i++) {
-    hash = routeName.codeUnitAt(i) + ((hash << 5) - hash);
-  }
-  double hue = (hash.abs() % 360).toDouble();
-  return HSLColor.fromAHSL(1.0, hue, 0.35, 0.7).toColor();
-}
-
-Color getColorFromLine(dynamic line) {
-  if (line is int) {
-    return getColorFromRouteName(line.toString());
-  } else if (line is String) {
-    return getColorFromRouteName(line);
-  }
-  return const Color.fromARGB(226, 255, 255, 255);
-}
-
 Widget stationLineBadgeBuilder(List<dynamic> lines) {
   return Wrap(
     spacing: 4.w,
@@ -108,106 +91,19 @@ Widget stationLineBadge(dynamic line) {
   String lineStr = line.toString();
   return Container(
     padding: EdgeInsets.symmetric(horizontal: 6.w, vertical: 2.h),
-    decoration: BoxDecoration(
-      color: getColorFromLine(line),
+    decoration: const BoxDecoration(
+      color: AppColors.primaryAccent,
       borderRadius: BorderRadius.zero,
     ),
     child: Text(
       lineStr,
       style: TextStyle(
-        color: Colors.black,
+        color: Colors.white,
         fontSize: 11.sp,
         fontWeight: FontWeight.w700,
       ),
     ),
   );
-}
-
-class StationPrimitive extends StatelessWidget {
-  //for station list on main screen
-  final dynamic name;
-
-  const StationPrimitive({super.key, required this.name});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Flexible(
-          child: Text(
-            '$name',
-            //maxLines: 2,
-            overflow: TextOverflow.fade,
-            softWrap: false,
-            // minFontSize: 14,
-            // maxFontSize: 18,
-            style: TextStyle(
-              fontFamily: 'Poppins',
-              color: AppColors.primaryText,
-              fontSize: 18.sp,
-              fontWeight: FontWeight.w600, //300
-            ),
-          ),
-        ),
-        //Spacer(),
-        // Row(
-        //   children: [
-        //     SizedBox(
-        //       width: 10,
-        //     ), // adding to create a bit of space between line indicatot and text
-        //     Container(
-        //       width: 15,
-        //       height: 15,
-        //       decoration: BoxDecoration(
-        //         color: const Color.fromARGB(255, 0, 122, 204),
-        //         borderRadius: BorderRadius.all(Radius.circular(3)),
-        //       ),
-        //       child: Center(
-        //         child: Text(
-        //           "3",
-        //           style: TextStyle(
-        //             color: Colors.black,
-        //             fontSize: 10,
-        //             fontWeight: FontWeight.w700,
-        //           ),
-        //         ),
-        //       ),
-        //       // color: const Color(
-        //       //   0xFF0072BC,
-        //       // ), //blue line color will make it dynamic later
-        //     ),
-        //     SizedBox(width: 1),
-        //     Container(
-        //       width: 15,
-        //       height: 15,
-
-        //       decoration: BoxDecoration(
-        //         color: const Color.fromARGB(255, 200, 155, 0),
-        //         borderRadius: BorderRadius.all(Radius.circular(3)),
-        //       ),
-        //       child: Center(
-        //         child: Text(
-        //           "7",
-        //           style: TextStyle(
-        //             color: Colors.black,
-        //             fontSize: 10,
-        //             fontWeight: FontWeight.w700,
-        //           ),
-        //         ),
-        //       ), //make this change dynamically based on the station
-        //       // color: const Color(
-        //       //   0xFFF47B20,
-        //       // ), //blue line color will make it dynamic later
-        //     ),
-        //   ],
-        // ),
-        //Spacer(),
-        //right: 0,
-        Icon(CupertinoIcons.arrow_right, color: AppColors.primaryText),
-      ],
-    );
-  }
 }
 
 class StationNearby extends StatelessWidget {
@@ -276,8 +172,7 @@ class StationNearby extends StatelessWidget {
   }
 }
 
-///////////////////////
-class BigNameInfo extends StatelessWidget {
+class BigNameInfo extends StatefulWidget {
   final dynamic stationName;
   final dynamic stationNameHindiCommon;
   final dynamic lineofStation;
@@ -289,8 +184,15 @@ class BigNameInfo extends StatelessWidget {
   });
 
   @override
+  State<BigNameInfo> createState() => _BigNameInfoState();
+}
+
+class _BigNameInfoState extends State<BigNameInfo> {
+  bool _isExpanded = false;
+
+  @override
   Widget build(BuildContext context) {
-    String mainName = stationName.toString();
+    String mainName = widget.stationName.toString();
     String? subName;
     if (mainName.contains('/')) {
       final parts = mainName.split('/');
@@ -298,13 +200,15 @@ class BigNameInfo extends StatelessWidget {
       subName = parts[1].trim();
     }
 
-    final showHindi =
-        stationNameHindiCommon != null &&
-        stationNameHindiCommon.toString().isNotEmpty &&
-        stationNameHindiCommon.toString().toLowerCase() !=
-            stationName.toString().toLowerCase() &&
-        stationNameHindiCommon.toString().toLowerCase() !=
-            mainName.toLowerCase();
+    final List<dynamic> lines = widget.lineofStation;
+    final bool hasManyLines = lines.length > 10;
+
+    List<dynamic> displayedLines;
+    if (hasManyLines && !_isExpanded) {
+      displayedLines = lines.take(9).toList();
+    } else {
+      displayedLines = lines;
+    }
 
     return Padding(
       padding: EdgeInsets.symmetric(vertical: 24.h),
@@ -342,38 +246,62 @@ class BigNameInfo extends StatelessWidget {
               ],
             ),
           ),
-          stationLineBadgeBuilderForBIG(lineofStation),
         ],
       ),
     );
   }
 }
 
-Widget stationLineBadgeBuilderForBIG(List<dynamic> lines) {
-  return Wrap(
-    spacing: 4.w,
-    runSpacing: 4.h,
-    children:
-        lines.map<Widget>((line) {
-          return stationLineBadgeForBig(line);
-        }).toList(),
-  );
-}
-
-Widget stationLineBadgeForBig(dynamic line) {
+Widget stationLineBadgeForBig(BuildContext context, dynamic line) {
   String lineStr = line.toString();
-  return Container(
-    padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 3.h),
-    decoration: BoxDecoration(
-      color: getColorFromLine(line),
-      borderRadius: BorderRadius.zero,
-    ),
-    child: Text(
-      lineStr,
-      style: TextStyle(
-        color: Colors.black,
-        fontSize: 12.sp,
-        fontWeight: FontWeight.w700,
+  return GestureDetector(
+    behavior: HitTestBehavior.opaque,
+    onTap: () async {
+      try {
+        final db = await BusDatabaseHelper.getDatabase();
+        final results = await db.rawQuery(
+          '''
+          SELECT route_id FROM routes WHERE route_long_name = ? LIMIT 1
+        ''',
+          [lineStr],
+        );
+        String routeId = "";
+        if (results.isNotEmpty) {
+          routeId = results.first['route_id'] as String;
+        }
+        if (context.mounted) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder:
+                  (context) =>
+                      BusInfoScreen(routeId: routeId, routeLongName: lineStr),
+            ),
+          );
+        }
+      } catch (e) {
+        if (context.mounted) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder:
+                  (context) =>
+                      BusInfoScreen(routeId: "", routeLongName: lineStr),
+            ),
+          );
+        }
+      }
+    },
+    child: Padding(
+      padding: EdgeInsets.symmetric(horizontal: 4.w, vertical: 3.h),
+      child: Text(
+        lineStr,
+        style: TextStyle(
+          color: AppColors.primaryAccent,
+          fontSize: 12.sp,
+          fontWeight: FontWeight.w700,
+          fontFamily: 'Poppins',
+        ),
       ),
     ),
   );

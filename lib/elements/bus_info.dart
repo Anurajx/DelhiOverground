@@ -32,18 +32,8 @@ class _BusInfoScreenState extends State<BusInfoScreen> {
   @override
   void initState() {
     super.initState();
-    _routeColor = _getColorFromRouteName(widget.routeLongName);
+    _routeColor = AppColors.primaryAccent;
     _loadDirections();
-  }
-
-  Color _getColorFromRouteName(String routeName) {
-    if (routeName.isEmpty) return const Color.fromARGB(226, 255, 255, 255);
-    int hash = 0;
-    for (int i = 0; i < routeName.length; i++) {
-      hash = routeName.codeUnitAt(i) + ((hash << 5) - hash);
-    }
-    double hue = (hash.abs() % 360).toDouble();
-    return HSLColor.fromAHSL(1.0, hue, 0.35, 0.7).toColor();
   }
 
   String _formatTime(String timeStr) {
@@ -316,9 +306,9 @@ class _BusInfoScreenState extends State<BusInfoScreen> {
       margin: EdgeInsets.symmetric(horizontal: 12.w, vertical: 4.h),
       padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 12.h),
       decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.zero,
-        border: Border.all(color: AppColors.inputBorder, width: 1.5),
+        color: Color.fromARGB(38, 59, 131, 246),
+        //borderRadius: BorderRadius.zero,
+        //border: Border.all(color: AppColors.inputBorder, width: 1.5),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -478,7 +468,7 @@ class _BusInfoScreenState extends State<BusInfoScreen> {
                             vertical: 3.h,
                           ),
                           decoration: BoxDecoration(
-                            color: _routeColor,
+                            color: Color.fromARGB(38, 59, 131, 246),
                             borderRadius:
                                 BorderRadius.zero, // NeoPop Sharp Corners
                           ),
