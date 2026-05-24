@@ -14,7 +14,7 @@ class StopInfoScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Colors.black,
       body: _buildStationCluster(context),
     );
   }
@@ -203,7 +203,7 @@ class StopInfoScreen extends StatelessWidget {
             ),
             SizedBox(height: 3.h),
             Container(
-              padding: EdgeInsets.all(12.h),
+              padding: EdgeInsets.all(36.h),
               decoration: const BoxDecoration(
                 color: Color.fromARGB(38, 59, 131, 246),
                 borderRadius: BorderRadius.zero,

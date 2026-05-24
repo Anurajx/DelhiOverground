@@ -211,13 +211,13 @@ class _BigNameInfoState extends State<BigNameInfo> {
     }
 
     return Padding(
-      padding: EdgeInsets.symmetric(vertical: 24.h),
+      padding: EdgeInsets.only(top: 24.h),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(0, 25, 0, 25),
+            padding: const EdgeInsets.fromLTRB(0, 25, 0, 0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,

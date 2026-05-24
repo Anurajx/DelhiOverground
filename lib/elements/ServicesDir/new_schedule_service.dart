@@ -272,18 +272,32 @@ class _ScheduleWidgetState extends State<ScheduleWidget> {
         decoration: BoxDecoration(
           color: Colors.black, // background black
           border: Border.all(
-            color: const Color.fromARGB(31, 58, 58, 58), // AppColors.inputBorder at 0.12 opacity
+            color: const Color.fromARGB(
+              58,
+              58,
+              58,
+              58,
+            ), // AppColors.inputBorder at 0.12 opacity
             width: 0.8,
           ),
           gradient: const LinearGradient(
             begin: Alignment.centerRight,
             end: Alignment.centerLeft,
             colors: [
-              Color.fromARGB(8, 0, 229, 255), // M-series Cyan (ultra low opacity)
-              Color.fromARGB(6, 41, 121, 255), // M-series Royal Blue (ultra low opacity)
-              Color.fromARGB(4, 213, 0, 249), // M-series Pink/Purple (ultra low opacity)
-              Color.fromARGB(3, 255, 109, 0), // M-series Amber/Gold (ultra low opacity)
-              Color.fromARGB(0, 255, 109, 0), // fade to transparent amber
+              Color.fromARGB(
+                18,
+                0,
+                229,
+                255,
+              ), // M-series Cyan (slightly more visible)
+
+              Color.fromARGB(14, 41, 121, 255), // M-series Royal Blue
+
+              Color.fromARGB(10, 213, 0, 249), // M-series Pink/Purple
+
+              Color.fromARGB(8, 255, 109, 0), // M-series Amber/Gold
+
+              Color.fromARGB(2, 255, 109, 0), // subtle fade-out tail
             ],
             stops: [0.0, 0.25, 0.55, 0.8, 1.0],
           ),
@@ -329,12 +343,20 @@ class _ScheduleWidgetState extends State<ScheduleWidget> {
               decoration: const BoxDecoration(
                 border: Border(
                   top: BorderSide(
-                    color: Color.fromARGB(31, 44, 44, 44), // AppColors.divider at 0.12 opacity
+                    color: Color.fromARGB(
+                      31,
+                      44,
+                      44,
+                      44,
+                    ), // AppColors.divider at 0.12 opacity
                     width: 0.8,
                   ),
                 ),
               ),
-              padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 4.0),
+              padding: const EdgeInsets.symmetric(
+                horizontal: 10.0,
+                vertical: 4.0,
+              ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
