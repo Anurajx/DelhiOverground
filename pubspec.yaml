@@ -105,6 +105,7 @@ flutter:
     - assets/Image/carfooter.jpg
     - assets/Map/stationsjson.json
     - assets/routes.db
+    - assets/reconciled_stops.json
 
   fonts:
     - family: Poppins

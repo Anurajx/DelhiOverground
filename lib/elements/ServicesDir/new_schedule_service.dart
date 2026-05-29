@@ -6,6 +6,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import '../search.dart';
 import 'package:metroapp/main.dart';
 import 'package:metroapp/elements/bus_info.dart';
+import 'package:http/http.dart' as http;
 
 // -------------------- MODEL --------------------
 class ScheduleInfo {
@@ -167,6 +168,209 @@ Future<List<ScheduleInfo>> getScheduleForStation(String stationCode) async {
   return schedules;
 }
 
+Future<String> getRouteIdForRouteLongName(String routeLongName) async {
+  try {
+    final db = await BusDatabaseHelper.getDatabase();
+    final results = await db.rawQuery(
+      'SELECT route_id FROM routes WHERE route_long_name = ? LIMIT 1',
+      [routeLongName],
+    );
+    if (results.isNotEmpty) {
+      return results.first['route_id'] as String? ?? "";
+    }
+  } catch (e) {
+    debugPrint("Error looking up route_id for $routeLongName: $e");
+  }
+  return "";
+}
+
+List<ScheduleInfo> parseRealtimeHtml(String html) {
+  final List<ScheduleInfo> results = [];
+  
+  // Split by the schedule section to only parse the live/upcoming departures
+  String liveSection = html;
+  final scheduleIndex = html.toLowerCase().indexOf('class="schedule"');
+  if (scheduleIndex != -1) {
+    liveSection = html.substring(0, scheduleIndex);
+  }
+
+  // Find all colcard blocks in the live section
+  final colcardMatches = RegExp(
+    r'<div\s+class="colcard">([\s\S]*?)(?=<div\s+class="colcard">|<div\s+class="headernames">|<div\s+class="logos">|<\/body>|<\/html>)',
+    caseSensitive: false,
+  ).allMatches(liveSection);
+
+  final now = DateTime.now();
+
+  for (final match in colcardMatches) {
+    final colcardHtml = match.group(1) ?? "";
+
+    // 1. Extract route name
+    final routeMatch = RegExp(
+      r'class="route_info"[^>]*>\s*([^<]+?)\s*<br>',
+      caseSensitive: false,
+    ).firstMatch(colcardHtml);
+    final routeName = routeMatch?.group(1)?.trim() ?? "";
+    if (routeName.isEmpty) continue;
+
+    // 2. Extract terminal/destination
+    final terminalMatch = RegExp(
+      r'class="terminal"[^>]*>\s*([^<]+?)\s*<\/span>',
+      caseSensitive: false,
+    ).firstMatch(colcardHtml);
+    final terminal = terminalMatch?.group(1)?.trim() ?? "Terminal";
+
+    // 3. Extract all ETAs
+    final etaMatches = RegExp(
+      r'class="eta"[\s\S]*?<span>\s*:?(\d+)\s*<\/span>',
+      caseSensitive: false,
+    ).allMatches(colcardHtml);
+
+    for (final etaMatch in etaMatches) {
+      final etaStr = etaMatch.group(1);
+      if (etaStr != null) {
+        final minutesLeft = int.tryParse(etaStr) ?? 0;
+
+        // Calculate absolute time
+        final arrivalTime = now.add(Duration(minutes: minutesLeft));
+        final amPm = arrivalTime.hour >= 12 ? "PM" : "AM";
+        int hour = arrivalTime.hour % 12;
+        if (hour == 0) hour = 12;
+        final minuteStr = arrivalTime.minute.toString().padLeft(2, '0');
+        final frequencyText = "$hour:$minuteStr $amPm";
+
+        String relativeText;
+        if (minutesLeft == 0) {
+          relativeText = "Now";
+        } else {
+          relativeText = "In $minutesLeft mins";
+        }
+
+        results.add(
+          ScheduleInfo(
+            destination: terminal,
+            lineId: "Route $routeName",
+            lineColor: AppColors.primaryAccent,
+            frequencyText: frequencyText,
+            minutesLeft: minutesLeft,
+            relativeText: relativeText,
+            routeId: "", // Will be resolved from Database later
+            routeLongName: routeName,
+          ),
+        );
+      }
+    }
+  }
+
+  return results;
+}
+
+Future<List<ScheduleInfo>> getRealtimeScheduleForStation(String stationCode) async {
+  final stopIds = stationCode.split(',').map((id) => id.trim()).toList();
+  
+  if (stopIds.length > 1) {
+    // ignore: avoid_print
+    print("MERGED RECORD STATIC ON");
+  }
+
+  // 1. Load and parse reconciled stops
+  final reconciledStr = await rootBundle.loadString('assets/reconciled_stops.json');
+  final List<dynamic> reconciledJson = jsonDecode(reconciledStr);
+  
+  final Set<int> realtimeStopIds = {};
+  for (final stopId in stopIds) {
+    for (final item in reconciledJson) {
+      if (item['static_stop_id']?.toString() == stopId) {
+        final rtId = item['realtime_stop_id'];
+        if (rtId != null) {
+          if (rtId is int) {
+            realtimeStopIds.add(rtId);
+          } else {
+            final parsed = int.tryParse(rtId.toString());
+            if (parsed != null) {
+              realtimeStopIds.add(parsed);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  if (realtimeStopIds.isEmpty) {
+    throw Exception("No real-time stop mapping found");
+  }
+
+  final List<ScheduleInfo> allSchedules = [];
+  
+  // 2. Fetch and parse for each realtime stop ID
+  for (final rtId in realtimeStopIds) {
+    final url = 'https://pis.delhitransport.in/get_buses_arriving_at_stop?stopid=$rtId';
+    final response = await http.get(Uri.parse(url));
+    if (response.statusCode == 200) {
+      final html = response.body;
+      final schedules = parseRealtimeHtml(html);
+      allSchedules.addAll(schedules);
+    } else {
+      throw Exception("Failed to fetch real-time data from server (Status: ${response.statusCode})");
+    }
+  }
+
+  // 3. Resolve route_ids from Database
+  for (int i = 0; i < allSchedules.length; i++) {
+    final sched = allSchedules[i];
+    final routeId = await getRouteIdForRouteLongName(sched.routeLongName);
+    if (routeId.isNotEmpty) {
+      allSchedules[i] = ScheduleInfo(
+        destination: sched.destination,
+        lineId: sched.lineId,
+        lineColor: sched.lineColor,
+        frequencyText: sched.frequencyText,
+        minutesLeft: sched.minutesLeft,
+        relativeText: sched.relativeText,
+        routeId: routeId,
+        routeLongName: sched.routeLongName,
+      );
+    }
+  }
+
+  // 4. Sort schedules by minutesLeft ascending
+  allSchedules.sort((a, b) => a.minutesLeft.compareTo(b.minutesLeft));
+
+  return allSchedules;
+}
+
+Future<List<ScheduleInfo>> getRealtimeScheduleForStopId(int rtId) async {
+  final url = 'https://pis.delhitransport.in/get_buses_arriving_at_stop?stopid=$rtId';
+  final response = await http.get(Uri.parse(url));
+  if (response.statusCode != 200) {
+    throw Exception("Failed to fetch real-time data from server (Status: ${response.statusCode})");
+  }
+
+  final html = response.body;
+  final schedules = parseRealtimeHtml(html);
+
+  // Resolve route_ids from Database
+  for (int i = 0; i < schedules.length; i++) {
+    final sched = schedules[i];
+    final routeId = await getRouteIdForRouteLongName(sched.routeLongName);
+    if (routeId.isNotEmpty) {
+      schedules[i] = ScheduleInfo(
+        destination: sched.destination,
+        lineId: sched.lineId,
+        lineColor: sched.lineColor,
+        frequencyText: sched.frequencyText,
+        minutesLeft: sched.minutesLeft,
+        relativeText: sched.relativeText,
+        routeId: routeId,
+        routeLongName: sched.routeLongName,
+      );
+    }
+  }
+
+  schedules.sort((a, b) => a.minutesLeft.compareTo(b.minutesLeft));
+  return schedules;
+}
+
 // -------------------- UI WIDGET --------------------
 class ScheduleWidget extends StatefulWidget {
   final String stationCode;
@@ -182,11 +386,57 @@ class _ScheduleWidgetState extends State<ScheduleWidget> {
   String errorMessage = "";
   List<ScheduleInfo> schedules = [];
   String stationName = "";
+  bool isRealtime = false;
+
+  List<Map<String, dynamic>> realtimeOptions = [];
+  int? selectedRealtimeStopId;
+  bool optionsLoaded = false;
 
   @override
   void initState() {
     super.initState();
     _loadData();
+  }
+
+  Future<void> _loadRealtimeOptions() async {
+    if (optionsLoaded) return;
+    try {
+      final stopIds = widget.stationCode.split(',').map((id) => id.trim()).toList();
+      final reconciledStr = await rootBundle.loadString('assets/reconciled_stops.json');
+      final List<dynamic> reconciledJson = jsonDecode(reconciledStr);
+      
+      final List<Map<String, dynamic>> options = [];
+      final Set<int> seenIds = {};
+
+      for (final stopId in stopIds) {
+        for (final item in reconciledJson) {
+          if (item['static_stop_id']?.toString() == stopId) {
+            final rtId = item['realtime_stop_id'];
+            final rtNext = item['realtime_next_stop_name'];
+            if (rtId != null) {
+              final intParsed = rtId is int ? rtId : int.tryParse(rtId.toString());
+              if (intParsed != null && !seenIds.contains(intParsed)) {
+                seenIds.add(intParsed);
+                options.add({
+                  'realtime_stop_id': intParsed,
+                  'direction': rtNext?.toString() ?? 'Unknown Direction',
+                });
+              }
+            }
+          }
+        }
+      }
+
+      setState(() {
+        realtimeOptions = options;
+        if (realtimeOptions.isNotEmpty && selectedRealtimeStopId == null) {
+          selectedRealtimeStopId = realtimeOptions.first['realtime_stop_id'] as int;
+        }
+        optionsLoaded = true;
+      });
+    } catch (e) {
+      debugPrint("Error loading realtime options: $e");
+    }
   }
 
   Future<void> _loadData() async {
@@ -210,7 +460,20 @@ class _ScheduleWidgetState extends State<ScheduleWidget> {
       );
       stationName = stationDataForName['Name'] ?? 'the selected station';
 
-      final scheduleList = await getScheduleForStation(widget.stationCode);
+      if (isRealtime) {
+        await _loadRealtimeOptions();
+      }
+
+      final List<ScheduleInfo> scheduleList;
+      if (isRealtime) {
+        if (selectedRealtimeStopId != null) {
+          scheduleList = await getRealtimeScheduleForStopId(selectedRealtimeStopId!);
+        } else {
+          throw Exception("No real-time stop mapping found");
+        }
+      } else {
+        scheduleList = await getScheduleForStation(widget.stationCode);
+      }
 
       if (mounted) {
         setState(() {
@@ -470,8 +733,9 @@ class _ScheduleWidgetState extends State<ScheduleWidget> {
 
   Widget _buildHeader() {
     return Container(
-      margin: EdgeInsets.only(bottom: 3.h),
+      margin: EdgeInsets.only(bottom: 12.h),
       child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(
             "UPCOMING DEPARTURES",
@@ -483,6 +747,126 @@ class _ScheduleWidgetState extends State<ScheduleWidget> {
               letterSpacing: 1.0,
             ),
           ),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                "Realtime",
+                style: TextStyle(
+                  color: isRealtime ? Colors.white : AppColors.secondaryText,
+                  fontSize: 12.sp,
+                  fontWeight: FontWeight.w700,
+                  fontFamily: 'Poppins',
+                  letterSpacing: 0.5,
+                ),
+              ),
+              SizedBox(width: 8.w),
+              GestureDetector(
+                onTap: () {
+                  setState(() {
+                    isRealtime = !isRealtime;
+                    _loadData();
+                  });
+                },
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 250),
+                  curve: Curves.easeInOut,
+                  width: 44.w,
+                  height: 24.h,
+                  padding: EdgeInsets.symmetric(horizontal: 3.w),
+                  decoration: BoxDecoration(
+                    color: isRealtime
+                        ? AppColors.primaryAccent.withValues(alpha: 0.15)
+                        : Colors.transparent,
+                    border: Border.all(
+                      color: isRealtime
+                          ? AppColors.primaryAccent
+                          : AppColors.inputBorder,
+                      width: 1.5,
+                    ),
+                    borderRadius: BorderRadius.zero,
+                  ),
+                  child: AnimatedAlign(
+                    duration: const Duration(milliseconds: 250),
+                    curve: Curves.easeInOut,
+                    alignment: isRealtime ? Alignment.centerRight : Alignment.centerLeft,
+                    child: Container(
+                      width: 14.h,
+                      height: 14.h,
+                      decoration: BoxDecoration(
+                        color: isRealtime ? AppColors.primaryAccent : AppColors.secondaryText,
+                        borderRadius: BorderRadius.zero,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDirectionSelector() {
+    return Container(
+      margin: EdgeInsets.only(bottom: 12.h),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            "SELECT DIRECTION",
+            style: TextStyle(
+              color: AppColors.secondaryText,
+              fontSize: 10.sp,
+              fontWeight: FontWeight.w700,
+              fontFamily: 'Poppins',
+              letterSpacing: 0.5,
+            ),
+          ),
+          SizedBox(height: 6.h),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: realtimeOptions.map((opt) {
+                final rtId = opt['realtime_stop_id'] as int;
+                final direction = opt['direction'] as String;
+                final isSelected = rtId == selectedRealtimeStopId;
+
+                return GestureDetector(
+                  onTap: () {
+                    if (selectedRealtimeStopId != rtId) {
+                      setState(() {
+                        selectedRealtimeStopId = rtId;
+                      });
+                      _loadData();
+                    }
+                  },
+                  child: Container(
+                    margin: EdgeInsets.only(right: 8.w),
+                    padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
+                    decoration: BoxDecoration(
+                      color: isSelected ? Colors.white.withValues(alpha: 0.08) : Colors.black,
+                      border: Border.all(
+                        color: isSelected ? AppColors.primaryAccent : const Color.fromARGB(58, 58, 58, 58),
+                        width: 1.0,
+                      ),
+                      borderRadius: BorderRadius.zero,
+                    ),
+                    child: Text(
+                      direction,
+                      style: TextStyle(
+                        color: isSelected ? Colors.white : AppColors.secondaryText,
+                        fontSize: 11.sp,
+                        fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                        fontFamily: 'Poppins',
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
         ],
       ),
     );
@@ -490,15 +874,21 @@ class _ScheduleWidgetState extends State<ScheduleWidget> {
 
   @override
   Widget build(BuildContext context) {
-    if (isLoading) {
-      return const Center(child: CupertinoActivityIndicator(radius: 20));
-    }
-
     return SingleChildScrollView(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
-        children: [_buildHeader(), _buildScheduleList()],
+        children: [
+          _buildHeader(),
+          if (isRealtime && realtimeOptions.length > 1) _buildDirectionSelector(),
+          if (isLoading)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 40.0),
+              child: Center(child: CupertinoActivityIndicator(radius: 20)),
+            )
+          else
+            _buildScheduleList(),
+        ],
       ),
     );
   }

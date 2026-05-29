@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+    <meta http-equiv="refresh" content="2"/>
+	<link rel="stylesheet" type="text/css" href="/static/css/style_pis.css">
+	<title>Public Information System - Chirag Dilli / Chirag Delhi Metro Station</title>
+    <script type="text/javascript">
+        function display_c(){
+            let refresh=1000; // Refresh rate in milliseconds
+            setTimeout('display_ct()', refresh)
+        }
+
+        function display_ct() {
+            document.getElementById('time').innerHTML = new Date().toLocaleTimeString('en-US',
+                {hour12:true, hour:"numeric", minute:"numeric"});
+            display_c();
+        }
+
+        function open_map(vehicle_id, route){
+            window.open("/plot_buses?stop_id="+3043+"&vehicle_id="+vehicle_id+"&route="+route, "_blank");
+        }
+    </script>
+</head>
+<body onload=display_ct();>
+    <div class="master">
+        <div class="parent">
+            <div class="child1">
+                <div class="stop_group">
+                    <div class="stop_name">Chirag Dilli / Chirag Delhi Metro Station</div>
+                    <div class="next_stop_name">Towards Swami Nagar</div>
+                </div>
+                <div class="time"><span id="time"></span></div>
+            </div>
+            <div class="headine">
+                <img src="/static/images/reload.png" width="39px" height="51px" alt="reload"> <span style="margin: auto auto auto 24px;font-family: Roboto-Regular,sans-serif; font-size: 30px">Last updated at 03:06 AM</span>
+            </div>
+            
+                <div class="colcard">
+                    <span class="no_bus">
+                        No upcoming bus in next 30 minutes</span>
+                </div>
+            
+            
+            
+                <div class="headernames">
+                    <span class="schedule">Schedule</span>
+                </div>
+            
+            
+                <div class="colcard">
+                    <span class="busroute">764</span>
+                    <span class="endstop">Satyapuram Jharoda</span>
+                    <div class="etas">
+                        <div class="eta">
+                            <span style="font-size: 24px;">Every 24 minutes<br>None</span>
+                        </div>
+                    </div>
+                </div>
+            
+                <div class="colcard">
+                    <span class="busroute">511A</span>
+                    <span class="endstop">Dhaula Kuan (Ring Road)</span>
+                    <div class="etas">
+                        <div class="eta">
+                            <span style="font-size: 24px;">Every 32 minutes<br>None</span>
+                        </div>
+                    </div>
+                </div>
+            
+                <div class="colcard">
+                    <span class="busroute">D-8702</span>
+                    <span class="endstop">Chirag Dilli / Chirag Delhi Metro Station</span>
+                    <div class="etas">
+                        <div class="eta">
+                            <span style="font-size: 24px;">Every 37 minutes<br>None</span>
+                        </div>
+                    </div>
+                </div>
+            
+                <div class="colcard">
+                    <span class="busroute">511BLNKSTL</span>
+                    <span class="endstop">Aurobindo College</span>
+                    <div class="etas">
+                        <div class="eta">
+                            <span style="font-size: 24px;">Every 40 minutes<br>None</span>
+                        </div>
+                    </div>
+                </div>
+            
+                <div class="colcard">
+                    <span class="busroute">511A</span>
+                    <span class="endstop">ARSD College / Dhaula Kuan</span>
+                    <div class="etas">
+                        <div class="eta">
+                            <span style="font-size: 24px;">Every 40 minutes<br>None</span>
+                        </div>
+                    </div>
+                </div>
+            
+                <div class="colcard">
+                    <span class="busroute">511E</span>
+                    <span class="endstop">ARSD College / Dhaula Kuan</span>
+                    <div class="etas">
+                        <div class="eta">
+                            <span style="font-size: 24px;">Every 40 minutes<br>None</span>
+                        </div>
+                    </div>
+                </div>
+            
+                <div class="colcard">
+                    <span class="busroute">D-028</span>
+                    <span class="endstop">Sarojini Nagar Depot</span>
+                    <div class="etas">
+                        <div class="eta">
+                            <span style="font-size: 24px;">Every 44 minutes<br>None</span>
+                        </div>
+                    </div>
+                </div>
+            
+                <div class="colcard">
+                    <span class="busroute">D-032</span>
+                    <span class="endstop">HauzKhas Metro Station</span>
+                    <div class="etas">
+                        <div class="eta">
+                            <span style="font-size: 24px;">Every 160 minutes<br>None</span>
+                        </div>
+                    </div>
+                </div>
+            
+                <div class="colcard">
+                    <span class="busroute">511</span>
+                    <span class="endstop">ARSD College / Dhaula Kuan</span>
+                    <div class="etas">
+                        <div class="eta">
+                            <span style="font-size: 24px;">Every 160 minutes<br>None</span>
+                        </div>
+                    </div>
+                </div>
+            
+                <div class="colcard">
+                    <span class="busroute">465</span>
+                    <span class="endstop">Safdurjung Terminal</span>
+                    <div class="etas">
+                        <div class="eta">
+                            <span style="font-size: 24px;">Every 240 minutes<br>None</span>
+                        </div>
+                    </div>
+                </div>
+            
+                <div class="colcard">
+                    <span class="busroute">465A</span>
+                    <span class="endstop">INA Colony /  INA MARKET</span>
+                    <div class="etas">
+                        <div class="eta">
+                            <span style="font-size: 24px;">Every 480 minutes<br>None</span>
+                        </div>
+                    </div>
+                </div>
+            
+        </div>
+        <div class="logos">
+            <img src="/static/images/Emblem_of_India.png" width="50px" height="85px" style="margin-right: 22px;">
+            <img src="/static/images/IIITD_Logo.png" width="166px" height="100px">
+            <img src="/static/images/Chartr_Logo.png" width="64px" height="60px">
+        </div>
+	</div>
+</body>
+</html>

@@ -19,10 +19,27 @@ class StationSearchScreen extends StatefulWidget {
   State<StationSearchScreen> createState() => _SearchScreenState();
 }
 
+class _StationSearchItem {
+  final Map<String, dynamic> station;
+  final String normalizedName;
+  final String normalizedHindi;
+  final List<String> nameWords;
+  final List<String> hindiWords;
+
+  _StationSearchItem({
+    required this.station,
+    required this.normalizedName,
+    required this.normalizedHindi,
+    required this.nameWords,
+    required this.hindiWords,
+  });
+}
+
 class _SearchScreenState extends State<StationSearchScreen> {
   final FocusNode _focusNode1 = FocusNode();
   final TextEditingController _controller1 = TextEditingController();
   List<dynamic> _originalStations = [];
+  List<_StationSearchItem> _searchItems = [];
   List<dynamic> _filteredStations = [];
 
   final Map<String, Map<String, dynamic>> _coreTransferStationsDict = {
@@ -37,8 +54,24 @@ class _SearchScreenState extends State<StationSearchScreen> {
       _focusNode1.requestFocus();
     });
     _loadStationsFromJson().then((stations) {
+      final items = stations.map((station) {
+        final Map<String, dynamic> stationMap = Map<String, dynamic>.from(station as Map);
+        final name = stationMap["Name"]?.toString().toLowerCase() ?? "";
+        final hindi = stationMap["Hindi"]?.toString().toLowerCase() ?? "";
+        final nameWords = name.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+        final hindiWords = hindi.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+        return _StationSearchItem(
+          station: stationMap,
+          normalizedName: name,
+          normalizedHindi: hindi,
+          nameWords: nameWords,
+          hindiWords: hindiWords,
+        );
+      }).toList();
+
       setState(() {
         _originalStations = stations;
+        _searchItems = items;
         _filteredStations = stations;
       });
     });
@@ -53,47 +86,109 @@ class _SearchScreenState extends State<StationSearchScreen> {
   }
 
   void _filterStationsLogic(String query) {
-    final lowerQuery = query.toLowerCase();
+    final cleanQuery = query.trim().toLowerCase();
 
     setState(() {
-      if (query.isNotEmpty) {
-        final scoredList = _originalStations
-            .where(
-              (station) =>
-                  station["Name"] != null && station["Hindi"] != null,
-            )
-            .map((station) {
-              final name = station["Name"]?.toString().toLowerCase() ?? "";
-              final zone = station["Hindi"]?.toString().toLowerCase() ?? "";
-              final nameScore = StringSimilarity.compareTwoStrings(
-                name,
-                lowerQuery,
-              );
-              final zoneScore = StringSimilarity.compareTwoStrings(
-                zone,
-                lowerQuery,
-              );
+      if (cleanQuery.isNotEmpty) {
+        final List<MapEntry<_StationSearchItem, double>> scoredList = [];
 
-              final combinedScore = (nameScore + zoneScore);
+        for (final item in _searchItems) {
+          double score = 0.0;
+          bool matched = false;
 
-              return MapEntry(station, combinedScore);
-            })
-            .where(
-              (entry) =>
-                  entry.value > 0.7 ||
-                  entry.key["Name"]?.toString().toLowerCase().contains(
-                        lowerQuery,
-                      ) ==
-                      true ||
-                  entry.key["Hindi"]?.toString().toLowerCase().contains(
-                        lowerQuery,
-                      ) ==
-                      true,
-            )
-            .toList();
+          final name = item.normalizedName;
+          final hindi = item.normalizedHindi;
 
+          // 1. Exact Match
+          if (name == cleanQuery || hindi == cleanQuery) {
+            score += 10000.0;
+            matched = true;
+          }
+
+          // 2. Prefix Match of Full Name
+          if (name.startsWith(cleanQuery) || hindi.startsWith(cleanQuery)) {
+            score += 5000.0 + (100.0 * cleanQuery.length / (name.isNotEmpty ? name.length : 1));
+            matched = true;
+          }
+
+          // 3. Prefix Match of Individual Words
+          int wordIndex = 0;
+          for (final word in item.nameWords) {
+            if (word.startsWith(cleanQuery)) {
+              final wordBonus = wordIndex == 0 ? 3500.0 : 3000.0 - (wordIndex * 100.0);
+              score = score > wordBonus ? score : wordBonus + (100.0 * cleanQuery.length / word.length);
+              matched = true;
+            }
+            wordIndex++;
+          }
+
+          wordIndex = 0;
+          for (final word in item.hindiWords) {
+            if (word.startsWith(cleanQuery)) {
+              final wordBonus = wordIndex == 0 ? 3500.0 : 3000.0 - (wordIndex * 100.0);
+              score = score > wordBonus ? score : wordBonus + (100.0 * cleanQuery.length / word.length);
+              matched = true;
+            }
+            wordIndex++;
+          }
+
+          // 4. Substring Match
+          if (name.contains(cleanQuery) || hindi.contains(cleanQuery)) {
+            final substringScore = 1000.0 + (100.0 * cleanQuery.length / (name.isNotEmpty ? name.length : 1));
+            score = score > substringScore ? score : substringScore;
+            matched = true;
+          }
+
+          // 5. Fuzzy Match (Dice's coefficient) - only run for query length >= 3
+          if (cleanQuery.length >= 3) {
+            double maxSimilarity = 0.0;
+            bool fuzzyMatched = false;
+
+            // Full-name similarity
+            final nameSimilarity = StringSimilarity.compareTwoStrings(name, cleanQuery);
+            final hindiSimilarity = StringSimilarity.compareTwoStrings(hindi, cleanQuery);
+            final maxFullNameSim = nameSimilarity > hindiSimilarity ? nameSimilarity : hindiSimilarity;
+            if (maxFullNameSim > 0.35) {
+              maxSimilarity = maxFullNameSim;
+              fuzzyMatched = true;
+            }
+
+            // Word-level similarity
+            for (final word in item.nameWords) {
+              if (word.length >= 3) {
+                final sim = StringSimilarity.compareTwoStrings(word, cleanQuery);
+                if (sim > 0.5 && sim > maxSimilarity) {
+                  maxSimilarity = sim;
+                  fuzzyMatched = true;
+                }
+              }
+            }
+            for (final word in item.hindiWords) {
+              if (word.length >= 3) {
+                final sim = StringSimilarity.compareTwoStrings(word, cleanQuery);
+                if (sim > 0.5 && sim > maxSimilarity) {
+                  maxSimilarity = sim;
+                  fuzzyMatched = true;
+                }
+              }
+            }
+
+            if (fuzzyMatched) {
+              final fuzzyScore = maxSimilarity * 400.0;
+              score = score > fuzzyScore ? score : fuzzyScore;
+              matched = true;
+            }
+          }
+
+          if (matched) {
+            scoredList.add(MapEntry(item, score));
+          }
+        }
+
+        // Sort scored items in descending order
         scoredList.sort((a, b) => b.value.compareTo(a.value));
-        _filteredStations = scoredList.map((entry) => entry.key).toList();
+
+        _filteredStations = scoredList.map((entry) => entry.key.station).toList();
       } else {
         _filteredStations = _originalStations;
       }
