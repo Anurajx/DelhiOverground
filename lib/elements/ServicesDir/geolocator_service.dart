@@ -19,21 +19,50 @@ Future<void> initialize(BuildContext context) async {
     // 2️⃣ Load station JSON
     List<dynamic> originalStations = await loadStationsFromJson();
 
-    // (Optional) skip CSV header row
-    // if (originalStations.isNotEmpty &&
-    //     originalStations.first[0].toString().toLowerCase().contains(
-    //       'station',
-    //     )) {
-    //   originalStations = originalStations.skip(1).toList();
-    // }
+    // Load reconciled stops and build Set of mapped static stop IDs
+    List<dynamic> reconciledJson = [];
+    try {
+      final reconciledStr = await rootBundle.loadString('assets/reconciled_stops.json');
+      reconciledJson = jsonDecode(reconciledStr);
+    } catch (e) {
+      print('⚠️ Failed to load assets/reconciled_stops.json: $e');
+    }
 
-    if (originalStations.length < 2) {
-      print('⚠️ CSV has less than 2 stations; aborting update');
+    final Set<String> mappedStopIds = {};
+    for (final item in reconciledJson) {
+      final staticId = item['static_stop_id']?.toString();
+      final rtId = item['realtime_stop_id'];
+      if (staticId != null && rtId != null) {
+        mappedStopIds.add(staticId);
+      }
+    }
+
+    // Filter stations that have at least one mapped static stop ID
+    final List<dynamic> filteredStations = [];
+    for (final station in originalStations) {
+      final String code = station["StationCode"]?.toString() ?? "";
+      final stopIds = code.split(',').map((id) => id.trim()).toList();
+      bool hasRealtime = false;
+      for (final stopId in stopIds) {
+        if (mappedStopIds.contains(stopId)) {
+          hasRealtime = true;
+          break;
+        }
+      }
+      if (hasRealtime) {
+        filteredStations.add(station);
+      }
+    }
+
+    final List<dynamic> targetStations = filteredStations.length >= 2 ? filteredStations : originalStations;
+
+    if (targetStations.length < 2) {
+      print('⚠️ Target stations list has less than 2 stations; aborting update');
       return;
     }
 
     // 3️⃣ Sort by distance
-    originalStations.sort((a, b) {
+    targetStations.sort((a, b) {
       final distA = Geolocator.distanceBetween(
         userLat,
         userLon,
@@ -49,8 +78,8 @@ Future<void> initialize(BuildContext context) async {
       return distA.compareTo(distB);
     });
 
-    final nearest = originalStations[0];
-    final nextNearest = originalStations[1];
+    final nearest = targetStations[0];
+    final nextNearest = targetStations[1];
 
     // 4️⃣ Push into Provider
     if (context.mounted) {

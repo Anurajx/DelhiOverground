@@ -810,30 +810,47 @@ class _ScheduleWidgetState extends State<ScheduleWidget> {
 
   Widget _buildDirectionSelector() {
     return Container(
-      margin: EdgeInsets.only(bottom: 12.h),
+      margin: EdgeInsets.only(bottom: 16.h),
+      decoration: BoxDecoration(
+        color: Colors.black,
+        border: Border.all(
+          color: const Color.fromARGB(58, 58, 58, 58),
+          width: 1.0,
+        ),
+        borderRadius: BorderRadius.zero,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            "SELECT DIRECTION",
-            style: TextStyle(
-              color: AppColors.secondaryText,
-              fontSize: 10.sp,
-              fontWeight: FontWeight.w700,
-              fontFamily: 'Poppins',
-              letterSpacing: 0.5,
+          Padding(
+            padding: EdgeInsets.fromLTRB(16.w, 12.h, 16.w, 8.h),
+            child: Text(
+              "SELECT DIRECTION",
+              style: TextStyle(
+                color: AppColors.secondaryText,
+                fontSize: 10.sp,
+                fontWeight: FontWeight.w700,
+                fontFamily: 'Poppins',
+                letterSpacing: 0.5,
+              ),
             ),
           ),
-          SizedBox(height: 6.h),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: realtimeOptions.map((opt) {
-                final rtId = opt['realtime_stop_id'] as int;
-                final direction = opt['direction'] as String;
-                final isSelected = rtId == selectedRealtimeStopId;
+          ...realtimeOptions.asMap().entries.map((entry) {
+            final idx = entry.key;
+            final opt = entry.value;
+            final rtId = opt['realtime_stop_id'] as int;
+            final direction = opt['direction'] as String;
+            final isSelected = rtId == selectedRealtimeStopId;
 
-                return GestureDetector(
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (idx > 0)
+                  Container(
+                    height: 1.0,
+                    color: const Color.fromARGB(24, 255, 255, 255),
+                  ),
+                GestureDetector(
                   onTap: () {
                     if (selectedRealtimeStopId != rtId) {
                       setState(() {
@@ -842,31 +859,61 @@ class _ScheduleWidgetState extends State<ScheduleWidget> {
                       _loadData();
                     }
                   },
-                  child: Container(
-                    margin: EdgeInsets.only(right: 8.w),
-                    padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
-                    decoration: BoxDecoration(
-                      color: isSelected ? Colors.white.withValues(alpha: 0.08) : Colors.black,
-                      border: Border.all(
-                        color: isSelected ? AppColors.primaryAccent : const Color.fromARGB(58, 58, 58, 58),
-                        width: 1.0,
-                      ),
-                      borderRadius: BorderRadius.zero,
-                    ),
-                    child: Text(
-                      direction,
-                      style: TextStyle(
-                        color: isSelected ? Colors.white : AppColors.secondaryText,
-                        fontSize: 11.sp,
-                        fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                        fontFamily: 'Poppins',
-                      ),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    curve: Curves.easeInOut,
+                    width: double.infinity,
+                    padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 14.h),
+                    color: isSelected ? Colors.white.withValues(alpha: 0.05) : Colors.transparent,
+                    child: Row(
+                      children: [
+                        AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          curve: Curves.easeInOut,
+                          width: 16.w,
+                          height: 16.w,
+                          decoration: BoxDecoration(
+                            border: Border.all(
+                              color: isSelected ? AppColors.primaryAccent : AppColors.secondaryText,
+                              width: 1.5,
+                            ),
+                            color: isSelected ? AppColors.primaryAccent.withValues(alpha: 0.1) : Colors.transparent,
+                            borderRadius: BorderRadius.zero,
+                          ),
+                          child: Center(
+                            child: AnimatedSwitcher(
+                              duration: const Duration(milliseconds: 150),
+                              child: isSelected
+                                  ? Icon(
+                                      Icons.check,
+                                      color: AppColors.primaryAccent,
+                                      size: 11.sp,
+                                    )
+                                  : const SizedBox.shrink(),
+                            ),
+                          ),
+                        ),
+                        SizedBox(width: 12.w),
+                        Expanded(
+                          child: AnimatedDefaultTextStyle(
+                            duration: const Duration(milliseconds: 200),
+                            curve: Curves.easeInOut,
+                            style: TextStyle(
+                              color: isSelected ? Colors.white : AppColors.secondaryText,
+                              fontSize: 12.sp,
+                              fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                              fontFamily: 'Poppins',
+                            ),
+                            child: Text(direction),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                );
-              }).toList(),
-            ),
-          ),
+                ),
+              ],
+            );
+          }),
         ],
       ),
     );
