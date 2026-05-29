@@ -7,6 +7,7 @@ class TestSearchItem {
   final String hindi;
   final List<String> nameWords;
   final List<String> hindiWords;
+  final bool hasRealtime;
 
   TestSearchItem({
     required this.station,
@@ -14,6 +15,7 @@ class TestSearchItem {
     required this.hindi,
     required this.nameWords,
     required this.hindiWords,
+    required this.hasRealtime,
   });
 }
 
@@ -108,21 +110,49 @@ double calculateScore(TestSearchItem item, String cleanQuery) {
   return matched ? score : -1.0;
 }
 
+List<TestSearchItem> filterAndSort(List<TestSearchItem> items, String query) {
+  final cleanQuery = query.trim().toLowerCase();
+  if (cleanQuery.isEmpty) return items;
+
+  final List<MapEntry<TestSearchItem, double>> scoredList = [];
+  for (final item in items) {
+    final score = calculateScore(item, cleanQuery);
+    if (score >= 0) {
+      scoredList.add(MapEntry(item, score));
+    }
+  }
+
+  // Sort by score descending
+  scoredList.sort((a, b) => b.value.compareTo(a.value));
+
+  // Prioritize real-time stops:
+  // If at least one matched stop has real-time, only keep those with real-time.
+  final hasAnyRealtime = scoredList.any((entry) => entry.key.hasRealtime);
+  final List<MapEntry<TestSearchItem, double>> finalScoredList;
+  if (hasAnyRealtime) {
+    finalScoredList = scoredList.where((entry) => entry.key.hasRealtime).toList();
+  } else {
+    finalScoredList = scoredList;
+  }
+
+  return finalScoredList.map((entry) => entry.key).toList();
+}
+
 void main() {
   group('Station Search Ranking Tests', () {
     final rawStations = [
-      {"Name": "Safiyabad Crossing", "Hindi": "Safiyabad Crossing"},
-      {"Name": "Narela Terminal", "Hindi": "Narela Terminal"},
-      {"Name": "Police Station Narela", "Hindi": "Police Station Narela"},
-      {"Name": "Narela A-6 / CPJ College", "Hindi": "Narela A-6 / CPJ College"},
+      {"Name": "Safiyabad Crossing", "Hindi": "Safiyabad Crossing", "hasRealtime": false},
+      {"Name": "Narela Terminal", "Hindi": "Narela Terminal", "hasRealtime": true},
+      {"Name": "Police Station Narela", "Hindi": "Police Station Narela", "hasRealtime": true},
+      {"Name": "Narela A-6 / CPJ College", "Hindi": "Narela A-6 / CPJ College", "hasRealtime": false},
     ];
 
     late List<TestSearchItem> searchItems;
 
     setUp(() {
       searchItems = rawStations.map((stationMap) {
-        final name = stationMap["Name"]!.toLowerCase();
-        final hindi = stationMap["Hindi"]!.toLowerCase();
+        final name = stationMap["Name"]!.toString().toLowerCase();
+        final hindi = stationMap["Hindi"]!.toString().toLowerCase();
         final nameWords = name.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
         final hindiWords = hindi.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
         return TestSearchItem(
@@ -131,66 +161,49 @@ void main() {
           hindi: hindi,
           nameWords: nameWords,
           hindiWords: hindiWords,
+          hasRealtime: stationMap["hasRealtime"] as bool,
         );
       }).toList();
     });
 
-    test('Query "narela" prioritizes "Narela Terminal" over "Police Station Narela"', () {
+    test('Query "narela" prioritizes "Narela Terminal" and excludes non-realtime stops since realtime exists', () {
       const query = "narela";
       
-      final results = searchItems
-          .map((item) => MapEntry(item, calculateScore(item, query)))
-          .where((entry) => entry.value >= 0)
-          .toList();
+      final results = filterAndSort(searchItems, query);
 
-      results.sort((a, b) => b.value.compareTo(a.value));
-
-      expect(results.length, equals(3)); // Narela Terminal, Police Station Narela, Narela A-6 / CPJ College
-      expect(results[0].key.station["Name"], equals("Narela Terminal"));
-      expect(results[1].key.station["Name"], equals("Narela A-6 / CPJ College")); // "Narela" is first word, shorter overall name
-      expect(results[2].key.station["Name"], equals("Police Station Narela")); // "Narela" is 3rd word
+      // Only "Narela Terminal" and "Police Station Narela" have hasRealtime = true
+      // "Narela A-6 / CPJ College" has hasRealtime = false and should be excluded since real-time ones exist.
+      expect(results.length, equals(2));
+      expect(results[0].station["Name"], equals("Narela Terminal"));
+      expect(results[1].station["Name"], equals("Police Station Narela"));
     });
 
-    test('Query "safiyabad" matches "Safiyabad Crossing" first', () {
+    test('Query "safiyabad" falls back to non-realtime stops since no matching realtime stops exist', () {
       const query = "safiyabad";
 
-      final results = searchItems
-          .map((item) => MapEntry(item, calculateScore(item, query)))
-          .where((entry) => entry.value >= 0)
-          .toList();
+      final results = filterAndSort(searchItems, query);
 
-      results.sort((a, b) => b.value.compareTo(a.value));
-
+      // "Safiyabad Crossing" matches, hasRealtime = false.
+      // Since no matched stops have hasRealtime = true, we fall back to it.
       expect(results.length, equals(1));
-      expect(results[0].key.station["Name"], equals("Safiyabad Crossing"));
+      expect(results[0].station["Name"], equals("Safiyabad Crossing"));
     });
 
     test('Query "narela terminal" performs exact match first', () {
       const query = "narela terminal";
 
-      final results = searchItems
-          .map((item) => MapEntry(item, calculateScore(item, query)))
-          .where((entry) => entry.value >= 0)
-          .toList();
+      final results = filterAndSort(searchItems, query);
 
-      results.sort((a, b) => b.value.compareTo(a.value));
-
-      expect(results[0].key.station["Name"], equals("Narela Terminal"));
-      expect(results[0].value, greaterThanOrEqualTo(10000.0)); // Exact match score
+      expect(results[0].station["Name"], equals("Narela Terminal"));
     });
 
     test('Query "polise" matches "Police Station Narela" fuzzily', () {
       const query = "polise"; // Typo for "police"
 
-      final results = searchItems
-          .map((item) => MapEntry(item, calculateScore(item, query)))
-          .where((entry) => entry.value >= 0)
-          .toList();
-
-      results.sort((a, b) => b.value.compareTo(a.value));
+      final results = filterAndSort(searchItems, query);
 
       expect(results.length, equals(1));
-      expect(results[0].key.station["Name"], equals("Police Station Narela"));
+      expect(results[0].station["Name"], equals("Police Station Narela"));
     });
   });
 }

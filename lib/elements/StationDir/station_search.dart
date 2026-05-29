@@ -25,6 +25,7 @@ class _StationSearchItem {
   final String normalizedHindi;
   final List<String> nameWords;
   final List<String> hindiWords;
+  final bool hasRealtime;
 
   _StationSearchItem({
     required this.station,
@@ -32,6 +33,7 @@ class _StationSearchItem {
     required this.normalizedHindi,
     required this.nameWords,
     required this.hindiWords,
+    required this.hasRealtime,
   });
 }
 
@@ -53,19 +55,32 @@ class _SearchScreenState extends State<StationSearchScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _focusNode1.requestFocus();
     });
-    _loadStationsFromJson().then((stations) {
+    
+    Future.wait([
+      _loadStationsFromJson(),
+      _loadReconciledStops(),
+    ]).then((results) {
+      final stations = results[0] as List<dynamic>;
+      final staticStopIdsWithRealtime = results[1] as Set<String>;
+
       final items = stations.map((station) {
         final Map<String, dynamic> stationMap = Map<String, dynamic>.from(station as Map);
         final name = stationMap["Name"]?.toString().toLowerCase() ?? "";
         final hindi = stationMap["Hindi"]?.toString().toLowerCase() ?? "";
         final nameWords = name.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
         final hindiWords = hindi.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+        
+        final stationCode = stationMap["StationCode"]?.toString() ?? "";
+        final stopIds = stationCode.split(',').map((id) => id.trim()).toList();
+        final hasRealtime = stopIds.any((id) => staticStopIdsWithRealtime.contains(id));
+
         return _StationSearchItem(
           station: stationMap,
           normalizedName: name,
           normalizedHindi: hindi,
           nameWords: nameWords,
           hindiWords: hindiWords,
+          hasRealtime: hasRealtime,
         );
       }).toList();
 
@@ -188,7 +203,18 @@ class _SearchScreenState extends State<StationSearchScreen> {
         // Sort scored items in descending order
         scoredList.sort((a, b) => b.value.compareTo(a.value));
 
-        _filteredStations = scoredList.map((entry) => entry.key.station).toList();
+        // Realtime stops filter and fallback:
+        // Only show results of stops that have realtime_stop_id available.
+        // If no stop meeting that criteria can be found, then show stops without it.
+        final hasAnyRealtime = scoredList.any((entry) => entry.key.hasRealtime);
+        final List<MapEntry<_StationSearchItem, double>> finalScoredList;
+        if (hasAnyRealtime) {
+          finalScoredList = scoredList.where((entry) => entry.key.hasRealtime).toList();
+        } else {
+          finalScoredList = scoredList;
+        }
+
+        _filteredStations = finalScoredList.map((entry) => entry.key.station).toList();
       } else {
         _filteredStations = _originalStations;
       }
@@ -204,6 +230,25 @@ class _SearchScreenState extends State<StationSearchScreen> {
       return jsonList;
     } catch (e) {
       return [];
+    }
+  }
+
+  Future<Set<String>> _loadReconciledStops() async {
+    try {
+      final reconciledStr = await rootBundle.loadString('assets/reconciled_stops.json');
+      final List<dynamic> reconciledJson = jsonDecode(reconciledStr);
+      final Set<String> staticStopIdsWithRealtime = {};
+      for (final item in reconciledJson) {
+        if (item['realtime_stop_id'] != null) {
+          final staticId = item['static_stop_id']?.toString();
+          if (staticId != null) {
+            staticStopIdsWithRealtime.add(staticId);
+          }
+        }
+      }
+      return staticStopIdsWithRealtime;
+    } catch (e) {
+      return {};
     }
   }
 

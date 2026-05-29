@@ -5,7 +5,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import '../search.dart';
 import 'package:metroapp/main.dart';
-import 'package:metroapp/elements/bus_info.dart';
 import 'package:http/http.dart' as http;
 
 // -------------------- MODEL --------------------
@@ -525,155 +524,140 @@ class _ScheduleWidgetState extends State<ScheduleWidget> {
   }
 
   Widget _buildScheduleBlock(ScheduleInfo schedule) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder:
-                (context) => BusInfoScreen(
-                  routeId: schedule.routeId,
-                  routeLongName: schedule.routeLongName,
-                ),
-          ),
-        );
-      },
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 6.0),
-        decoration: BoxDecoration(
-          color: Colors.black, // background black
-          border: Border.all(
-            color: const Color.fromARGB(
-              58,
-              58,
-              58,
-              58,
-            ), // AppColors.inputBorder at 0.12 opacity
-            width: 0.8,
-          ),
-          gradient: const LinearGradient(
-            begin: Alignment.centerRight,
-            end: Alignment.centerLeft,
-            colors: [
-              Color.fromARGB(
-                18,
-                0,
-                229,
-                255,
-              ), // M-series Cyan (slightly more visible)
-
-              Color.fromARGB(14, 41, 121, 255), // M-series Royal Blue
-
-              Color.fromARGB(10, 213, 0, 249), // M-series Pink/Purple
-
-              Color.fromARGB(8, 255, 109, 0), // M-series Amber/Gold
-
-              Color.fromARGB(2, 255, 109, 0), // subtle fade-out tail
-            ],
-            stops: [0.0, 0.25, 0.55, 0.8, 1.0],
-          ),
+    return Container(
+      margin: const EdgeInsets.only(bottom: 6.0),
+      decoration: BoxDecoration(
+        color: Colors.black, // background black
+        border: Border.all(
+          color: const Color.fromARGB(
+            58,
+            58,
+            58,
+            58,
+          ), // AppColors.inputBorder at 0.12 opacity
+          width: 0.8,
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Stack(
+        gradient: const LinearGradient(
+          begin: Alignment.centerRight,
+          end: Alignment.centerLeft,
+          colors: [
+            Color.fromARGB(
+              18,
+              0,
+              229,
+              255,
+            ), // M-series Cyan (slightly more visible)
+
+            Color.fromARGB(14, 41, 121, 255), // M-series Royal Blue
+
+            Color.fromARGB(10, 213, 0, 249), // M-series Pink/Purple
+
+            Color.fromARGB(8, 255, 109, 0), // M-series Amber/Gold
+
+            Color.fromARGB(2, 255, 109, 0), // subtle fade-out tail
+          ],
+          stops: [0.0, 0.25, 0.55, 0.8, 1.0],
+        ),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Stack(
+            children: [
+              Container(
+                padding: const EdgeInsets.fromLTRB(10.0, 10.0, 10.0, 10.0),
+                decoration: const BoxDecoration(color: Colors.transparent),
+                width: double.infinity,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      schedule.lineId,
+                      style: TextStyle(
+                        color: AppColors.primaryText,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14.sp,
+                        fontFamily: 'Poppins',
+                      ),
+                    ),
+                    const SizedBox(height: 4.0),
+                    _buildDestinationText(
+                      "To ${schedule.destination}",
+                      style: TextStyle(
+                        color: AppColors.secondaryText,
+                        fontWeight: FontWeight.w400,
+                        fontSize: 12.sp,
+                        fontFamily: 'Poppins',
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          Container(
+            decoration: const BoxDecoration(
+              border: Border(
+                top: BorderSide(
+                  color: Color.fromARGB(
+                    31,
+                    44,
+                    44,
+                    44,
+                  ), // AppColors.divider at 0.12 opacity
+                  width: 0.8,
+                ),
+              ),
+            ),
+            padding: const EdgeInsets.symmetric(
+              horizontal: 10.0,
+              vertical: 4.0,
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Container(
-                  padding: const EdgeInsets.fromLTRB(10.0, 10.0, 10.0, 10.0),
-                  decoration: const BoxDecoration(color: Colors.transparent),
-                  width: double.infinity,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        schedule.lineId,
-                        style: TextStyle(
-                          color: AppColors.primaryText,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 14.sp,
-                          fontFamily: 'Poppins',
-                        ),
+                  constraints: const BoxConstraints(minHeight: 30),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8.0,
+                    vertical: 2.0,
+                  ),
+                  decoration: BoxDecoration(
+                    color:
+                        schedule.minutesLeft <= 15
+                            ? const Color.fromARGB(77, 105, 240, 175)
+                            : const Color.fromARGB(85, 255, 172, 64),
+                    borderRadius: BorderRadius.zero,
+                  ),
+                  child: Center(
+                    child: Text(
+                      schedule.relativeText,
+                      style: TextStyle(
+                        color:
+                            schedule.minutesLeft <= 15
+                                ? Colors.greenAccent
+                                : Colors.orangeAccent,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 12.sp,
+                        fontFamily: 'Poppins',
                       ),
-                      const SizedBox(height: 4.0),
-                      _buildDestinationText(
-                        "To ${schedule.destination}",
-                        style: TextStyle(
-                          color: AppColors.secondaryText,
-                          fontWeight: FontWeight.w400,
-                          fontSize: 12.sp,
-                          fontFamily: 'Poppins',
-                        ),
-                      ),
-                    ],
+                    ),
+                  ),
+                ),
+                Text(
+                  schedule.frequencyText,
+                  style: TextStyle(
+                    color: AppColors.secondaryText,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 15.sp,
+                    fontFamily: 'Poppins',
                   ),
                 ),
               ],
             ),
-            Container(
-              decoration: const BoxDecoration(
-                border: Border(
-                  top: BorderSide(
-                    color: Color.fromARGB(
-                      31,
-                      44,
-                      44,
-                      44,
-                    ), // AppColors.divider at 0.12 opacity
-                    width: 0.8,
-                  ),
-                ),
-              ),
-              padding: const EdgeInsets.symmetric(
-                horizontal: 10.0,
-                vertical: 4.0,
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Container(
-                    constraints: const BoxConstraints(minHeight: 30),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8.0,
-                      vertical: 2.0,
-                    ),
-                    decoration: BoxDecoration(
-                      color:
-                          schedule.minutesLeft <= 15
-                              ? const Color.fromARGB(77, 105, 240, 175)
-                              : const Color.fromARGB(85, 255, 172, 64),
-                      borderRadius: BorderRadius.zero,
-                    ),
-                    child: Center(
-                      child: Text(
-                        schedule.relativeText,
-                        style: TextStyle(
-                          color:
-                              schedule.minutesLeft <= 15
-                                  ? Colors.greenAccent
-                                  : Colors.orangeAccent,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 12.sp,
-                          fontFamily: 'Poppins',
-                        ),
-                      ),
-                    ),
-                  ),
-                  Text(
-                    schedule.frequencyText,
-                    style: TextStyle(
-                      color: AppColors.secondaryText,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 15.sp,
-                      fontFamily: 'Poppins',
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
