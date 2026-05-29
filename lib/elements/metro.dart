@@ -29,6 +29,26 @@ class _HomeScreenState extends State<HomeScreen> {
   final Map<String, Map<String, dynamic>> _coreTransferStationsDictN = {
     'Source': {},
   };
+  bool _isRefreshing = false;
+
+  Future<void> _refreshNearbyStations(DataProvider dataProvider) async {
+    if (_isRefreshing) return;
+    setState(() {
+      _isRefreshing = true;
+    });
+    dataProvider.updateCoreNearestStationsDict({});
+    try {
+      await initialize(context);
+    } catch (e) {
+      debugPrint("Error refreshing nearby stations: $e");
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isRefreshing = false;
+        });
+      }
+    }
+  }
 
   @override
   void initState() {
@@ -226,15 +246,41 @@ class _HomeScreenState extends State<HomeScreen> {
               children: [
                 Padding(
                   padding: EdgeInsets.symmetric(vertical: 4.h),
-                  child: Text(
-                    "Nearby",
-                    style: TextStyle(
-                      color: AppColors.tertiaryText,
-                      fontSize: 16.sp,
-                      fontWeight: FontWeight.w500,
-                      fontFamily: 'Poppins',
-                      letterSpacing: 1.0,
-                    ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        "Nearby",
+                        style: TextStyle(
+                          color: AppColors.tertiaryText,
+                          fontSize: 16.sp,
+                          fontWeight: FontWeight.w500,
+                          fontFamily: 'Poppins',
+                          letterSpacing: 1.0,
+                        ),
+                      ),
+                      GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () => _refreshNearbyStations(dataProvider),
+                        child: Container(
+                          padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
+                          child: _isRefreshing
+                              ? SizedBox(
+                                  width: 16.sp,
+                                  height: 16.sp,
+                                  child: const CupertinoActivityIndicator(
+                                    radius: 8,
+                                    color: AppColors.tertiaryText,
+                                  ),
+                                )
+                              : Icon(
+                                  CupertinoIcons.refresh,
+                                  color: AppColors.tertiaryText,
+                                  size: 16.sp,
+                                ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
                 GestureDetector(
@@ -287,15 +333,41 @@ class _HomeScreenState extends State<HomeScreen> {
               children: [
                 Padding(
                   padding: EdgeInsets.symmetric(vertical: 4.h),
-                  child: Text(
-                    "NEAR YOU",
-                    style: TextStyle(
-                      color: AppColors.tertiaryText,
-                      fontSize: 16.sp,
-                      fontWeight: FontWeight.w700,
-                      fontFamily: 'Poppins',
-                      letterSpacing: 1.0,
-                    ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        "Nearby",
+                        style: TextStyle(
+                          color: AppColors.tertiaryText,
+                          fontSize: 16.sp,
+                          fontWeight: FontWeight.w500,
+                          fontFamily: 'Poppins',
+                          letterSpacing: 1.0,
+                        ),
+                      ),
+                      GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () => _refreshNearbyStations(dataProvider),
+                        child: Container(
+                          padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
+                          child: _isRefreshing
+                              ? SizedBox(
+                                  width: 16.sp,
+                                  height: 16.sp,
+                                  child: const CupertinoActivityIndicator(
+                                    radius: 8,
+                                    color: AppColors.tertiaryText,
+                                  ),
+                                )
+                              : Icon(
+                                  CupertinoIcons.refresh,
+                                  color: AppColors.tertiaryText,
+                                  size: 16.sp,
+                                ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
                 const Skeletonizer(
