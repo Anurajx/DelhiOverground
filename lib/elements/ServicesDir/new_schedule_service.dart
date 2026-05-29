@@ -374,7 +374,8 @@ Future<List<ScheduleInfo>> getRealtimeScheduleForStopId(int rtId) async {
 // -------------------- UI WIDGET --------------------
 class ScheduleWidget extends StatefulWidget {
   final String stationCode;
-  const ScheduleWidget({super.key, required this.stationCode});
+  final DateTime? refreshTrigger;
+  const ScheduleWidget({super.key, required this.stationCode, this.refreshTrigger});
 
   @override
   State<ScheduleWidget> createState() => _ScheduleWidgetState();
@@ -396,6 +397,14 @@ class _ScheduleWidgetState extends State<ScheduleWidget> {
   void initState() {
     super.initState();
     _loadData();
+  }
+
+  @override
+  void didUpdateWidget(covariant ScheduleWidget oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.refreshTrigger != oldWidget.refreshTrigger) {
+      _loadData();
+    }
   }
 
   Future<void> _loadRealtimeOptions() async {
@@ -931,7 +940,7 @@ class _ScheduleWidgetState extends State<ScheduleWidget> {
           if (isLoading)
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 40.0),
-              child: Center(child: CupertinoActivityIndicator(radius: 20)),
+              child: Center(child: CupertinoActivityIndicator(radius: 12)),
             )
           else
             _buildScheduleList(),

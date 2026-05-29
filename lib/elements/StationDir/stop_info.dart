@@ -7,9 +7,26 @@ import 'package:metroapp/elements/ServicesDir/new_schedule_service.dart';
 import 'package:metroapp/elements/ServicesDir/report_error_service.dart';
 import 'package:metroapp/main.dart';
 
-class StopInfoScreen extends StatelessWidget {
+class StopInfoScreen extends StatefulWidget {
   final dynamic stationDict;
   const StopInfoScreen({super.key, required this.stationDict});
+
+  @override
+  State<StopInfoScreen> createState() => _StopInfoScreenState();
+}
+
+class _StopInfoScreenState extends State<StopInfoScreen> {
+  double _pullOffset = 0.0;
+  bool _isDragging = false;
+  DateTime _refreshTrigger = DateTime.now();
+  final ScrollController _scrollController = ScrollController();
+  bool _isPulling = false;
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -20,7 +37,7 @@ class StopInfoScreen extends StatelessWidget {
   }
 
   Widget _buildStationCluster(BuildContext context) {
-    final stationCode = stationDict["Source"]["StationCode"];
+    final stationCode = widget.stationDict["Source"]["StationCode"];
     return SafeArea(
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10),
@@ -28,18 +45,99 @@ class StopInfoScreen extends StatelessWidget {
           children: [
             _buildTopNavBar(context),
             Expanded(
-              child: ListView(
-                shrinkWrap: true,
-                children: [
-                  _buildStationLineMarker(),
-                  _buildBusStopDetailsCard(context),
-                  SizedBox(height: 10.h),
-                  ScheduleWidget(stationCode: stationCode),
-                  SizedBox(height: 40.h),
-                  _buildReportError(),
-                  SizedBox(height: 40.h),
-                  _buildCompanyFooter(),
-                ],
+              child: TweenAnimationBuilder<double>(
+                tween: Tween<double>(begin: 0.0, end: _pullOffset),
+                duration: _isDragging ? Duration.zero : const Duration(milliseconds: 300),
+                curve: Curves.easeOut,
+                builder: (context, offset, child) {
+                  return Transform.translate(
+                    offset: Offset(0, offset),
+                    child: child,
+                  );
+                },
+                child: ListView(
+                  controller: _scrollController,
+                  shrinkWrap: true,
+                  children: [
+                    // Pull Gesture Detector only active on the upper section (above upcoming departures)
+                    GestureDetector(
+                      onVerticalDragStart: (_) {
+                        setState(() {
+                          _isDragging = true;
+                          _isPulling = _scrollController.hasClients && _scrollController.offset <= 0.0;
+                        });
+                      },
+                      onVerticalDragUpdate: (details) {
+                        if (_isPulling) {
+                          setState(() {
+                            // Apply rubber-band drag resistance
+                            _pullOffset += details.delta.dy * (1.0 - (_pullOffset / 250.0).clamp(0.0, 0.8));
+                            if (_pullOffset < 0.0) {
+                              double remaining = _pullOffset;
+                              _pullOffset = 0.0;
+                              _isPulling = false;
+                              if (_scrollController.hasClients) {
+                                _scrollController.jumpTo(_scrollController.offset - remaining);
+                              }
+                            }
+                          });
+                        } else {
+                          if (_scrollController.hasClients) {
+                            double newOffset = _scrollController.offset - details.delta.dy;
+                            if (newOffset < 0.0) {
+                              _isPulling = true;
+                              setState(() {
+                                _pullOffset = -newOffset * (1.0 - (_pullOffset / 250.0).clamp(0.0, 0.8));
+                              });
+                              _scrollController.jumpTo(0.0);
+                            } else {
+                              _scrollController.jumpTo(newOffset.clamp(0.0, _scrollController.position.maxScrollExtent));
+                            }
+                          }
+                        }
+                      },
+                      onVerticalDragEnd: (details) {
+                        setState(() {
+                          _isDragging = false;
+                          if (_pullOffset >= 80.0) {
+                            _refreshTrigger = DateTime.now();
+                          }
+                          _pullOffset = 0.0;
+                        });
+                        if (!_isPulling && _scrollController.hasClients) {
+                          final double velocity = details.primaryVelocity ?? 0.0;
+                          if (velocity != 0.0) {
+                            final double target = (_scrollController.offset - velocity * 0.2).clamp(0.0, _scrollController.position.maxScrollExtent);
+                            _scrollController.animateTo(
+                              target,
+                              duration: const Duration(milliseconds: 300),
+                              curve: Curves.decelerate,
+                            );
+                          }
+                        }
+                        _isPulling = false;
+                      },
+                      behavior: HitTestBehavior.opaque,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _buildStationLineMarker(),
+                          _buildBusStopDetailsCard(context),
+                        ],
+                      ),
+                    ),
+                    SizedBox(height: 10.h),
+                    ScheduleWidget(
+                      stationCode: stationCode,
+                      refreshTrigger: _refreshTrigger,
+                    ),
+                    SizedBox(height: 40.h),
+                    _buildReportError(),
+                    SizedBox(height: 40.h),
+                    _buildCompanyFooter(),
+                  ],
+                ),
               ),
             ),
           ],
@@ -85,7 +183,7 @@ class StopInfoScreen extends StatelessWidget {
   }
 
   Widget _buildStationLineMarker() {
-    dynamic station = stationDict["Source"];
+    dynamic station = widget.stationDict["Source"];
     String stationName = station["Name"].toString();
     String stationNameHindiCommon = station["Hindi"].toString();
     String line = station["Line"];
@@ -99,7 +197,7 @@ class StopInfoScreen extends StatelessWidget {
   }
 
   Widget _buildBusStopDetailsCard(BuildContext context) {
-    final source = stationDict["Source"];
+    final source = widget.stationDict["Source"];
     final lat = source["Latitude"]?.toString() ?? "";
     final lon = source["Longitude"]?.toString() ?? "";
 
