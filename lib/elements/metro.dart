@@ -544,7 +544,7 @@ class _HomeScreenState extends State<HomeScreen> {
           bottomRight: Radius.circular(0),
         ),
         image: DecorationImage(
-          image: AssetImage('assets/Image/rainhero.jpg'),
+          image: AssetImage('assets/Image/nighthero.jpg'),
           fit: BoxFit.cover,
         ),
       ),

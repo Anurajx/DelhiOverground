@@ -7,6 +7,10 @@ import 'stop_info.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:string_similarity/string_similarity.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:provider/provider.dart';
+import 'package:metroapp/elements/ServicesDir/data_provider.dart';
+
 
 class StationSearchScreen extends StatefulWidget {
   final String? destination;
@@ -40,6 +44,8 @@ class _SearchScreenState extends State<StationSearchScreen> {
   List<dynamic> _originalStations = [];
   List<_StationSearchItem> _searchItems = [];
   List<dynamic> _filteredStations = [];
+  List<dynamic> _nearestStations = [];
+  bool _isLoadingLocation = false;
 
   final Map<String, Map<String, dynamic>> _coreTransferStationsDict = {
     'Source': {},
@@ -91,8 +97,9 @@ class _SearchScreenState extends State<StationSearchScreen> {
       setState(() {
         _originalStations = stations;
         _searchItems = items;
-        _filteredStations = stations;
+        _filteredStations = [];
       });
+      _determineNearestStops();
     });
   }
 
@@ -253,9 +260,89 @@ class _SearchScreenState extends State<StationSearchScreen> {
         _filteredStations =
             finalScoredList.map((entry) => entry.key.station).toList();
       } else {
-        _filteredStations = _originalStations;
+        _filteredStations = _nearestStations.isNotEmpty ? _nearestStations : _originalStations;
       }
     });
+  }
+
+  Future<void> _determineNearestStops() async {
+    if (!mounted) return;
+    try {
+      setState(() {
+        _isLoadingLocation = true;
+      });
+
+      final dataProvider = Provider.of<DataProvider>(context, listen: false);
+      final nearDict = dataProvider.coreNearestStationsDict;
+      Position? position;
+      if (nearDict['UserLocation'] != null && nearDict['UserLocation']!.isNotEmpty) {
+        position = nearDict['UserLocation']!.first as Position;
+      }
+
+      if (position == null) {
+        LocationPermission permission = await Geolocator.checkPermission();
+        if (permission == LocationPermission.denied) {
+          permission = await Geolocator.requestPermission();
+        }
+        if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) {
+          setState(() {
+            _isLoadingLocation = false;
+            if (_controller1.text.trim().isEmpty) {
+              _filteredStations = _originalStations;
+            }
+          });
+          return;
+        }
+
+        position = await Geolocator.getCurrentPosition(
+          locationSettings: const LocationSettings(
+            accuracy: LocationAccuracy.low,
+            timeLimit: Duration(seconds: 4),
+          ),
+        );
+      }
+
+      final double userLat = position.latitude;
+      final double userLon = position.longitude;
+
+      // Filter: stations that have realtime_stop_id available
+      final List<_StationSearchItem> candidateItems =
+          _searchItems.where((item) => item.hasRealtime).toList();
+
+      // Sort by distance
+      candidateItems.sort((a, b) {
+        final double latA = double.tryParse(a.station["Latitude"]?.toString() ?? "0.0") ?? 0.0;
+        final double lonA = double.tryParse(a.station["Longitude"]?.toString() ?? "0.0") ?? 0.0;
+        final double latB = double.tryParse(b.station["Latitude"]?.toString() ?? "0.0") ?? 0.0;
+        final double lonB = double.tryParse(b.station["Longitude"]?.toString() ?? "0.0") ?? 0.0;
+
+        final double distA = Geolocator.distanceBetween(userLat, userLon, latA, lonA);
+        final double distB = Geolocator.distanceBetween(userLat, userLon, latB, lonB);
+        return distA.compareTo(distB);
+      });
+
+      final top3 = candidateItems.take(3).map((item) => item.station).toList();
+
+      if (mounted) {
+        setState(() {
+          _nearestStations = top3;
+          _isLoadingLocation = false;
+          if (_controller1.text.trim().isEmpty) {
+            _filteredStations = _nearestStations.isNotEmpty ? _nearestStations : _originalStations;
+          }
+        });
+      }
+    } catch (e) {
+      debugPrint("Error determining nearest stops: $e");
+      if (mounted) {
+        setState(() {
+          _isLoadingLocation = false;
+          if (_controller1.text.trim().isEmpty) {
+            _filteredStations = _originalStations;
+          }
+        });
+      }
+    }
   }
 
   Future<List> _loadStationsFromJson() async {
@@ -384,6 +471,17 @@ class _SearchScreenState extends State<StationSearchScreen> {
   }
 
   Widget _buildStationList() {
+    if (_isLoadingLocation && _filteredStations.isEmpty) {
+      return const Expanded(
+        child: Center(
+          child: CupertinoActivityIndicator(
+            color: Colors.white,
+            radius: 14,
+          ),
+        ),
+      );
+    }
+
     if (_filteredStations.isEmpty) {
       return const Center(
         child: Column(
@@ -406,7 +504,11 @@ class _SearchScreenState extends State<StationSearchScreen> {
       );
     }
 
-    return Expanded(
+    final bool showingNearby = _controller1.text.trim().isEmpty &&
+        _nearestStations.isNotEmpty &&
+        _filteredStations == _nearestStations;
+
+    final listView = Expanded(
       child: ListView.separated(
         itemCount: _filteredStations.length,
         itemBuilder: (context, index) {
@@ -449,6 +551,43 @@ class _SearchScreenState extends State<StationSearchScreen> {
         },
       ),
     );
+
+    if (showingNearby) {
+      return Expanded(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: EdgeInsets.only(top: 14.h, bottom: 6.h, left: 8.w),
+              child: Container(
+                padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 4.h),
+                decoration: BoxDecoration(
+                  color: Colors.transparent,
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.45),
+                    width: 1.0,
+                  ),
+                  borderRadius: BorderRadius.circular(20.r),
+                ),
+                child: Text(
+                  "Stops near you",
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 11.sp,
+                    fontWeight: FontWeight.w600,
+                    fontFamily: 'Poppins',
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ),
+            ),
+            listView,
+          ],
+        ),
+      );
+    }
+
+    return listView;
   }
 
   @override

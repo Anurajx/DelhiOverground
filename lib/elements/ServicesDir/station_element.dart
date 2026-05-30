@@ -20,12 +20,6 @@ class StationUnit extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     String mainText = name.toString();
-    String? subText;
-    if (mainText.contains('/')) {
-      final parts = mainText.split('/');
-      mainText = parts[0].trim();
-      subText = parts[1].trim();
-    }
 
     return Container(
       height: 60.h,
@@ -49,18 +43,6 @@ class StationUnit extends StatelessWidget {
                     fontWeight: FontWeight.w600,
                   ),
                 ),
-                if (subText != null) ...[
-                  SizedBox(height: 4.h),
-                  Text(
-                    subText,
-                    style: TextStyle(
-                      fontFamily: 'Poppins',
-                      color: AppColors.secondaryText,
-                      fontSize: 12.sp,
-                      fontWeight: FontWeight.w400,
-                    ),
-                  ),
-                ],
               ],
             ),
           ),
@@ -116,11 +98,6 @@ class StationNearby extends StatelessWidget {
   Widget build(BuildContext context) {
     String mainText = name.toString();
     String? subText;
-    if (mainText.contains('/')) {
-      final parts = mainText.split('/');
-      mainText = parts[0].trim();
-      subText = parts[1].trim();
-    }
 
     return Container(
       padding: EdgeInsets.symmetric(vertical: 10.h, horizontal: 8.w),
@@ -193,12 +170,6 @@ class _BigNameInfoState extends State<BigNameInfo> {
   @override
   Widget build(BuildContext context) {
     String mainName = widget.stationName.toString();
-    String? subName;
-    if (mainName.contains('/')) {
-      final parts = mainName.split('/');
-      mainName = parts[0].trim();
-      subName = parts[1].trim();
-    }
 
     final List<dynamic> lines = widget.lineofStation;
     final bool hasManyLines = lines.length > 10;
@@ -232,17 +203,6 @@ class _BigNameInfoState extends State<BigNameInfo> {
                     fontFamily: 'Poppins',
                   ),
                 ),
-                if (subName != null) ...[
-                  Text(
-                    subName,
-                    style: TextStyle(
-                      color: AppColors.secondaryText,
-                      fontWeight: FontWeight.w400,
-                      fontSize: 16.sp,
-                      fontFamily: 'Poppins',
-                    ),
-                  ),
-                ],
               ],
             ),
           ),

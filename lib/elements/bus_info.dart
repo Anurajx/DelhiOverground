@@ -376,12 +376,6 @@ class _BusInfoScreenState extends State<BusInfoScreen> {
         final stopName = stop['stop_name'] as String? ?? "Unknown Stop";
         // Split stop name by '/'
         String mainName = stopName;
-        String? subName;
-        if (stopName.contains('/')) {
-          final parts = stopName.split('/');
-          mainName = parts[0].trim();
-          subName = parts[1].trim();
-        }
 
 
 
@@ -424,18 +418,6 @@ class _BusInfoScreenState extends State<BusInfoScreen> {
                       fontFamily: 'Poppins',
                     ),
                   ),
-                  if (subName != null) ...[
-                    SizedBox(height: 2.h),
-                    Text(
-                      subName,
-                      style: TextStyle(
-                        color: AppColors.secondaryText,
-                        fontSize: 12.sp,
-                        fontWeight: FontWeight.w400,
-                        fontFamily: 'Poppins',
-                      ),
-                    ),
-                  ],
 
                   SizedBox(height: 12.h),
                 ],
