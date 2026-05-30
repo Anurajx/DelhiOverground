@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:metroapp/main.dart';
-import 'StationDir/stop_info.dart';
+
 import 'search.dart'; // To reuse BusDatabaseHelper
 
 class BusInfoScreen extends StatefulWidget {
@@ -34,26 +34,7 @@ class _BusInfoScreenState extends State<BusInfoScreen> {
     _loadDirections();
   }
 
-  String _formatTime(String timeStr) {
-    if (timeStr == "--" || timeStr.isEmpty) return "--";
-    try {
-      final parts = timeStr.trim().split(':');
-      if (parts.length < 2) return timeStr;
-      int hour = int.parse(parts[0]);
-      int minute = int.parse(parts[1]);
-      String period = "AM";
-      if (hour >= 12) {
-        period = "PM";
-        if (hour > 12) hour -= 12;
-      }
-      if (hour == 0) hour = 12;
-      final minStr = minute.toString().padLeft(2, '0');
-      final hrStr = hour.toString().padLeft(2, '0');
-      return "$hrStr:$minStr $period";
-    } catch (e) {
-      return timeStr;
-    }
-  }
+
 
   Future<void> _loadDirections() async {
     try {
@@ -80,125 +61,74 @@ class _BusInfoScreenState extends State<BusInfoScreen> {
         });
       }
 
-      // Try querying by routeId first
-      var dirResults = await db.rawQuery(
-        '''
-        SELECT DISTINCT direction_id, route_id
-        FROM trips
-        WHERE route_id = ?
-      ''',
-        [widget.routeId],
-      );
-
-      // Fallback using routeLongName
-      if (dirResults.isEmpty) {
-        dirResults = await db.rawQuery(
+      // Resolve unique routeId
+      String currentRouteId = widget.routeId;
+      if (currentRouteId.isEmpty && routeResults.isNotEmpty) {
+        final rResults = await db.rawQuery(
           '''
-          SELECT DISTINCT t.direction_id, t.route_id
-          FROM trips t
-          JOIN routes r ON t.route_id = r.route_id
-          WHERE r.route_long_name = ?
+          SELECT route_id FROM routes WHERE route_long_name = ? LIMIT 1
         ''',
           [widget.routeLongName],
         );
+        if (rResults.isNotEmpty) {
+          currentRouteId = rResults.first['route_id'] as String;
+        }
       }
 
-      List<Map<String, dynamic>> directionsList = [];
+      // Query all stops serving this specific route ID
+      final stopsResults = await db.rawQuery(
+        '''
+        SELECT stop_id, stop_name, stop_lat, stop_lon, routes_list
+        FROM stops
+        WHERE routes_list LIKE ?
+      ''',
+        ['%$currentRouteId#%'],
+      );
 
-      for (var row in dirResults) {
-        final dirId = row['direction_id'];
-        final rId = row['route_id'] as String;
-
-        // Find representative trip
-        final tripResult = await db.rawQuery(
-          '''
-          SELECT t.trip_id, COUNT(st.stop_id) as stop_count
-          FROM trips t
-          JOIN stop_times st ON t.trip_id = st.trip_id
-          WHERE t.route_id = ? AND t.direction_id = ?
-          GROUP BY t.trip_id
-          ORDER BY stop_count DESC
-          LIMIT 1
-        ''',
-          [rId, dirId],
-        );
-
-        if (tripResult.isEmpty) continue;
-
-        final tripId = tripResult.first['trip_id'] as String;
-        final stopCount = tripResult.first['stop_count'] as int;
-
-        // Find start stop
-        final startResult = await db.rawQuery(
-          '''
-          SELECT s.stop_name
-          FROM stop_times st
-          JOIN stops s ON st.stop_id = s.stop_id
-          WHERE st.trip_id = ?
-          ORDER BY st.stop_sequence ASC
-          LIMIT 1
-        ''',
-          [tripId],
-        );
-        final startStop =
-            startResult.isNotEmpty
-                ? startResult.first['stop_name'] as String
-                : "Start";
-
-        // Find end stop
-        final endResult = await db.rawQuery(
-          '''
-          SELECT s.stop_name
-          FROM stop_times st
-          JOIN stops s ON st.stop_id = s.stop_id
-          WHERE st.trip_id = ?
-          ORDER BY st.stop_sequence DESC
-          LIMIT 1
-        ''',
-          [tripId],
-        );
-        final endStop =
-            endResult.isNotEmpty
-                ? endResult.first['stop_name'] as String
-                : "End";
-
-        // Query timings
-        final timingsResult = await db.rawQuery(
-          '''
-          SELECT 
-              MIN(first_st.arrival_time) as first_bus, 
-              MAX(first_st.arrival_time) as last_bus, 
-              COUNT(DISTINCT t.trip_id) as total_trips
-          FROM trips t
-          JOIN stop_times first_st ON t.trip_id = first_st.trip_id
-          WHERE t.route_id = ? AND t.direction_id = ? AND first_st.stop_sequence = (
-              SELECT MIN(stop_sequence) FROM stop_times WHERE trip_id = t.trip_id
-          )
-        ''',
-          [rId, dirId],
-        );
-
-        String firstBus = "--";
-        String lastBus = "--";
-        int totalTrips = 0;
-
-        if (timingsResult.isNotEmpty) {
-          firstBus = timingsResult.first['first_bus'] as String? ?? "--";
-          lastBus = timingsResult.first['last_bus'] as String? ?? "--";
-          totalTrips = timingsResult.first['total_trips'] as int? ?? 0;
+      // Parse and filter stops for this specific route ID
+      final List<Map<String, dynamic>> parsedStops = [];
+      for (final row in stopsResults) {
+        final routesListStr = row['routes_list'] as String? ?? '';
+        final tokens = routesListStr.split('-');
+        for (final token in tokens) {
+          final hashParts = token.split('#');
+          if (hashParts.length == 2 && hashParts[0] == currentRouteId) {
+            final colonParts = hashParts[1].split(':');
+            if (colonParts.length == 2) {
+              final seq = int.tryParse(colonParts[1]) ?? 0;
+              parsedStops.add({
+                'stop_id': row['stop_id'],
+                'stop_name': row['stop_name'],
+                'stop_lat': row['stop_lat'],
+                'stop_lon': row['stop_lon'],
+                'routes_list': routesListStr,
+                'sequence': seq,
+              });
+              break;
+            }
+          }
         }
+      }
+
+      // Sort stops by sequence number
+      parsedStops.sort((a, b) => (a['sequence'] as int).compareTo(b['sequence'] as int));
+
+      List<Map<String, dynamic>> directionsList = [];
+      if (parsedStops.isNotEmpty) {
+        final startStop = parsedStops.first['stop_name'] as String;
+        final endStop = parsedStops.last['stop_name'] as String;
 
         directionsList.add({
-          'route_id': rId,
-          'direction_id': dirId,
-          'trip_id': tripId,
-          'stop_count': stopCount,
+          'route_id': currentRouteId,
+          'direction_id': 0,
+          'trip_id': 'rep_trip',
+          'stop_count': parsedStops.length,
           'start_stop': startStop,
           'end_stop': endStop,
           'trip_headsign': '$startStop ➔ $endStop',
-          'first_bus': firstBus,
-          'last_bus': lastBus,
-          'total_trips': totalTrips,
+          'first_bus': '--',
+          'last_bus': '--',
+          'total_trips': 0,
         });
       }
 
@@ -208,8 +138,9 @@ class _BusInfoScreenState extends State<BusInfoScreen> {
           _isLoadingDirections = false;
           if (_directions.isNotEmpty) {
             _selectedDirection = _directions.first;
-            _loadStopsForTrip(_selectedDirection!['trip_id'] as String);
+            _stops = parsedStops;
           }
+          _isLoadingStops = false;
         });
       }
     } catch (e) {
@@ -217,42 +148,17 @@ class _BusInfoScreenState extends State<BusInfoScreen> {
       if (mounted) {
         setState(() {
           _isLoadingDirections = false;
+          _isLoadingStops = false;
         });
       }
     }
   }
 
   Future<void> _loadStopsForTrip(String tripId) async {
+    // No database query needed as stops are pre-loaded and sorted
     setState(() {
-      _isLoadingStops = true;
+      _isLoadingStops = false;
     });
-
-    try {
-      final db = await BusDatabaseHelper.getDatabase();
-      final results = await db.rawQuery(
-        '''
-        SELECT s.stop_id, s.stop_name, s.stop_lat, s.stop_lon, s.routes_list
-        FROM stop_times st
-        JOIN stops s ON st.stop_id = s.stop_id
-        WHERE st.trip_id = ?
-        ORDER BY st.stop_sequence ASC
-      ''',
-        [tripId],
-      );
-
-      if (mounted) {
-        setState(() {
-          _stops = List<Map<String, dynamic>>.from(results);
-          _isLoadingStops = false;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _isLoadingStops = false;
-        });
-      }
-    }
   }
 
   @override
@@ -273,7 +179,6 @@ class _BusInfoScreenState extends State<BusInfoScreen> {
             else if (_directions.isEmpty)
               _buildEmptyState()
             else ...[
-              _buildStatsCard(),
               Expanded(
                 child:
                     _isLoadingStops
@@ -291,128 +196,7 @@ class _BusInfoScreenState extends State<BusInfoScreen> {
     );
   }
 
-  Widget _buildStatsCard() {
-    if (_selectedDirection == null) return const SizedBox.shrink();
 
-    final firstBus = _formatTime(_selectedDirection!['first_bus'] as String);
-    final lastBus = _formatTime(_selectedDirection!['last_bus'] as String);
-    final totalTrips = _selectedDirection!['total_trips'] as int? ?? 0;
-    final stopCount = _selectedDirection!['stop_count'] as int? ?? 0;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 4.h),
-          child: Text(
-            "ROUTE SUMMARY",
-            style: TextStyle(
-              color: AppColors.tertiaryText,
-              fontSize: 10.sp,
-              fontWeight: FontWeight.w700,
-              fontFamily: 'Poppins',
-              letterSpacing: 1.0,
-            ),
-          ),
-        ),
-        Padding(
-          padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 4.h),
-          child: Column(
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildGridStatItem(
-                      icon: CupertinoIcons.clock,
-                      label: "First Bus",
-                      value: firstBus,
-                    ),
-                  ),
-                  SizedBox(width: 3.w),
-                  Expanded(
-                    child: _buildGridStatItem(
-                      icon: CupertinoIcons.clock_solid,
-                      label: "Last Bus",
-                      value: lastBus,
-                    ),
-                  ),
-                ],
-              ),
-              SizedBox(height: 3.h),
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildGridStatItem(
-                      icon: CupertinoIcons.refresh,
-                      label: "Trips / Day",
-                      value: "$totalTrips trips",
-                    ),
-                  ),
-                  SizedBox(width: 3.w),
-                  Expanded(
-                    child: _buildGridStatItem(
-                      icon: CupertinoIcons.map_pin_ellipse,
-                      label: "Total Stops",
-                      value: "$stopCount stops",
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildGridStatItem({
-    required IconData icon,
-    required String label,
-    required String value,
-  }) {
-    return Container(
-      padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 6.h),
-      decoration: const BoxDecoration(
-        color: Color.fromARGB(38, 59, 131, 246),
-        borderRadius: BorderRadius.zero,
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.start,
-        children: [
-          Icon(
-            icon,
-            color: Colors.white,
-            size: 16.sp,
-          ),
-          SizedBox(width: 8.w),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                label,
-                style: TextStyle(
-                  color: AppColors.secondaryText,
-                  fontSize: 10.sp,
-                  fontWeight: FontWeight.w500,
-                  fontFamily: 'Poppins',
-                ),
-              ),
-              Text(
-                value,
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 12.sp,
-                  fontWeight: FontWeight.w700,
-                  fontFamily: 'Poppins',
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
 
   Widget _buildHeader(BuildContext context) {
     return Container(
@@ -590,8 +374,6 @@ class _BusInfoScreenState extends State<BusInfoScreen> {
       itemBuilder: (context, index) {
         final stop = _stops[index];
         final stopName = stop['stop_name'] as String? ?? "Unknown Stop";
-        final routesList = stop['routes_list'] as String? ?? "";
-
         // Split stop name by '/'
         String mainName = stopName;
         String? subName;
@@ -601,102 +383,65 @@ class _BusInfoScreenState extends State<BusInfoScreen> {
           subName = parts[1].trim();
         }
 
-        final stopId = stop['stop_id']?.toString() ?? "N/A";
-        final stopDetails = "Stop ID: $stopId";
 
-        return GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: () {
-            // Navigate to existing StopInfoScreen
-            final stationDict = {
-              "Source": {
-                "StationCode": stop['stop_id']?.toString() ?? "",
-                "Name": stopName,
-                "Hindi": stopName, // Hindi name fallback
-                "Line": routesList,
-                "Latitude": stop['stop_lat']?.toString() ?? "",
-                "Longitude": stop['stop_lon']?.toString() ?? "",
-              },
-            };
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => StopInfoScreen(stationDict: stationDict),
-              ),
-            );
-          },
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Timeline connector and dot
-              Column(
-                children: [
+
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Timeline connector and dot
+            Column(
+              children: [
+                Container(
+                  width: 14.w,
+                  height: 14.w,
+                  margin: EdgeInsets.only(top: 3.h),
+                  decoration: BoxDecoration(
+                    color: AppColors.secondaryText,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.black, width: 1.5),
+                  ),
+                ),
+                if (index < _stops.length - 1)
                   Container(
-                    width: 14.w,
-                    height: 14.w,
-                    decoration: BoxDecoration(
+                    width: 2.w,
+                    height: 36.h, // Adjusted height to accommodate space saved by removing details
+                    color: AppColors.secondaryText.withValues(alpha: 0.5),
+                  ),
+              ],
+            ),
+            SizedBox(width: 16.w),
+            // Stop Name details
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    mainName,
+                    style: TextStyle(
                       color: AppColors.secondaryText,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.black, width: 1.5),
+                      fontSize: 15.sp,
+                      fontWeight: FontWeight.w600,
+                      fontFamily: 'Poppins',
                     ),
                   ),
-                  if (index < _stops.length - 1)
-                    Container(
-                      width: 2.w,
-                      height:
-                          48.h, // Adjusted height to accommodate sub-text and details
-                      color: AppColors.secondaryText.withValues(alpha: 0.5),
-                    ),
-                ],
-              ),
-              SizedBox(width: 16.w),
-              // Stop Name details
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
+                  if (subName != null) ...[
+                    SizedBox(height: 2.h),
                     Text(
-                      mainName,
+                      subName,
                       style: TextStyle(
                         color: AppColors.secondaryText,
-                        fontSize: 15.sp,
-                        fontWeight: FontWeight.w600,
-                        fontFamily: 'Poppins',
-                      ),
-                    ),
-                    if (subName != null) ...[
-                      SizedBox(height: 2.h),
-                      Text(
-                        subName,
-                        style: TextStyle(
-                          color: AppColors.secondaryText,
-                          fontSize: 12.sp,
-                          fontWeight: FontWeight.w400,
-                          fontFamily: 'Poppins',
-                        ),
-                      ),
-                    ],
-                    SizedBox(height: 4.h),
-                    Text(
-                      stopDetails,
-                      style: TextStyle(
-                        color: AppColors.tertiaryText,
-                        fontSize: 10.sp,
+                        fontSize: 12.sp,
                         fontWeight: FontWeight.w400,
                         fontFamily: 'Poppins',
                       ),
                     ),
-                    SizedBox(height: 12.h),
                   ],
-                ),
+
+                  SizedBox(height: 12.h),
+                ],
               ),
-              Icon(
-                CupertinoIcons.right_chevron,
-                color: AppColors.tertiaryText,
-                size: 14.sp,
-              ),
-            ],
-          ),
+            ),
+          ],
         );
       },
     );

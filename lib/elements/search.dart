@@ -21,7 +21,7 @@ class BusDatabaseHelper {
 
     final prefs = await SharedPreferences.getInstance();
     final currentDbVersion = prefs.getInt('db_version_key') ?? 0;
-    const targetDbVersion = 3; // Increment this whenever the database asset changes
+    const targetDbVersion = 6; // Increment this whenever the database asset changes
 
     bool needsCopy = false;
     final exists = await databaseExists(path);
@@ -31,7 +31,7 @@ class BusDatabaseHelper {
       try {
         final tempDb = await openDatabase(path, readOnly: true);
         final tables = await tempDb.rawQuery(
-          "SELECT name FROM sqlite_master WHERE type='table' AND name='stop_times'"
+          "SELECT name FROM sqlite_master WHERE type='table' AND name='routes'"
         );
         await tempDb.close();
         if (tables.isEmpty) {
@@ -113,11 +113,7 @@ class _SearchBodyState extends State<SearchBody> {
       final db = await BusDatabaseHelper.getDatabase();
       final results = await db.rawQuery('''
         SELECT r.route_id, r.route_long_name, r.agency_id,
-               (SELECT s.stop_name 
-                FROM stop_times st 
-                JOIN stops s ON st.stop_id = s.stop_id 
-                WHERE st.trip_id = (SELECT trip_id FROM trips WHERE route_id = r.route_id LIMIT 1) 
-                ORDER BY st.stop_sequence DESC LIMIT 1) as headsign
+               r.end_stop as headsign
         FROM routes r
         ORDER BY r.route_long_name ASC
       ''');
@@ -154,11 +150,7 @@ class _SearchBodyState extends State<SearchBody> {
       final db = await BusDatabaseHelper.getDatabase();
       final results = await db.rawQuery('''
         SELECT r.route_id, r.route_long_name, r.agency_id,
-               (SELECT s.stop_name 
-                FROM stop_times st 
-                JOIN stops s ON st.stop_id = s.stop_id 
-                WHERE st.trip_id = (SELECT trip_id FROM trips WHERE route_id = r.route_id LIMIT 1) 
-                ORDER BY st.stop_sequence DESC LIMIT 1) as headsign
+               r.end_stop as headsign
         FROM routes r
         WHERE r.route_long_name LIKE ?
       ''', ['%$query%']);

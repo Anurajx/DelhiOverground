@@ -33,14 +33,7 @@ class ScheduleInfo {
 // -------------------- DATABASE ACCESS --------------------
 // Reused from BusDatabaseHelper in search.dart
 
-int _getMinutesFromTimeStr(String timeStr) {
-  try {
-    final parts = timeStr.split(':');
-    return int.parse(parts[0]) * 60 + int.parse(parts[1]);
-  } catch (e) {
-    return 0;
-  }
-}
+
 
 String formatTime12h(String timeStr) {
   try {
@@ -62,109 +55,7 @@ String formatTime12h(String timeStr) {
 
 // -------------------- FETCHING --------------------
 Future<List<ScheduleInfo>> getScheduleForStation(String stationCode) async {
-  final db = await BusDatabaseHelper.getDatabase();
-
-  final now = DateTime.now();
-  final currentTimeStr =
-      "${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}:${now.second.toString().padLeft(2, '0')}";
-  final currentMinutes = now.hour * 60 + now.minute;
-
-  final stopIds = stationCode.split(',').map((id) => id.trim()).toList();
-  final placeholders = List.filled(stopIds.length, '?').join(',');
-
-  // Query upcoming departures
-  var results = await db.rawQuery(
-    '''
-    SELECT 
-      t.trip_id,
-      r.route_id,
-      r.route_long_name,
-      t.trip_headsign,
-      st.departure_time,
-      (SELECT s2.stop_name 
-       FROM stop_times st2 
-       JOIN stops s2 ON st2.stop_id = s2.stop_id 
-       WHERE st2.trip_id = t.trip_id 
-       ORDER BY st2.stop_sequence DESC 
-       LIMIT 1) as destination_name
-    FROM stop_times st
-    JOIN trips t ON st.trip_id = t.trip_id
-    JOIN routes r ON t.route_id = r.route_id
-    WHERE st.stop_id IN ($placeholders) AND st.departure_time >= ?
-    ORDER BY st.departure_time ASC
-    LIMIT 15
-  ''',
-    [...stopIds, currentTimeStr],
-  );
-
-  // Fallback: If no more departures today, display early morning departures
-  if (results.isEmpty) {
-    results = await db.rawQuery('''
-      SELECT 
-        t.trip_id,
-        r.route_id,
-        r.route_long_name,
-        t.trip_headsign,
-        st.departure_time,
-        (SELECT s2.stop_name 
-         FROM stop_times st2 
-         JOIN stops s2 ON st2.stop_id = s2.stop_id 
-         WHERE st2.trip_id = t.trip_id 
-         ORDER BY st2.stop_sequence DESC 
-         LIMIT 1) as destination_name
-      FROM stop_times st
-      JOIN trips t ON st.trip_id = t.trip_id
-      JOIN routes r ON t.route_id = r.route_id
-      WHERE st.stop_id IN ($placeholders)
-      ORDER BY st.departure_time ASC
-      LIMIT 15
-    ''', stopIds);
-  }
-
-  final List<ScheduleInfo> schedules = [];
-
-  for (final row in results) {
-    final routeId = row["route_id"] as String? ?? "";
-    final routeName = row["route_long_name"] as String;
-    final headsign = row["trip_headsign"] as String;
-    final departureTime = row["departure_time"] as String;
-    final destinationName = row["destination_name"] as String? ?? "";
-
-    final depMinutes = _getMinutesFromTimeStr(departureTime);
-    int diff = depMinutes - currentMinutes;
-    if (diff < 0) {
-      diff += 24 * 60; // Next day
-    }
-
-    String relativeText;
-    if (diff == 0) {
-      relativeText = "Now";
-    } else if (diff < 60) {
-      relativeText = "In $diff mins";
-    } else {
-      int hrs = diff ~/ 60;
-      int mins = diff % 60;
-      relativeText = "In $hrs hr $mins mins";
-    }
-
-    schedules.add(
-      ScheduleInfo(
-        destination:
-            destinationName.isNotEmpty
-                ? destinationName
-                : (headsign.isNotEmpty ? headsign : "Terminal"),
-        lineId: "Route $routeName",
-        lineColor: AppColors.primaryAccent,
-        frequencyText: formatTime12h(departureTime),
-        minutesLeft: diff,
-        relativeText: relativeText,
-        routeId: routeId,
-        routeLongName: routeName,
-      ),
-    );
-  }
-
-  return schedules;
+  return [];
 }
 
 Future<String> getRouteIdForRouteLongName(String routeLongName) async {
@@ -386,7 +277,7 @@ class _ScheduleWidgetState extends State<ScheduleWidget> {
   String errorMessage = "";
   List<ScheduleInfo> schedules = [];
   String stationName = "";
-  bool isRealtime = false;
+  bool isRealtime = true;
 
   List<Map<String, dynamic>> realtimeOptions = [];
   int? selectedRealtimeStopId;
@@ -568,12 +459,11 @@ class _ScheduleWidgetState extends State<ScheduleWidget> {
             ),
           );
 
-          // Switch off realtime and reload static schedule
           setState(() {
-            isRealtime = false;
-            hasError = false;
+            hasError = true;
+            errorMessage = "Real-time departures are unavailable for this stop.";
+            isLoading = false;
           });
-          _loadData();
           return;
         }
 
@@ -932,76 +822,15 @@ class _ScheduleWidgetState extends State<ScheduleWidget> {
   Widget _buildHeader() {
     return Container(
       margin: EdgeInsets.only(bottom: 12.h),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            "UPCOMING DEPARTURES",
-            style: TextStyle(
-              color: AppColors.tertiaryText,
-              fontSize: 14.sp,
-              fontWeight: FontWeight.w700,
-              fontFamily: 'Poppins',
-              letterSpacing: 1.0,
-            ),
-          ),
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                "Realtime",
-                style: TextStyle(
-                  color: isRealtime ? Colors.white : AppColors.secondaryText,
-                  fontSize: 12.sp,
-                  fontWeight: FontWeight.w700,
-                  fontFamily: 'Poppins',
-                  letterSpacing: 0.5,
-                ),
-              ),
-              SizedBox(width: 8.w),
-              GestureDetector(
-                onTap: () {
-                  setState(() {
-                    isRealtime = !isRealtime;
-                    _loadData();
-                  });
-                },
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 250),
-                  curve: Curves.easeInOut,
-                  width: 44.w,
-                  height: 24.h,
-                  padding: EdgeInsets.symmetric(horizontal: 3.w),
-                  decoration: BoxDecoration(
-                    color: isRealtime
-                        ? AppColors.primaryAccent.withValues(alpha: 0.15)
-                        : Colors.transparent,
-                    border: Border.all(
-                      color: isRealtime
-                          ? AppColors.primaryAccent
-                          : AppColors.inputBorder,
-                      width: 1.5,
-                    ),
-                    borderRadius: BorderRadius.zero,
-                  ),
-                  child: AnimatedAlign(
-                    duration: const Duration(milliseconds: 250),
-                    curve: Curves.easeInOut,
-                    alignment: isRealtime ? Alignment.centerRight : Alignment.centerLeft,
-                    child: Container(
-                      width: 14.h,
-                      height: 14.h,
-                      decoration: BoxDecoration(
-                        color: isRealtime ? AppColors.primaryAccent : AppColors.secondaryText,
-                        borderRadius: BorderRadius.zero,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
+      child: Text(
+        "REALTIME DEPARTURES",
+        style: TextStyle(
+          color: AppColors.tertiaryText,
+          fontSize: 14.sp,
+          fontWeight: FontWeight.w700,
+          fontFamily: 'Poppins',
+          letterSpacing: 1.0,
+        ),
       ),
     );
   }

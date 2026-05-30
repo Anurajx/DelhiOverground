@@ -16,17 +16,8 @@ class StopInfoScreen extends StatefulWidget {
 }
 
 class _StopInfoScreenState extends State<StopInfoScreen> {
-  double _pullOffset = 0.0;
-  bool _isDragging = false;
   DateTime _refreshTrigger = DateTime.now();
-  final ScrollController _scrollController = ScrollController();
-  bool _isPulling = false;
-
-  @override
-  void dispose() {
-    _scrollController.dispose();
-    super.dispose();
-  }
+  bool _hasTriggeredRefresh = false;
 
   @override
   Widget build(BuildContext context) {
@@ -45,92 +36,37 @@ class _StopInfoScreenState extends State<StopInfoScreen> {
           children: [
             _buildTopNavBar(context),
             Expanded(
-              child: GestureDetector(
-                onVerticalDragStart: (_) {
-                  setState(() {
-                    _isDragging = true;
-                    _isPulling = _scrollController.hasClients && _scrollController.offset <= 0.0;
-                  });
-                },
-                onVerticalDragUpdate: (details) {
-                  if (_isPulling) {
-                    setState(() {
-                      // Apply rubber-band drag resistance
-                      _pullOffset += details.delta.dy * (1.0 - (_pullOffset / 250.0).clamp(0.0, 0.8));
-                      if (_pullOffset < 0.0) {
-                        double remaining = _pullOffset;
-                        _pullOffset = 0.0;
-                        _isPulling = false;
-                        if (_scrollController.hasClients) {
-                          _scrollController.jumpTo(_scrollController.offset - remaining);
-                        }
-                      }
-                    });
-                  } else {
-                    if (_scrollController.hasClients) {
-                      double newOffset = _scrollController.offset - details.delta.dy;
-                      if (newOffset < 0.0) {
-                        _isPulling = true;
-                        setState(() {
-                          _pullOffset = -newOffset * (1.0 - (_pullOffset / 250.0).clamp(0.0, 0.8));
-                        });
-                        _scrollController.jumpTo(0.0);
-                      } else {
-                        _scrollController.jumpTo(newOffset.clamp(0.0, _scrollController.position.maxScrollExtent));
-                      }
+              child: NotificationListener<ScrollNotification>(
+                onNotification: (ScrollNotification scrollInfo) {
+                  if (scrollInfo.metrics.pixels < -80.0) {
+                    if (!_hasTriggeredRefresh) {
+                      _hasTriggeredRefresh = true;
+                      setState(() {
+                        _refreshTrigger = DateTime.now();
+                      });
                     }
+                  } else if (scrollInfo.metrics.pixels >= 0.0) {
+                    _hasTriggeredRefresh = false;
                   }
+                  return false;
                 },
-                onVerticalDragEnd: (details) {
-                  setState(() {
-                    _isDragging = false;
-                    if (_pullOffset >= 80.0) {
-                      _refreshTrigger = DateTime.now();
-                    }
-                    _pullOffset = 0.0;
-                  });
-                  if (!_isPulling && _scrollController.hasClients) {
-                    final double velocity = details.primaryVelocity ?? 0.0;
-                    if (velocity != 0.0) {
-                      final double target = (_scrollController.offset - velocity * 0.2).clamp(0.0, _scrollController.position.maxScrollExtent);
-                      _scrollController.animateTo(
-                        target,
-                        duration: const Duration(milliseconds: 300),
-                        curve: Curves.decelerate,
-                      );
-                    }
-                  }
-                  _isPulling = false;
-                },
-                behavior: HitTestBehavior.opaque,
-                child: TweenAnimationBuilder<double>(
-                  tween: Tween<double>(begin: 0.0, end: _pullOffset),
-                  duration: _isDragging ? Duration.zero : const Duration(milliseconds: 300),
-                  curve: Curves.easeOut,
-                  builder: (context, offset, child) {
-                    return Transform.translate(
-                      offset: Offset(0, offset),
-                      child: child,
-                    );
-                  },
-                  child: ListView(
-                    controller: _scrollController,
-                    physics: const NeverScrollableScrollPhysics(),
-                    shrinkWrap: true,
-                    children: [
-                      _buildStationLineMarker(),
-                      _buildBusStopDetailsCard(context),
-                      SizedBox(height: 10.h),
-                      ScheduleWidget(
-                        stationCode: stationCode,
-                        refreshTrigger: _refreshTrigger,
-                      ),
-                      SizedBox(height: 40.h),
-                      _buildReportError(),
-                      SizedBox(height: 40.h),
-                      _buildCompanyFooter(),
-                    ],
+                child: ListView(
+                  physics: const AlwaysScrollableScrollPhysics(
+                    parent: BouncingScrollPhysics(),
                   ),
+                  children: [
+                    _buildStationLineMarker(),
+                    _buildBusStopDetailsCard(context),
+                    SizedBox(height: 10.h),
+                    ScheduleWidget(
+                      stationCode: stationCode,
+                      refreshTrigger: _refreshTrigger,
+                    ),
+                    SizedBox(height: 40.h),
+                    _buildReportError(),
+                    SizedBox(height: 40.h),
+                    _buildCompanyFooter(),
+                  ],
                 ),
               ),
             ),
