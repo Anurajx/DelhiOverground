@@ -491,9 +491,95 @@ class _ScheduleWidgetState extends State<ScheduleWidget> {
       }
     } catch (e) {
       if (mounted) {
+        final errorStr = e.toString();
+        if (isRealtime && errorStr.contains("No real-time stop mapping found")) {
+          // Show the alert
+          showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (ctx) => Dialog(
+              backgroundColor: Colors.black,
+              insetPadding: EdgeInsets.symmetric(horizontal: 40.w),
+              shape: const Border(), // sharp-cornered design
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.black,
+                  border: Border.all(
+                    color: AppColors.inputBorder,
+                    width: 0.8,
+                  ),
+                ),
+                padding: EdgeInsets.symmetric(horizontal: 24.w, vertical: 24.h),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      "REALTIME UNAVAILABLE",
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13.sp,
+                        fontFamily: 'Poppins',
+                        letterSpacing: 1.5,
+                      ),
+                    ),
+                    SizedBox(height: 12.h),
+                    Text(
+                      "Realtime tracking is unavailable for this stop.",
+                      style: TextStyle(
+                        color: AppColors.secondaryText,
+                        fontWeight: FontWeight.w400,
+                        fontSize: 12.sp,
+                        fontFamily: 'Poppins',
+                        height: 1.5,
+                      ),
+                    ),
+                    SizedBox(height: 24.h),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: GestureDetector(
+                        onTap: () => Navigator.pop(ctx),
+                        child: Container(
+                          padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 8.h),
+                          decoration: BoxDecoration(
+                            color: Colors.transparent,
+                            border: Border.all(
+                              color: AppColors.primaryAccent.withValues(alpha: 0.6),
+                              width: 1.2,
+                            ),
+                          ),
+                          child: Text(
+                            "OK",
+                            style: TextStyle(
+                              color: AppColors.primaryAccent,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 11.sp,
+                              fontFamily: 'Poppins',
+                              letterSpacing: 1.0,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+
+          // Switch off realtime and reload static schedule
+          setState(() {
+            isRealtime = false;
+            hasError = false;
+          });
+          _loadData();
+          return;
+        }
+
         setState(() {
           hasError = true;
-          errorMessage = e.toString().replaceFirst("Exception: ", "");
+          errorMessage = errorStr.replaceFirst("Exception: ", "");
           isLoading = false;
         });
       }
@@ -664,58 +750,177 @@ class _ScheduleWidgetState extends State<ScheduleWidget> {
 
   Widget _buildScheduleList() {
     if (hasError) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 20.0),
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.error_outline, color: Colors.red, size: 48.0),
-              const SizedBox(height: 16.0),
-              Text(
-                errorMessage,
-                style: TextStyle(
-                  color: AppColors.destructive,
-                  fontSize: 14.sp,
-                  fontFamily: 'Poppins',
-                ),
-                textAlign: TextAlign.center,
-                maxLines: 4,
-                overflow: TextOverflow.ellipsis,
-              ),
-              const SizedBox(height: 16.0),
-              ElevatedButton(onPressed: _loadData, child: const Text('Retry')),
-            ],
+      return Container(
+        width: double.infinity,
+        margin: EdgeInsets.symmetric(vertical: 8.h),
+        padding: EdgeInsets.symmetric(horizontal: 24.w, vertical: 32.h),
+        decoration: BoxDecoration(
+          color: Colors.black,
+          border: Border.all(
+            color: AppColors.destructive.withValues(alpha: 0.2),
+            width: 0.8,
           ),
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              AppColors.destructive.withValues(alpha: 0.08),
+              Colors.transparent,
+            ],
+            stops: const [0.0, 1.0],
+          ),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: EdgeInsets.all(12.h),
+              decoration: BoxDecoration(
+                color: AppColors.destructive.withValues(alpha: 0.08),
+                border: Border.all(
+                  color: AppColors.destructive.withValues(alpha: 0.25),
+                  width: 0.8,
+                ),
+              ),
+              child: Icon(
+                errorMessage.toLowerCase().contains("network") ||
+                        errorMessage.toLowerCase().contains("connection") ||
+                        errorMessage.toLowerCase().contains("socket")
+                    ? Icons.wifi_off_rounded
+                    : Icons.error_outline_rounded,
+                color: AppColors.destructive,
+                size: 26.sp,
+              ),
+            ),
+            SizedBox(height: 20.h),
+            Text(
+              "ERROR OCCURRED",
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+                fontSize: 13.sp,
+                fontFamily: 'Poppins',
+                letterSpacing: 1.5,
+              ),
+            ),
+            SizedBox(height: 10.h),
+            Text(
+              errorMessage,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: AppColors.secondaryText,
+                fontWeight: FontWeight.w400,
+                fontSize: 12.sp,
+                fontFamily: 'Poppins',
+                height: 1.5,
+              ),
+            ),
+            SizedBox(height: 20.h),
+            GestureDetector(
+              onTap: _loadData,
+              child: Container(
+                padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 10.h),
+                decoration: BoxDecoration(
+                  color: Colors.transparent,
+                  border: Border.all(
+                    color: AppColors.destructive.withValues(alpha: 0.6),
+                    width: 1.2,
+                  ),
+                ),
+                child: Text(
+                  "RETRY CONNECTION",
+                  style: TextStyle(
+                    color: AppColors.destructive,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 11.sp,
+                    fontFamily: 'Poppins',
+                    letterSpacing: 1.0,
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
       );
     }
 
     if (schedules.isEmpty) {
-      return SizedBox(
-        height: 200.0,
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.directions_bus, color: Colors.grey, size: 48.0),
-              const SizedBox(height: 16.0),
-              Text(
-                'No upcoming buses\nfor $stationName',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: AppColors.tertiaryText,
-                  fontSize: 16.sp,
-                  fontFamily: 'Poppins',
+      final themeColor = isRealtime ? AppColors.primaryAccent : AppColors.warning;
+
+
+      return Container(
+        width: double.infinity,
+        margin: EdgeInsets.symmetric(vertical: 8.h),
+        padding: EdgeInsets.symmetric(horizontal: 24.w, vertical: 32.h),
+        decoration: const BoxDecoration(
+          color: Colors.black,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: EdgeInsets.all(12.h),
+              decoration: BoxDecoration(
+                color: themeColor.withValues(alpha: 0.08),
+                border: Border.all(
+                  color: themeColor.withValues(alpha: 0.25),
+                  width: 0.8,
                 ),
               ),
-            ],
-          ),
+              child: Icon(
+                Icons.directions_bus_outlined,
+                color: themeColor,
+                size: 26.sp,
+              ),
+            ),
+            SizedBox(height: 20.h),
+            Text(
+              isRealtime ? "NO BUS APPROACHING" : "NO BUSES SCHEDULED",
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+                fontSize: 13.sp,
+                fontFamily: 'Poppins',
+                letterSpacing: 1.5,
+              ),
+            ),
+            SizedBox(height: 10.h),
+            RichText(
+              textAlign: TextAlign.center,
+              text: TextSpan(
+                style: TextStyle(
+                  color: AppColors.secondaryText,
+                  fontWeight: FontWeight.w400,
+                  fontSize: 12.sp,
+                  fontFamily: 'Poppins',
+                  height: 1.5,
+                ),
+                children: [
+                  TextSpan(
+                    text: isRealtime
+                        ? "No buses are approaching "
+                        : "No upcoming departures scheduled for ",
+                  ),
+                  TextSpan(
+                    text: stationName,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  TextSpan(
+                    text: isRealtime
+                        ? " right now. Pull down to refresh."
+                        : " today.",
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       );
     }
+
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -888,16 +1093,14 @@ class _ScheduleWidgetState extends State<ScheduleWidget> {
                         ),
                         SizedBox(width: 12.w),
                         Expanded(
-                          child: AnimatedDefaultTextStyle(
-                            duration: const Duration(milliseconds: 200),
-                            curve: Curves.easeInOut,
+                          child: Text(
+                            direction,
                             style: TextStyle(
                               color: isSelected ? Colors.white : AppColors.secondaryText,
                               fontSize: 12.sp,
-                              fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                              fontWeight: FontWeight.w500,
                               fontFamily: 'Poppins',
                             ),
-                            child: Text(direction),
                           ),
                         ),
                       ],

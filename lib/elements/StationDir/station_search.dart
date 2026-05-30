@@ -10,10 +10,7 @@ import 'package:string_similarity/string_similarity.dart';
 
 class StationSearchScreen extends StatefulWidget {
   final String? destination;
-  const StationSearchScreen({
-    super.key,
-    this.destination,
-  });
+  const StationSearchScreen({super.key, this.destination});
 
   @override
   State<StationSearchScreen> createState() => _SearchScreenState();
@@ -55,34 +52,41 @@ class _SearchScreenState extends State<StationSearchScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _focusNode1.requestFocus();
     });
-    
-    Future.wait([
-      _loadStationsFromJson(),
-      _loadReconciledStops(),
-    ]).then((results) {
+
+    Future.wait([_loadStationsFromJson(), _loadReconciledStops()]).then((
+      results,
+    ) {
       final stations = results[0] as List<dynamic>;
       final staticStopIdsWithRealtime = results[1] as Set<String>;
 
-      final items = stations.map((station) {
-        final Map<String, dynamic> stationMap = Map<String, dynamic>.from(station as Map);
-        final name = stationMap["Name"]?.toString().toLowerCase() ?? "";
-        final hindi = stationMap["Hindi"]?.toString().toLowerCase() ?? "";
-        final nameWords = name.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
-        final hindiWords = hindi.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
-        
-        final stationCode = stationMap["StationCode"]?.toString() ?? "";
-        final stopIds = stationCode.split(',').map((id) => id.trim()).toList();
-        final hasRealtime = stopIds.any((id) => staticStopIdsWithRealtime.contains(id));
+      final items =
+          stations.map((station) {
+            final Map<String, dynamic> stationMap = Map<String, dynamic>.from(
+              station as Map,
+            );
+            final name = stationMap["Name"]?.toString().toLowerCase() ?? "";
+            final hindi = stationMap["Hindi"]?.toString().toLowerCase() ?? "";
+            final nameWords =
+                name.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+            final hindiWords =
+                hindi.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
 
-        return _StationSearchItem(
-          station: stationMap,
-          normalizedName: name,
-          normalizedHindi: hindi,
-          nameWords: nameWords,
-          hindiWords: hindiWords,
-          hasRealtime: hasRealtime,
-        );
-      }).toList();
+            final stationCode = stationMap["StationCode"]?.toString() ?? "";
+            final stopIds =
+                stationCode.split(',').map((id) => id.trim()).toList();
+            final hasRealtime = stopIds.any(
+              (id) => staticStopIdsWithRealtime.contains(id),
+            );
+
+            return _StationSearchItem(
+              station: stationMap,
+              normalizedName: name,
+              normalizedHindi: hindi,
+              nameWords: nameWords,
+              hindiWords: hindiWords,
+              hasRealtime: hasRealtime,
+            );
+          }).toList();
 
       setState(() {
         _originalStations = stations;
@@ -122,7 +126,11 @@ class _SearchScreenState extends State<StationSearchScreen> {
 
           // 2. Prefix Match of Full Name
           if (name.startsWith(cleanQuery) || hindi.startsWith(cleanQuery)) {
-            score += 5000.0 + (100.0 * cleanQuery.length / (name.isNotEmpty ? name.length : 1));
+            score +=
+                5000.0 +
+                (100.0 *
+                    cleanQuery.length /
+                    (name.isNotEmpty ? name.length : 1));
             matched = true;
           }
 
@@ -130,8 +138,12 @@ class _SearchScreenState extends State<StationSearchScreen> {
           int wordIndex = 0;
           for (final word in item.nameWords) {
             if (word.startsWith(cleanQuery)) {
-              final wordBonus = wordIndex == 0 ? 3500.0 : 3000.0 - (wordIndex * 100.0);
-              score = score > wordBonus ? score : wordBonus + (100.0 * cleanQuery.length / word.length);
+              final wordBonus =
+                  wordIndex == 0 ? 3500.0 : 3000.0 - (wordIndex * 100.0);
+              score =
+                  score > wordBonus
+                      ? score
+                      : wordBonus + (100.0 * cleanQuery.length / word.length);
               matched = true;
             }
             wordIndex++;
@@ -140,8 +152,12 @@ class _SearchScreenState extends State<StationSearchScreen> {
           wordIndex = 0;
           for (final word in item.hindiWords) {
             if (word.startsWith(cleanQuery)) {
-              final wordBonus = wordIndex == 0 ? 3500.0 : 3000.0 - (wordIndex * 100.0);
-              score = score > wordBonus ? score : wordBonus + (100.0 * cleanQuery.length / word.length);
+              final wordBonus =
+                  wordIndex == 0 ? 3500.0 : 3000.0 - (wordIndex * 100.0);
+              score =
+                  score > wordBonus
+                      ? score
+                      : wordBonus + (100.0 * cleanQuery.length / word.length);
               matched = true;
             }
             wordIndex++;
@@ -149,7 +165,11 @@ class _SearchScreenState extends State<StationSearchScreen> {
 
           // 4. Substring Match
           if (name.contains(cleanQuery) || hindi.contains(cleanQuery)) {
-            final substringScore = 1000.0 + (100.0 * cleanQuery.length / (name.isNotEmpty ? name.length : 1));
+            final substringScore =
+                1000.0 +
+                (100.0 *
+                    cleanQuery.length /
+                    (name.isNotEmpty ? name.length : 1));
             score = score > substringScore ? score : substringScore;
             matched = true;
           }
@@ -160,9 +180,18 @@ class _SearchScreenState extends State<StationSearchScreen> {
             bool fuzzyMatched = false;
 
             // Full-name similarity
-            final nameSimilarity = StringSimilarity.compareTwoStrings(name, cleanQuery);
-            final hindiSimilarity = StringSimilarity.compareTwoStrings(hindi, cleanQuery);
-            final maxFullNameSim = nameSimilarity > hindiSimilarity ? nameSimilarity : hindiSimilarity;
+            final nameSimilarity = StringSimilarity.compareTwoStrings(
+              name,
+              cleanQuery,
+            );
+            final hindiSimilarity = StringSimilarity.compareTwoStrings(
+              hindi,
+              cleanQuery,
+            );
+            final maxFullNameSim =
+                nameSimilarity > hindiSimilarity
+                    ? nameSimilarity
+                    : hindiSimilarity;
             if (maxFullNameSim > 0.35) {
               maxSimilarity = maxFullNameSim;
               fuzzyMatched = true;
@@ -171,7 +200,10 @@ class _SearchScreenState extends State<StationSearchScreen> {
             // Word-level similarity
             for (final word in item.nameWords) {
               if (word.length >= 3) {
-                final sim = StringSimilarity.compareTwoStrings(word, cleanQuery);
+                final sim = StringSimilarity.compareTwoStrings(
+                  word,
+                  cleanQuery,
+                );
                 if (sim > 0.5 && sim > maxSimilarity) {
                   maxSimilarity = sim;
                   fuzzyMatched = true;
@@ -180,7 +212,10 @@ class _SearchScreenState extends State<StationSearchScreen> {
             }
             for (final word in item.hindiWords) {
               if (word.length >= 3) {
-                final sim = StringSimilarity.compareTwoStrings(word, cleanQuery);
+                final sim = StringSimilarity.compareTwoStrings(
+                  word,
+                  cleanQuery,
+                );
                 if (sim > 0.5 && sim > maxSimilarity) {
                   maxSimilarity = sim;
                   fuzzyMatched = true;
@@ -209,12 +244,14 @@ class _SearchScreenState extends State<StationSearchScreen> {
         final hasAnyRealtime = scoredList.any((entry) => entry.key.hasRealtime);
         final List<MapEntry<_StationSearchItem, double>> finalScoredList;
         if (hasAnyRealtime) {
-          finalScoredList = scoredList.where((entry) => entry.key.hasRealtime).toList();
+          finalScoredList =
+              scoredList.where((entry) => entry.key.hasRealtime).toList();
         } else {
           finalScoredList = scoredList;
         }
 
-        _filteredStations = finalScoredList.map((entry) => entry.key.station).toList();
+        _filteredStations =
+            finalScoredList.map((entry) => entry.key.station).toList();
       } else {
         _filteredStations = _originalStations;
       }
@@ -235,7 +272,9 @@ class _SearchScreenState extends State<StationSearchScreen> {
 
   Future<Set<String>> _loadReconciledStops() async {
     try {
-      final reconciledStr = await rootBundle.loadString('assets/reconciled_stops.json');
+      final reconciledStr = await rootBundle.loadString(
+        'assets/reconciled_stops.json',
+      );
       final List<dynamic> reconciledJson = jsonDecode(reconciledStr);
       final Set<String> staticStopIdsWithRealtime = {};
       for (final item in reconciledJson) {
@@ -266,7 +305,9 @@ class _SearchScreenState extends State<StationSearchScreen> {
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) => StopInfoScreen(stationDict: _coreTransferStationsDict),
+          builder:
+              (context) =>
+                  StopInfoScreen(stationDict: _coreTransferStationsDict),
         ),
       );
     } else {
@@ -332,7 +373,7 @@ class _SearchScreenState extends State<StationSearchScreen> {
   Widget _buildScreenName() {
     return Center(
       child: Text(
-        "Enquiry",
+        "Stop Search",
         style: TextStyle(
           color: const Color.fromARGB(255, 220, 220, 220),
           fontSize: 20.sp,
@@ -401,7 +442,10 @@ class _SearchScreenState extends State<StationSearchScreen> {
           );
         },
         separatorBuilder: (context, index) {
-          return const Divider(color: Color.fromARGB(255, 27, 27, 27), height: 1);
+          return const Divider(
+            color: Color.fromARGB(255, 27, 27, 27),
+            height: 1,
+          );
         },
       ),
     );
@@ -443,7 +487,8 @@ class _SearchScreenState extends State<StationSearchScreen> {
                             Container(
                               margin: const EdgeInsets.fromLTRB(15, 0, 10, 0),
                               child: TextField(
-                                textCapitalization: TextCapitalization.sentences,
+                                textCapitalization:
+                                    TextCapitalization.sentences,
                                 focusNode: _focusNode1,
                                 cursorOpacityAnimates: true,
                                 controller: _controller1,

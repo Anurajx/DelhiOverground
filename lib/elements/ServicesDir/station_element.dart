@@ -56,7 +56,7 @@ class StationUnit extends StatelessWidget {
                     style: TextStyle(
                       fontFamily: 'Poppins',
                       color: AppColors.secondaryText,
-                      fontSize: 10.sp,
+                      fontSize: 12.sp,
                       fontWeight: FontWeight.w400,
                     ),
                   ),

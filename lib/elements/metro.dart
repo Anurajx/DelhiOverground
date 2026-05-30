@@ -263,21 +263,25 @@ class _HomeScreenState extends State<HomeScreen> {
                         behavior: HitTestBehavior.opaque,
                         onTap: () => _refreshNearbyStations(dataProvider),
                         child: Container(
-                          padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
-                          child: _isRefreshing
-                              ? SizedBox(
-                                  width: 16.sp,
-                                  height: 16.sp,
-                                  child: const CupertinoActivityIndicator(
-                                    radius: 8,
+                          padding: EdgeInsets.symmetric(
+                            horizontal: 8.w,
+                            vertical: 4.h,
+                          ),
+                          child:
+                              _isRefreshing
+                                  ? SizedBox(
+                                    width: 16.sp,
+                                    height: 16.sp,
+                                    child: const CupertinoActivityIndicator(
+                                      radius: 8,
+                                      color: AppColors.tertiaryText,
+                                    ),
+                                  )
+                                  : Icon(
+                                    CupertinoIcons.refresh,
                                     color: AppColors.tertiaryText,
+                                    size: 16.sp,
                                   ),
-                                )
-                              : Icon(
-                                  CupertinoIcons.refresh,
-                                  color: AppColors.tertiaryText,
-                                  size: 16.sp,
-                                ),
                         ),
                       ),
                     ],
@@ -350,21 +354,25 @@ class _HomeScreenState extends State<HomeScreen> {
                         behavior: HitTestBehavior.opaque,
                         onTap: () => _refreshNearbyStations(dataProvider),
                         child: Container(
-                          padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
-                          child: _isRefreshing
-                              ? SizedBox(
-                                  width: 16.sp,
-                                  height: 16.sp,
-                                  child: const CupertinoActivityIndicator(
-                                    radius: 8,
+                          padding: EdgeInsets.symmetric(
+                            horizontal: 8.w,
+                            vertical: 4.h,
+                          ),
+                          child:
+                              _isRefreshing
+                                  ? SizedBox(
+                                    width: 16.sp,
+                                    height: 16.sp,
+                                    child: const CupertinoActivityIndicator(
+                                      radius: 8,
+                                      color: AppColors.tertiaryText,
+                                    ),
+                                  )
+                                  : Icon(
+                                    CupertinoIcons.refresh,
                                     color: AppColors.tertiaryText,
+                                    size: 16.sp,
                                   ),
-                                )
-                              : Icon(
-                                  CupertinoIcons.refresh,
-                                  color: AppColors.tertiaryText,
-                                  size: 16.sp,
-                                ),
                         ),
                       ),
                     ],
@@ -536,7 +544,7 @@ class _HomeScreenState extends State<HomeScreen> {
           bottomRight: Radius.circular(0),
         ),
         image: DecorationImage(
-          image: AssetImage('assets/Image/carfooter.jpg'),
+          image: AssetImage('assets/Image/rainhero.jpg'),
           fit: BoxFit.cover,
         ),
       ),

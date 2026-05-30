@@ -106,6 +106,13 @@ flutter:
     - assets/Map/stationsjson.json
     - assets/routes.db
     - assets/reconciled_stops.json
+    - assets/Image/nighthero.jpg
+    - assets/Image/bushero.jpg
+    - assets/Image/stophero.jpg
+    - assets/Image/dtchero.jpg
+    - assets/Image/rainhero.jpg
+    - assets/Image/connoughthero.jpg
+    - assets/Image/qutubhero.jpg
 
   fonts:
     - family: Poppins
