@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:ui' as ui;
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -9,7 +10,6 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:http/http.dart' as http;
 import 'package:metroapp/main.dart';
 import 'package:metroapp/elements/ServicesDir/geolocator_service.dart';
-import 'package:metroapp/elements/search.dart' show BusDatabaseHelper;
 
 class LiveBusMarker {
   final String vehicleId;
@@ -42,8 +42,9 @@ class _MapMetroScreenState extends State<MapMetroScreen> {
   String? _mapStyle;
 
   final Map<String, LiveBusMarker> _activeBuses = {};
-  Set<Marker> _markers = {};
-  final Map<String, BitmapDescriptor> _markerIconCache = {};
+  final ValueNotifier<Set<Marker>> _markersNotifier = ValueNotifier({});
+  bool _isMapInteracting = false;
+  BitmapDescriptor? _busIcon;
   int _currentZoomBucket = 2; // 0 = collapsed (zoom < 13.5), 1 = compact (13.5 <= zoom < 15.5), 2 = detailed (zoom >= 15.5)
 
   Timer? _fetchTimer;
@@ -60,6 +61,7 @@ class _MapMetroScreenState extends State<MapMetroScreen> {
   void dispose() {
     _fetchTimer?.cancel();
     _animationTimer?.cancel();
+    _markersNotifier.dispose();
     super.dispose();
   }
 
@@ -77,12 +79,14 @@ class _MapMetroScreenState extends State<MapMetroScreen> {
   }
 
   String _getBackendUrl() {
-    return 'http://localhost:3000';
+    if (kDebugMode) {
+      return 'http://localhost:3000';
+    } else {
+      return 'https://delhioverground.onrender.com';
+    }
   }
 
-  String _cleanRouteName(String raw) {
-    return raw;
-  }
+
 
   int _getZoomBucket(double zoom) {
     if (zoom < 13.5) return 0;
@@ -96,7 +100,6 @@ class _MapMetroScreenState extends State<MapMetroScreen> {
       if (mounted) {
         setState(() {
           _currentZoomBucket = newBucket;
-          _markerIconCache.clear();
         });
         _updateMarkers();
       }
@@ -135,25 +138,11 @@ class _MapMetroScreenState extends State<MapMetroScreen> {
     _startAnimationLoop();
   }
 
-  Future<String> _getRouteNameFromId(String routeId) async {
-    try {
-      final db = await BusDatabaseHelper.getDatabase();
-      final results = await db.rawQuery(
-        'SELECT route_long_name FROM routes WHERE route_id = ? OR route_id = ? LIMIT 1',
-        [routeId, int.tryParse(routeId) ?? -1],
-      );
-      if (results.isNotEmpty) {
-        return results.first['route_long_name'] as String? ?? routeId;
-      }
-    } catch (e) {
-      debugPrint("Error looking up route name for $routeId: $e");
-    }
-    return routeId;
-  }
+
 
   Future<void> _fetchNearbyBuses() async {
     try {
-      final url = '${_getBackendUrl()}/nearby?lat=${_center.latitude}&lng=${_center.longitude}&radius=3000';
+      final url = '${_getBackendUrl()}/nearby?lat=${_center.latitude}&lng=${_center.longitude}&radius=1000';
       debugPrint("Live PIS request: $url");
       final response = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 5));
 
@@ -179,26 +168,11 @@ class _MapMetroScreenState extends State<MapMetroScreen> {
             final activeBus = _activeBuses[vehicleId]!;
             activeBus.targetLatLng = newLatLng;
             activeBus.distanceMeters = distanceMeters;
-            // If the route name is still the raw routeId (because db was loading/pending), resolve it again
-            if (activeBus.routeLongName == activeBus.routeId) {
-              final routeLongName = await _getRouteNameFromId(routeId);
-              if (routeLongName != routeId) {
-                _activeBuses[vehicleId] = LiveBusMarker(
-                  vehicleId: vehicleId,
-                  routeId: routeId,
-                  routeLongName: routeLongName,
-                  currentLatLng: activeBus.currentLatLng,
-                  targetLatLng: newLatLng,
-                  distanceMeters: distanceMeters,
-                );
-              }
-            }
           } else {
-            final routeLongName = await _getRouteNameFromId(routeId);
             _activeBuses[vehicleId] = LiveBusMarker(
               vehicleId: vehicleId,
               routeId: routeId,
-              routeLongName: routeLongName,
+              routeLongName: routeId,
               currentLatLng: newLatLng,
               targetLatLng: newLatLng,
               distanceMeters: distanceMeters,
@@ -217,9 +191,9 @@ class _MapMetroScreenState extends State<MapMetroScreen> {
 
   void _startAnimationLoop() {
     _animationTimer?.cancel();
-    _animationTimer = Timer.periodic(const Duration(milliseconds: 50), (timer) {
+    _animationTimer = Timer.periodic(const Duration(milliseconds: 80), (timer) {
       bool updated = false;
-      const double step = 0.08; // Interpolation speed per frame
+      const double step = 0.15; // Interpolation speed per frame
 
       _activeBuses.forEach((vehicleId, bus) {
         if (bus.currentLatLng != bus.targetLatLng) {
@@ -238,119 +212,37 @@ class _MapMetroScreenState extends State<MapMetroScreen> {
         }
       });
 
-      if (updated && mounted) {
+      if (updated && !_isMapInteracting && mounted) {
         _updateMarkers();
       }
     });
   }
 
-  Future<BitmapDescriptor> _createBusMarkerIcon(String routeName) async {
+  Future<void> _loadBusIcon(BuildContext context) async {
+    if (_busIcon != null) return;
     try {
-      final ui.PictureRecorder pictureRecorder = ui.PictureRecorder();
-      final Canvas canvas = Canvas(pictureRecorder);
-
-      const double scale = 3.0; // 3x resolution for high-DPI sharpness
-
-      if (_currentZoomBucket == 0) {
-        // Collapsed mode: simple small square marker matching zero corner radius language
-        final double dotSize = 6.0 * scale; // Small square width/height
-        final double canvasSize = dotSize + (4.0 * scale);
-
-        final Rect rect = Rect.fromLTWH(
-          (canvasSize - dotSize) / 2,
-          (canvasSize - dotSize) / 2,
-          dotSize,
-          dotSize,
-        );
-
-        final Paint paint = Paint()..color = const ui.Color(0xFF000000); // Black background
-        canvas.drawRect(rect, paint);
-
-        final Paint borderPaint = Paint()
-          ..color = const ui.Color(0xFF10B981) // Modern Live Green border
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 0.8 * scale;
-        canvas.drawRect(rect, borderPaint);
-
-        final img = await pictureRecorder.endRecording().toImage(canvasSize.toInt(), canvasSize.toInt());
-        final data = await img.toByteData(format: ui.ImageByteFormat.png);
-        return BitmapDescriptor.bytes(data!.buffer.asUint8List());
+      final icon = await BitmapDescriptor.asset(
+        createLocalImageConfiguration(context, size: const Size(36, 36)),
+        'assets/Image/bus.png',
+      );
+      if (mounted) {
+        setState(() {
+          _busIcon = icon;
+        });
+        _updateMarkers();
       }
-
-      final String cleanName = _cleanRouteName(routeName);
-
-      final TextPainter textPainter = TextPainter(
-        textDirection: TextDirection.ltr,
-      );
-
-      final double fontSize = (_currentZoomBucket == 1 ? 5.5 : 7.5) * scale;
-      final double paddingH = (_currentZoomBucket == 1 ? 3.5 : 5.0) * scale;
-      final double paddingV = (_currentZoomBucket == 1 ? 1.5 : 2.0) * scale;
-
-      textPainter.text = TextSpan(
-        text: cleanName,
-        style: TextStyle(
-          fontSize: fontSize, // Dynamic sizing
-          fontWeight: ui.FontWeight.w700, // Clean and bold
-          color: Colors.white,
-          fontFamily: 'Poppins',
-        ),
-      );
-      textPainter.layout();
-
-      final double badgeWidth = textPainter.width + (paddingH * 2);
-      final double badgeHeight = textPainter.height + (paddingV * 2);
-
-      final double canvasWidth = badgeWidth + (4.0 * scale);
-      final double canvasHeight = badgeHeight + (4.0 * scale);
-
-      // Black background
-      final Paint paint = Paint()..color = const ui.Color(0xFF000000);
-      final Rect rect = Rect.fromLTWH(2.0 * scale, 2.0 * scale, badgeWidth, badgeHeight);
-      canvas.drawRect(rect, paint);
-
-      // Live green border
-      final Paint borderPaint = Paint()
-        ..color = const ui.Color(0xFF10B981)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 0.8 * scale; // Thinner border for modern outline
-      canvas.drawRect(rect, borderPaint);
-
-      textPainter.paint(
-        canvas,
-        Offset(
-          (canvasWidth / 2) - (textPainter.width / 2),
-          (canvasHeight / 2) - (textPainter.height / 2),
-        ),
-      );
-
-      final img = await pictureRecorder.endRecording().toImage(canvasWidth.toInt(), canvasHeight.toInt());
-      final data = await img.toByteData(format: ui.ImageByteFormat.png);
-      return BitmapDescriptor.bytes(data!.buffer.asUint8List());
     } catch (e) {
-      debugPrint("Error generating custom marker icon: $e");
-      return BitmapDescriptor.defaultMarker;
+      debugPrint("Error loading bus icon asset: $e");
     }
   }
 
   void _updateMarkers() {
     final List<Marker> newMarkers = [];
 
+    final BitmapDescriptor icon = _busIcon ?? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen);
+
     for (final entry in _activeBuses.entries) {
       final bus = entry.value;
-      final String cacheKey = "${bus.routeLongName}_$_currentZoomBucket";
-
-      BitmapDescriptor icon = BitmapDescriptor.defaultMarker;
-      if (_markerIconCache.containsKey(cacheKey)) {
-        icon = _markerIconCache[cacheKey]!;
-      } else {
-        _createBusMarkerIcon(bus.routeLongName).then((val) {
-          if (mounted) {
-            _markerIconCache[cacheKey] = val;
-            _updateMarkers(); // Fix: immediately rebuild markers using newly cached icon
-          }
-        });
-      }
 
       newMarkers.add(
         Marker(
@@ -358,22 +250,19 @@ class _MapMetroScreenState extends State<MapMetroScreen> {
           position: bus.currentLatLng,
           icon: icon,
           infoWindow: InfoWindow(
-            title: "Route ${_cleanRouteName(bus.routeLongName)}",
+            title: "Route ${bus.routeLongName}",
             snippet: "Bus ID: ${bus.vehicleId} • ${bus.distanceMeters}m away",
           ),
         ),
       );
     }
 
-    if (mounted) {
-      setState(() {
-        _markers = newMarkers.toSet();
-      });
-    }
+    _markersNotifier.value = newMarkers.toSet();
   }
 
   @override
   Widget build(BuildContext context) {
+    _loadBusIcon(context);
     if (_isLoadingLocation) {
       return const Scaffold(
         backgroundColor: Colors.black,
@@ -389,22 +278,34 @@ class _MapMetroScreenState extends State<MapMetroScreen> {
         child: Stack(
           children: [
             Positioned.fill(
-              child: GoogleMap(
-                initialCameraPosition: CameraPosition(
-                  target: _center,
-                  zoom: 16.0,
-                ),
-                onMapCreated: (controller) {},
-                onCameraMove: (position) {
-                  _handleZoomChange(position.zoom);
+              child: ValueListenableBuilder<Set<Marker>>(
+                valueListenable: _markersNotifier,
+                builder: (context, markers, child) {
+                  return GoogleMap(
+                    initialCameraPosition: CameraPosition(
+                      target: _center,
+                      zoom: 16.0,
+                    ),
+                    onMapCreated: (controller) {},
+                    onCameraMoveStarted: () {
+                      _isMapInteracting = true;
+                    },
+                    onCameraIdle: () {
+                      _isMapInteracting = false;
+                      _updateMarkers();
+                    },
+                    onCameraMove: (position) {
+                      _handleZoomChange(position.zoom);
+                    },
+                    style: _mapStyle,
+                    markers: markers,
+                    myLocationEnabled: true,
+                    myLocationButtonEnabled: false,
+                    zoomControlsEnabled: false,
+                    mapToolbarEnabled: false,
+                    compassEnabled: false,
+                  );
                 },
-                style: _mapStyle,
-                markers: _markers, // Bind animated markers here
-                myLocationEnabled: true,
-                myLocationButtonEnabled: false,
-                zoomControlsEnabled: false,
-                mapToolbarEnabled: false,
-                compassEnabled: false,
               ),
             ),
             Positioned(

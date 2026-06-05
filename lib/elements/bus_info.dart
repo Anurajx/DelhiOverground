@@ -87,26 +87,20 @@ class _BusInfoScreenState extends State<BusInfoScreen> {
 
       // Parse and filter stops for this specific route ID
       final List<Map<String, dynamic>> parsedStops = [];
+      final routeRegex = RegExp(r'(?:^|-)' + RegExp.escape(currentRouteId) + r'#([^#]+?):(\d+)(?:-|$)');
       for (final row in stopsResults) {
         final routesListStr = row['routes_list'] as String? ?? '';
-        final tokens = routesListStr.split('-');
-        for (final token in tokens) {
-          final hashParts = token.split('#');
-          if (hashParts.length == 2 && hashParts[0] == currentRouteId) {
-            final colonParts = hashParts[1].split(':');
-            if (colonParts.length == 2) {
-              final seq = int.tryParse(colonParts[1]) ?? 0;
-              parsedStops.add({
-                'stop_id': row['stop_id'],
-                'stop_name': row['stop_name'],
-                'stop_lat': row['stop_lat'],
-                'stop_lon': row['stop_lon'],
-                'routes_list': routesListStr,
-                'sequence': seq,
-              });
-              break;
-            }
-          }
+        final match = routeRegex.firstMatch(routesListStr);
+        if (match != null) {
+          final seq = int.tryParse(match.group(2) ?? '0') ?? 0;
+          parsedStops.add({
+            'stop_id': row['stop_id'],
+            'stop_name': row['stop_name'],
+            'stop_lat': row['stop_lat'],
+            'stop_lon': row['stop_lon'],
+            'routes_list': routesListStr,
+            'sequence': seq,
+          });
         }
       }
 
