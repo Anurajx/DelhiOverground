@@ -463,7 +463,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         borderRadius: BorderRadius.all(Radius.circular(80)),
                       ),
                       child: const Center(
-                        child: Icon(CupertinoIcons.search, color: Colors.white),
+                        child: Icon(CupertinoIcons.bus, color: Colors.white),
                       ),
                     ),
                   ),

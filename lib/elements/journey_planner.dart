@@ -120,10 +120,14 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
       _dstController.text = _dstName;
     });
 
-    // Automatically trigger search
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _planJourney();
-    });
+    if (_srcLat == null || _srcLon == null) {
+      _useCurrentLocation();
+    } else {
+      // Automatically trigger search
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _planJourney();
+      });
+    }
   }
 
   Future<void> _loadStops() async {
@@ -436,9 +440,9 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
                         children: [
                           SizedBox(width: 12.w),
                           Icon(
-                            CupertinoIcons.location,
+                            CupertinoIcons.circle,
                             color: Colors.black,
-                            size: 18.sp,
+                            size: 16.sp,
                           ),
                           SizedBox(width: 8.w),
                           Expanded(
@@ -497,7 +501,7 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
                       ),
                     ),
                   ),
-                  SizedBox(width: 6.w),
+                  SizedBox(width: 4.w),
                   // Time Set Logo (Clock button)
                   GestureDetector(
                     onTap: _selectTime,
@@ -517,7 +521,7 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
                   ),
                 ],
               ),
-              SizedBox(height: 8.h),
+              SizedBox(height: 4.h),
               // Row 2: Destination input (Full width)
               Container(
                 height: 44.h,
@@ -530,9 +534,9 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
                   children: [
                     SizedBox(width: 12.w),
                     Icon(
-                      CupertinoIcons.search,
+                      CupertinoIcons.square,
                       color: Colors.black,
-                      size: 18.sp,
+                      size: 16.sp,
                     ),
                     SizedBox(width: 8.w),
                     Expanded(
@@ -596,7 +600,7 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
           Positioned(
             left: 0,
             right: 0,
-            top: 32.h, // Centered in the 8.h gap between Row 1 (44.h) and Row 2 (44.h)
+            top: 30.h, // Centered in the 4.h gap between Row 1 (44.h) and Row 2 (44.h)
             child: Center(
               child: GestureDetector(
                 onTap: _swapLocations,
@@ -624,7 +628,7 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
                     curve: Curves.easeInOutBack,
                     child: Icon(
                       CupertinoIcons.arrow_up_down,
-                      color: AppColors.primaryAccent,
+                      color: Colors.white,
                       size: 14.sp,
                     ),
                   ),

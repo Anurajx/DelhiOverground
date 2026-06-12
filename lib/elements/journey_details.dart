@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:metroapp/elements/ServicesDir/journey_planner_service.dart';
 import 'package:metroapp/main.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class JourneyDetailsScreen extends StatelessWidget {
   final JourneyRoute route;
@@ -118,73 +119,75 @@ class JourneyDetailsScreen extends StatelessWidget {
                 Row(
                   children: [
                     Container(
-                      width: 6.w,
-                      height: 6.w,
-                      decoration: const BoxDecoration(
-                        color: Colors.greenAccent,
+                      width: 7.w,
+                      height: 7.w,
+                      decoration: BoxDecoration(
                         shape: BoxShape.circle,
+                        border: Border.all(
+                          color: Colors.white,
+                          width: 1.2.w,
+                        ),
                       ),
                     ),
-                    SizedBox(width: 6.w),
-                    Text(
-                      "FROM",
-                      style: TextStyle(
-                        color: AppColors.tertiaryText,
-                        fontFamily: 'Poppins',
-                        fontSize: 9.sp,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 0.5,
+                    SizedBox(width: 10.w),
+                    Expanded(
+                      child: Text(
+                        srcName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontFamily: 'Poppins',
+                          fontSize: 13.sp,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                   ],
                 ),
-                SizedBox(height: 2.h),
-                Text(
-                  srcName,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontFamily: 'Poppins',
-                    fontSize: 13.sp,
-                    fontWeight: FontWeight.w600,
-                  ),
+                Row(
+                  children: [
+                    SizedBox(
+                      width: 7.w,
+                      height: 14.h,
+                      child: Center(
+                        child: Container(
+                          width: 1.2.w,
+                          color: Colors.white.withValues(alpha: 0.35),
+                        ),
+                      ),
+                    ),
+                    SizedBox(width: 10.w),
+                  ],
                 ),
-                SizedBox(height: 10.h),
                 Row(
                   children: [
                     Container(
-                      width: 6.w,
-                      height: 6.w,
-                      decoration: const BoxDecoration(
-                        color: AppColors.destructive,
+                      width: 7.w,
+                      height: 7.w,
+                      decoration: BoxDecoration(
                         shape: BoxShape.rectangle,
+                        border: Border.all(
+                          color: Colors.white,
+                          width: 1.2.w,
+                        ),
                       ),
                     ),
-                    SizedBox(width: 6.w),
-                    Text(
-                      "TO",
-                      style: TextStyle(
-                        color: AppColors.tertiaryText,
-                        fontFamily: 'Poppins',
-                        fontSize: 9.sp,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 0.5,
+                    SizedBox(width: 10.w),
+                    Expanded(
+                      child: Text(
+                        dstName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontFamily: 'Poppins',
+                          fontSize: 13.sp,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                   ],
-                ),
-                SizedBox(height: 2.h),
-                Text(
-                  dstName,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontFamily: 'Poppins',
-                    fontSize: 13.sp,
-                    fontWeight: FontWeight.w600,
-                  ),
                 ),
               ],
             ),
@@ -503,6 +506,64 @@ class _TransitLegTimelineTileState extends State<TransitLegTimelineTile> {
                     height: 1.3,
                   ),
                 ),
+                if (isWalk) ...[
+                  SizedBox(height: 8.h),
+                  GestureDetector(
+                    onTap: () async {
+                      if (leg.stops.isNotEmpty) {
+                        final startLat = leg.stops.first.lat;
+                        final startLon = leg.stops.first.lon;
+                        final endLat = leg.stops.last.lat;
+                        final endLon = leg.stops.last.lon;
+                        final googleMapsUrl = Uri.parse(
+                          "https://www.google.com/maps/dir/?api=1&origin=$startLat,$startLon&destination=$endLat,$endLon&travelmode=walking",
+                        );
+                        try {
+                          if (await canLaunchUrl(googleMapsUrl)) {
+                            await launchUrl(
+                              googleMapsUrl,
+                              mode: LaunchMode.externalApplication,
+                            );
+                          } else {
+                            debugPrint("Could not launch $googleMapsUrl");
+                          }
+                        } catch (e) {
+                          debugPrint("Error launching walking route: $e");
+                        }
+                      }
+                    },
+                    child: Container(
+                      padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
+                      decoration: BoxDecoration(
+                        color: Colors.transparent,
+                        border: Border.all(
+                          color: AppColors.divider,
+                          width: 0.8,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            CupertinoIcons.location_north_fill,
+                            color: AppColors.secondaryText,
+                            size: 11.sp,
+                          ),
+                          SizedBox(width: 5.w),
+                          Text(
+                            "Navigate",
+                            style: TextStyle(
+                              color: AppColors.secondaryText,
+                              fontFamily: 'Poppins',
+                              fontSize: 10.sp,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
                 if (!isWalk && intermediateStops.isNotEmpty) ...[
                   SizedBox(height: 8.h),
                   Row(

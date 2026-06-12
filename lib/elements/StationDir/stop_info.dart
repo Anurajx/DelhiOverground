@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:metroapp/elements/ServicesDir/station_element.dart';
 import 'package:metroapp/elements/ServicesDir/new_schedule_service.dart';
 import 'package:metroapp/elements/ServicesDir/report_error_service.dart';
+import 'package:metroapp/elements/journey_planner.dart';
 import 'package:metroapp/main.dart';
 
 class StopInfoScreen extends StatefulWidget {
@@ -33,8 +34,11 @@ class _StopInfoScreenState extends State<StopInfoScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             _buildTopNavBar(context),
+            _buildStationLineMarker(),
+            _buildBusStopDetailsCard(context),
             Expanded(
               child: NotificationListener<ScrollNotification>(
                 onNotification: (ScrollNotification scrollInfo) {
@@ -51,20 +55,18 @@ class _StopInfoScreenState extends State<StopInfoScreen> {
                   return false;
                 },
                 child: ListView(
+                  padding: EdgeInsets.only(top: 30.h),
                   physics: const AlwaysScrollableScrollPhysics(
                     parent: BouncingScrollPhysics(),
                   ),
                   children: [
-                    _buildStationLineMarker(),
-                    _buildBusStopDetailsCard(context),
-                    SizedBox(height: 10.h),
                     ScheduleWidget(
                       stationCode: stationCode,
                       refreshTrigger: _refreshTrigger,
                     ),
-                    SizedBox(height: 40.h),
+                    SizedBox(height: 15.h),
                     _buildReportError(),
-                    SizedBox(height: 40.h),
+                    SizedBox(height: 15.h),
                     _buildCompanyFooter(),
                   ],
                 ),
@@ -113,32 +115,32 @@ class _StopInfoScreenState extends State<StopInfoScreen> {
     final lon = source["Longitude"]?.toString() ?? "";
 
     return Padding(
-      padding: EdgeInsets.symmetric(vertical: 24.h),
-      child: GestureDetector(
-        onTap: () async {
-          if (lat.isNotEmpty && lon.isNotEmpty) {
-            final googleMapsUrl = Uri.parse(
-              "https://www.google.com/maps/dir/?api=1&destination=$lat,$lon",
-            );
-            try {
-              if (await canLaunchUrl(googleMapsUrl)) {
-                await launchUrl(
-                  googleMapsUrl,
-                  mode: LaunchMode.externalApplication,
-                );
-              } else {
-                throw 'Could not launch $googleMapsUrl';
-              }
-            } catch (e) {
-              debugPrint("Error launching Google Maps: $e");
-            }
-          }
-        },
-        child: Column(
-          children: [
-            Row(
-              children: [
-                Container(
+      padding: EdgeInsets.only(top: 24.h, bottom: 5.h),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              GestureDetector(
+                onTap: () async {
+                  if (lat.isNotEmpty && lon.isNotEmpty) {
+                    final googleMapsUrl = Uri.parse(
+                      "https://www.google.com/maps/dir/?api=1&destination=$lat,$lon",
+                    );
+                    try {
+                      if (await canLaunchUrl(googleMapsUrl)) {
+                        await launchUrl(
+                          googleMapsUrl,
+                          mode: LaunchMode.externalApplication,
+                        );
+                      } else {
+                        throw 'Could not launch $googleMapsUrl';
+                      }
+                    } catch (e) {
+                      debugPrint("Error launching Google Maps: $e");
+                    }
+                  }
+                },
+                child: Container(
                   padding: EdgeInsets.all(12.h),
                   decoration: const BoxDecoration(
                     color: Color.fromARGB(38, 59, 131, 246),
@@ -171,8 +173,24 @@ class _StopInfoScreenState extends State<StopInfoScreen> {
                     ),
                   ),
                 ),
-                SizedBox(width: 3.w),
-                Expanded(
+              ),
+              SizedBox(width: 3.w),
+              Expanded(
+                child: GestureDetector(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => JourneyPlannerScreen(
+                          initialParams: {
+                            'dst_name': source["Name"]?.toString() ?? '',
+                            'dst_lat': lat,
+                            'dst_lon': lon,
+                          },
+                        ),
+                      ),
+                    );
+                  },
                   child: Container(
                     padding: EdgeInsets.all(12.h),
                     decoration: const BoxDecoration(
@@ -208,11 +226,10 @@ class _StopInfoScreenState extends State<StopInfoScreen> {
                     ),
                   ),
                 ),
-              ],
-            ),
-            SizedBox(height: 16.h),
-          ],
-        ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
