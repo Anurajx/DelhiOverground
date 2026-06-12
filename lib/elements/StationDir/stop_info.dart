@@ -229,41 +229,7 @@ class _StopInfoScreenState extends State<StopInfoScreen> {
                 ),
               ],
             ),
-            SizedBox(height: 3.h),
-            Container(
-              padding: EdgeInsets.all(36.h),
-              decoration: const BoxDecoration(
-                color: Color.fromARGB(38, 59, 131, 246),
-                borderRadius: BorderRadius.zero,
-              ),
-              child: Center(
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          CupertinoIcons.radiowaves_right,
-                          color: Colors.white,
-                          size: 18.sp,
-                        ),
-                        SizedBox(width: 8.w),
-                        Text(
-                          "Live Buses",
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 14.sp,
-                            fontWeight: FontWeight.w600,
-                            fontFamily: 'Poppins',
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
+            SizedBox(height: 16.h),
           ],
         ),
       ),

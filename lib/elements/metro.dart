@@ -5,15 +5,16 @@ import 'package:skeletonizer/skeletonizer.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:animated_text_kit/animated_text_kit.dart';
-import './MapDir/map_metro.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import './ServicesDir/station_element.dart';
 import 'search.dart';
-import 'bus_info.dart';
 import 'StationDir/station_search.dart';
 import 'ServicesDir/data_provider.dart';
 import 'package:provider/provider.dart';
+import 'journey_planner.dart';
+
+
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -80,7 +81,7 @@ class _HomeScreenState extends State<HomeScreen> {
       onTap: () {
         Navigator.push(
           context,
-          MaterialPageRoute(builder: (context) => const SearchScreen()),
+          MaterialPageRoute(builder: (context) => const JourneyPlannerScreen()),
         );
       },
       child: Container(
@@ -99,7 +100,7 @@ class _HomeScreenState extends State<HomeScreen> {
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Text(
-              'Route no.',
+              'Plan Journey',
               style: TextStyle(
                 fontFamily: 'Poppins',
                 fontWeight: FontWeight.w600,
@@ -114,10 +115,11 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+
   Widget _buildBusHistory(BuildContext context) {
     return Consumer<DataProvider>(
       builder: (context, dataProvider, child) {
-        final history = dataProvider.busSearchHistory;
+        final history = dataProvider.journeySearchHistory;
         if (history.isEmpty) {
           return const SizedBox.shrink();
         }
@@ -134,9 +136,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   context,
                   MaterialPageRoute(
                     builder:
-                        (context) => BusInfoScreen(
-                          routeId: item['route_id'] ?? '',
-                          routeLongName: item['route_long_name'] ?? '',
+                        (context) => JourneyPlannerScreen(
+                          initialParams: item,
                         ),
                   ),
                 );
@@ -169,8 +170,8 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildBusHistoryItem(BuildContext context, Map<String, String> item) {
-    final routeName = item['route_long_name'] ?? '';
-    final headsign = item['headsign'] ?? '';
+    final srcName = item['src_name'] ?? '';
+    final dstName = item['dst_name'] ?? '';
 
     return Container(
       padding: EdgeInsets.symmetric(vertical: 14.h, horizontal: 8.w),
@@ -184,22 +185,19 @@ class _HomeScreenState extends State<HomeScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  "Route $routeName",
+                  "To $dstName",
                   style: TextStyle(
                     fontFamily: 'Poppins',
                     color: AppColors.primaryText,
-                    fontSize: 15.sp,
+                    fontSize: 14.sp,
                     fontWeight: FontWeight.w600,
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
                 SizedBox(height: 2.h),
                 Text(
-                  headsign.isNotEmpty
-                      ? (headsign.startsWith("To ") ||
-                              headsign.contains("Service")
-                          ? headsign
-                          : "To $headsign")
-                      : "DTC Bus Service",
+                  "From $srcName",
                   style: TextStyle(
                     fontFamily: 'Poppins',
                     color: AppColors.secondaryText,
@@ -221,6 +219,7 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
+
 
   Widget _buildNearYou(BuildContext context) {
     return Container(
@@ -445,10 +444,16 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: GestureDetector(
                     behavior: HitTestBehavior.opaque,
                     onTap: () {
+                      // Navigator.push(
+                      //   context,
+                      //   MaterialPageRoute(
+                      //     builder: (context) => const MapMetroScreen(),
+                      //   ),
+                      // );
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => const MapMetroScreen(),
+                          builder: (context) => const SearchScreen(),
                         ),
                       );
                     },
@@ -458,11 +463,12 @@ class _HomeScreenState extends State<HomeScreen> {
                         borderRadius: BorderRadius.all(Radius.circular(80)),
                       ),
                       child: const Center(
-                        child: Icon(CupertinoIcons.map, color: Colors.white),
+                        child: Icon(CupertinoIcons.search, color: Colors.white),
                       ),
                     ),
                   ),
                 ),
+
               ],
             ),
           ),

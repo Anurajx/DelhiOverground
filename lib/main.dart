@@ -9,6 +9,8 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final dataProvider = DataProvider();
   await dataProvider.loadBusSearchHistory();
+  await dataProvider.loadJourneySearchHistory();
+
 
   // Set global status bar style
   SystemChrome.setSystemUIOverlayStyle(

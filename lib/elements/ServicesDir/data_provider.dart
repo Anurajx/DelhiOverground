@@ -60,4 +60,65 @@ class DataProvider extends ChangeNotifier {
     await prefs.remove('busSearchHistory');
     notifyListeners();
   }
+
+  List<Map<String, String>> _journeySearchHistory = [];
+  List<Map<String, String>> get journeySearchHistory => _journeySearchHistory;
+
+  Future<void> loadJourneySearchHistory() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getString('journeySearchHistory');
+    if (saved != null) {
+      try {
+        final List<dynamic> decoded = jsonDecode(saved);
+        _journeySearchHistory =
+            decoded.map((e) => Map<String, String>.from(e as Map)).toList();
+        notifyListeners();
+      } catch (e) {
+        // ignore
+      }
+    }
+  }
+
+  Future<void> addJourneyToHistory({
+    required String srcName,
+    required String srcLat,
+    required String srcLon,
+    required String srcType,
+    required String dstName,
+    required String dstLat,
+    required String dstLon,
+    required String dstType,
+    required String mode,
+    required String time,
+  }) async {
+    _journeySearchHistory.removeWhere(
+      (item) => item['src_name'] == srcName && item['dst_name'] == dstName && item['mode'] == mode,
+    );
+    _journeySearchHistory.insert(0, {
+      'src_name': srcName,
+      'src_lat': srcLat,
+      'src_lon': srcLon,
+      'src_type': srcType,
+      'dst_name': dstName,
+      'dst_lat': dstLat,
+      'dst_lon': dstLon,
+      'dst_type': dstType,
+      'mode': mode,
+      'time': time,
+    });
+    if (_journeySearchHistory.length > 5) {
+      _journeySearchHistory = _journeySearchHistory.sublist(0, 5);
+    }
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('journeySearchHistory', jsonEncode(_journeySearchHistory));
+    notifyListeners();
+  }
+
+  Future<void> clearJourneySearchHistory() async {
+    _journeySearchHistory = [];
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('journeySearchHistory');
+    notifyListeners();
+  }
 }
+

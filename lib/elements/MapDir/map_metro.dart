@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'dart:developer' as dev;
 import 'package:http/http.dart' as http;
 import 'package:metroapp/main.dart';
 import 'package:metroapp/elements/ServicesDir/geolocator_service.dart';
@@ -78,12 +79,25 @@ class _MapMetroScreenState extends State<MapMetroScreen> {
     }
   }
 
-  String _getBackendUrl() {
-    if (kDebugMode) {
-      return 'http://localhost:3000';
-    } else {
-      return 'https://delhioverground.onrender.com';
+  String? _cachedBackendUrl;
+
+  Future<String> _getBackendUrl() async {
+    if (_cachedBackendUrl != null) {
+      return _cachedBackendUrl!;
     }
+    if (kDebugMode) {
+      try {
+        final info = await dev.Service.getInfo();
+        if (info.serverUri != null) {
+          _cachedBackendUrl = 'http://localhost:3000';
+          return _cachedBackendUrl!;
+        }
+      } catch (e) {
+        debugPrint("Error checking VM service: $e");
+      }
+    }
+    _cachedBackendUrl = 'https://delhioverground.onrender.com';
+    return _cachedBackendUrl!;
   }
 
 
@@ -142,7 +156,8 @@ class _MapMetroScreenState extends State<MapMetroScreen> {
 
   Future<void> _fetchNearbyBuses() async {
     try {
-      final url = '${_getBackendUrl()}/nearby?lat=${_center.latitude}&lng=${_center.longitude}&radius=1000';
+      final backendUrl = await _getBackendUrl();
+      final url = '$backendUrl/nearby?lat=${_center.latitude}&lng=${_center.longitude}&radius=1000';
       debugPrint("Live PIS request: $url");
       final response = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 5));
 
