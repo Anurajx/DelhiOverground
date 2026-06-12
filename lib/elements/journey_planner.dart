@@ -38,17 +38,58 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
   List<JourneyRoute> _routes = [];
 
   List<dynamic> _allStops = [];
+  double _turns = 0.0;
+
+  // Controllers and Focus Nodes for inline searching
+  late final TextEditingController _srcController;
+  late final TextEditingController _dstController;
+  late final FocusNode _srcFocusNode;
+  late final FocusNode _dstFocusNode;
+
+  bool _isFocusingSource = false;
+  bool _isFocusingDestination = false;
 
   @override
   void initState() {
     super.initState();
+    _srcController = TextEditingController(text: _srcName);
+    _dstController = TextEditingController(text: _dstName);
+    _srcFocusNode = FocusNode();
+    _dstFocusNode = FocusNode();
+
+    _srcFocusNode.addListener(() {
+      setState(() {
+        _isFocusingSource = _srcFocusNode.hasFocus;
+      });
+    });
+
+    _dstFocusNode.addListener(() {
+      setState(() {
+        _isFocusingDestination = _dstFocusNode.hasFocus;
+      });
+    });
+
     _loadStops();
+
     if (widget.initialParams != null) {
       _applyInitialParams(widget.initialParams!);
     } else {
-      // Default source to Current Location if permission is enabled
       _useCurrentLocation();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _dstFocusNode.requestFocus();
+        }
+      });
     }
+  }
+
+  @override
+  void dispose() {
+    _srcController.dispose();
+    _dstController.dispose();
+    _srcFocusNode.dispose();
+    _dstFocusNode.dispose();
+    super.dispose();
   }
 
   void _applyInitialParams(Map<String, String> params) {
@@ -63,7 +104,6 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
       _dstLon = double.tryParse(params['dst_lon'] ?? '');
       _dstType = 'place';
 
-
       _selectedMode = 'bus';
 
       final timeStr = params['time'] ?? '';
@@ -75,6 +115,9 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
           _selectedTime = TimeOfDay(hour: hr, minute: min);
         }
       }
+
+      _srcController.text = _srcName;
+      _dstController.text = _dstName;
     });
 
     // Automatically trigger search
@@ -90,15 +133,6 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
         setState(() {
           _allStops = stops;
         });
-
-        // Automatically open the destination selector bottom sheet (which auto-focuses the keyboard)
-        if (widget.initialParams == null) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted) {
-              _openStopSelector(false);
-            }
-          });
-        }
       }
     } catch (e) {
       debugPrint('Error loading stops in planner: $e');
@@ -108,6 +142,7 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
   Future<void> _useCurrentLocation() async {
     setState(() {
       _srcName = 'Loading current location...';
+      _srcController.text = _srcName;
     });
     try {
       final position = await geo_service.getCurrentLocation();
@@ -118,15 +153,18 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
         if (mounted) {
           setState(() {
             _srcName = 'My Location';
+            _srcController.text = _srcName;
             _srcLat = lat;
             _srcLon = lon;
             _srcType = 'place';
           });
+          _checkAndAutoSearch();
         }
       } else {
         if (mounted) {
           setState(() {
             _srcName = '';
+            _srcController.text = '';
             _srcLat = null;
             _srcLon = null;
           });
@@ -145,6 +183,7 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
       if (mounted) {
         setState(() {
           _srcName = '';
+          _srcController.text = '';
           _srcLat = null;
           _srcLon = null;
         });
@@ -161,9 +200,9 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
     }
   }
 
-
   void _swapLocations() {
     setState(() {
+      _turns += 0.5;
       final tempName = _srcName;
       final tempLat = _srcLat;
       final tempLon = _srcLon;
@@ -178,7 +217,20 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
       _dstLat = tempLat;
       _dstLon = tempLon;
       _dstType = tempType;
+
+      _srcController.text = _srcName;
+      _dstController.text = _dstName;
     });
+
+    _checkAndAutoSearch();
+  }
+
+  void _checkAndAutoSearch() {
+    if (_srcLat != null && _srcLon != null && _dstLat != null && _dstLon != null) {
+      _srcFocusNode.unfocus();
+      _dstFocusNode.unfocus();
+      _planJourney();
+    }
   }
 
   Future<void> _selectTime() async {
@@ -197,13 +249,13 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
           ),
           child: child!,
         );
-
       },
     );
     if (picked != null) {
       setState(() {
         _selectedTime = picked;
       });
+      _checkAndAutoSearch();
     }
   }
 
@@ -235,7 +287,6 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
       });
       return;
     }
-
 
     setState(() {
       _isLoading = true;
@@ -294,41 +345,6 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
     }
   }
 
-  void _openStopSelector(bool isSource) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) {
-        return StopSelectorModal(
-          allStops: _allStops,
-          allowCurrentLocation: isSource,
-          onSelect: (name, lat, lon, type) {
-            if (name == "My Location") {
-              _useCurrentLocation();
-            } else {
-              setState(() {
-                if (isSource) {
-                  _srcName = name;
-                  _srcLat = lat;
-                  _srcLon = lon;
-                  _srcType = 'place';
-                } else {
-                  _dstName = name;
-                  _dstLat = lat;
-                  _dstLon = lon;
-                  _dstType = 'place';
-                }
-              });
-            }
-          },
-
-
-        );
-      },
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -336,15 +352,20 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            _buildHeader(),
             Padding(
               padding: EdgeInsets.symmetric(horizontal: 14.w),
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  _buildBackBox(context),
+                  _buildScreenTitle(),
                   _buildInputsCard(),
-                  SizedBox(height: 12.h),
-                  _buildTimeAndSearchButton(),
-                  SizedBox(height: 16.h),
+                  SizedBox(height: 4.h),
+                  Divider(
+                    color: AppColors.divider,
+                    thickness: 0.2,
+                    height: 4.h,
+                  ),
                 ],
               ),
             ),
@@ -357,42 +378,258 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildBackBox(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Transform.translate(
+          offset: Offset(-8.w, 0),
+          child: BackButton(
+            color: AppColors.primaryAccent,
+            onPressed: () {
+              Navigator.pop(context);
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildScreenTitle() {
     return Container(
-      color: Colors.black,
-      padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 12.h),
-      child: Row(
+      margin: EdgeInsets.only(bottom: 12.h),
+      child: Text(
+        "Plan Journey",
+        style: TextStyle(
+          color: AppColors.primaryText,
+          fontSize: 22.sp,
+          fontWeight: FontWeight.w700,
+          fontFamily: 'Poppins',
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInputsCard() {
+    return Container(
+      padding: EdgeInsets.zero,
+      decoration: const BoxDecoration(
+        color: Colors.transparent,
+      ),
+      child: Stack(
+        clipBehavior: Clip.none,
         children: [
-          GestureDetector(
-            onTap: () => Navigator.pop(context),
-            child: Row(
-              children: [
-                Icon(
-                  CupertinoIcons.back,
-                  color: AppColors.primaryAccent,
-                  size: 20.sp,
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Row 1: Source (departure) input + Clock button on the right
+              Row(
+                children: [
+                  Expanded(
+                    child: Container(
+                      height: 44.h,
+                      decoration: const BoxDecoration(
+                        color: AppColors.whiteAccent,
+                        borderRadius: BorderRadius.zero,
+                      ),
+                      child: Row(
+                        children: [
+                          SizedBox(width: 12.w),
+                          Icon(
+                            CupertinoIcons.location,
+                            color: Colors.black,
+                            size: 18.sp,
+                          ),
+                          SizedBox(width: 8.w),
+                          Expanded(
+                            child: TextField(
+                              controller: _srcController,
+                              focusNode: _srcFocusNode,
+                              style: TextStyle(
+                                color: Colors.black,
+                                fontFamily: 'Poppins',
+                                fontSize: 13.sp,
+                                fontWeight: FontWeight.w600,
+                              ),
+                              decoration: InputDecoration(
+                                hintText: 'Choose starting point...',
+                                hintStyle: TextStyle(
+                                  color: AppColors.tertiaryText,
+                                  fontFamily: 'Poppins',
+                                  fontSize: 13.sp,
+                                  fontWeight: FontWeight.w400,
+                                ),
+                                border: InputBorder.none,
+                                isDense: true,
+                                contentPadding: EdgeInsets.symmetric(vertical: 10),
+                              ),
+                              onChanged: (val) {
+                                setState(() {
+                                  _srcName = val;
+                                  if (val.isEmpty) {
+                                    _srcLat = null;
+                                    _srcLon = null;
+                                  }
+                                });
+                              },
+                            ),
+                          ),
+                          if (_srcController.text.isNotEmpty)
+                            GestureDetector(
+                              onTap: () {
+                                setState(() {
+                                  _srcController.clear();
+                                  _srcName = '';
+                                  _srcLat = null;
+                                  _srcLon = null;
+                                });
+                              },
+                              child: Padding(
+                                padding: EdgeInsets.symmetric(horizontal: 10.w),
+                                child: Icon(
+                                  CupertinoIcons.clear_thick_circled,
+                                  color: AppColors.tertiaryText,
+                                  size: 16.sp,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  SizedBox(width: 6.w),
+                  // Time Set Logo (Clock button)
+                  GestureDetector(
+                    onTap: _selectTime,
+                    child: Container(
+                      width: 44.h,
+                      height: 44.h,
+                      decoration: const BoxDecoration(
+                        color: AppColors.whiteAccent,
+                        borderRadius: BorderRadius.zero,
+                      ),
+                      child: Icon(
+                        CupertinoIcons.time,
+                        color: Colors.black,
+                        size: 20.sp,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              SizedBox(height: 8.h),
+              // Row 2: Destination input (Full width)
+              Container(
+                height: 44.h,
+                width: double.infinity,
+                decoration: const BoxDecoration(
+                  color: AppColors.whiteAccent,
+                  borderRadius: BorderRadius.zero,
                 ),
-                SizedBox(width: 4.w),
-                Text(
-                  "Back",
-                  style: TextStyle(
-                    color: AppColors.primaryAccent,
-                    fontWeight: FontWeight.w600,
-                    fontFamily: 'Poppins',
-                    fontSize: 16.sp,
+                child: Row(
+                  children: [
+                    SizedBox(width: 12.w),
+                    Icon(
+                      CupertinoIcons.search,
+                      color: Colors.black,
+                      size: 18.sp,
+                    ),
+                    SizedBox(width: 8.w),
+                    Expanded(
+                      child: TextField(
+                        controller: _dstController,
+                        focusNode: _dstFocusNode,
+                        style: TextStyle(
+                          color: Colors.black,
+                          fontFamily: 'Poppins',
+                          fontSize: 13.sp,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        decoration: InputDecoration(
+                          hintText: 'Choose destination...',
+                          hintStyle: TextStyle(
+                            color: AppColors.tertiaryText,
+                            fontFamily: 'Poppins',
+                            fontSize: 13.sp,
+                            fontWeight: FontWeight.w400,
+                          ),
+                          border: InputBorder.none,
+                          isDense: true,
+                          contentPadding: EdgeInsets.symmetric(vertical: 10),
+                        ),
+                        onChanged: (val) {
+                          setState(() {
+                            _dstName = val;
+                            if (val.isEmpty) {
+                              _dstLat = null;
+                              _dstLon = null;
+                            }
+                          });
+                        },
+                      ),
+                    ),
+                    if (_dstController.text.isNotEmpty)
+                      GestureDetector(
+                        onTap: () {
+                          setState(() {
+                            _dstController.clear();
+                            _dstName = '';
+                            _dstLat = null;
+                            _dstLon = null;
+                          });
+                        },
+                        child: Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 10.w),
+                          child: Icon(
+                            CupertinoIcons.clear_thick_circled,
+                            color: AppColors.tertiaryText,
+                            size: 16.sp,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          // Z-Axis Centered Flip Button
+          Positioned(
+            left: 0,
+            right: 0,
+            top: 32.h, // Centered in the 8.h gap between Row 1 (44.h) and Row 2 (44.h)
+            child: Center(
+              child: GestureDetector(
+                onTap: _swapLocations,
+                child: Container(
+                  width: 32.h,
+                  height: 32.h,
+                  decoration: BoxDecoration(
+                    color: Colors.black,
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: const Color.fromARGB(100, 58, 58, 58),
+                      width: 1.0,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.4),
+                        blurRadius: 4,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: AnimatedRotation(
+                    turns: _turns,
+                    duration: const Duration(milliseconds: 350),
+                    curve: Curves.easeInOutBack,
+                    child: Icon(
+                      CupertinoIcons.arrow_up_down,
+                      color: AppColors.primaryAccent,
+                      size: 14.sp,
+                    ),
                   ),
                 ),
-              ],
-            ),
-          ),
-          SizedBox(width: 20.w),
-          Text(
-            "Plan Journey",
-            style: TextStyle(
-              color: AppColors.primaryText,
-              fontFamily: 'Poppins',
-              fontWeight: FontWeight.w700,
-              fontSize: 18.sp,
+              ),
             ),
           ),
         ],
@@ -400,205 +637,163 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
     );
   }
 
-  Widget _buildInputsCard() {
-    return Container(
-      padding: EdgeInsets.symmetric(vertical: 4.h),
-      decoration: const BoxDecoration(
-        color: Colors.transparent,
+  List<dynamic> _getFilteredStops(String query) {
+    final q = query.trim().toLowerCase();
+    if (q.isEmpty) {
+      return _allStops;
+    }
+    return _allStops.where((stop) {
+      final name = (stop['Name']?.toString() ?? '').toLowerCase();
+      final hindi = (stop['Hindi']?.toString() ?? '').toLowerCase();
+      return name.contains(q) || hindi.contains(q);
+    }).toList();
+  }
+
+  Widget _buildAutocompleteList(String query) {
+    final filtered = _getFilteredStops(query);
+    final bool isSource = _isFocusingSource;
+
+    return ListView.separated(
+      physics: const AlwaysScrollableScrollPhysics(
+        parent: BouncingScrollPhysics(),
       ),
-      child: IntrinsicHeight(
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Left part: Integrated timeline dots and flip icon
-            SizedBox(
-              width: 44.h, // Match the width of the clock button exactly for vertical alignment
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  // From circle dot (aligned with source input center)
-                  Container(
-                    margin: EdgeInsets.only(top: 17.h),
-                    width: 8.w,
-                    height: 8.w,
-                    decoration: const BoxDecoration(
-                      color: Colors.white,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                  // Flip Swap trigger in the middle
-                  GestureDetector(
-                    onTap: _swapLocations,
-                    child: Container(
-                      padding: EdgeInsets.symmetric(vertical: 4.h, horizontal: 6.w),
-                      color: Colors.transparent,
-                      child: Icon(
-                        CupertinoIcons.arrow_up_down,
-                        color: AppColors.primaryAccent,
-                        size: 16.sp,
-                      ),
-                    ),
-                  ),
-                  // To square dot (aligned with destination input center)
-                  Container(
-                    margin: EdgeInsets.only(bottom: 17.h),
-                    width: 8.w,
-                    height: 8.w,
-                    decoration: const BoxDecoration(
-                      color: Colors.white,
-                      shape: BoxShape.rectangle,
-                    ),
-                  ),
-                ],
+      padding: EdgeInsets.only(left: 14.w, right: 14.w, bottom: 10.h),
+      itemCount: filtered.length + (isSource ? 1 : 0),
+      separatorBuilder: (context, index) => const Divider(color: AppColors.divider, height: 1),
+      itemBuilder: (context, index) {
+        if (isSource && index == 0) {
+          return ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: Icon(CupertinoIcons.location, color: AppColors.primaryAccent, size: 20.sp),
+            title: Text(
+              "Current Location",
+              style: TextStyle(
+                color: AppColors.primaryAccent,
+                fontFamily: 'Poppins',
+                fontWeight: FontWeight.w600,
+                fontSize: 13.sp,
               ),
             ),
-            SizedBox(width: 10.w), // Space between icons column and input fields (matching row below)
-            // Right part: The two input fields Column
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  GestureDetector(
-                    onTap: () => _openStopSelector(true),
-                    child: Container(
-                      padding: EdgeInsets.symmetric(vertical: 8.h, horizontal: 10.w),
-                      decoration: BoxDecoration(
-                        color: AppColors.foreground,
-                        border: Border.all(color: AppColors.inputBorder, width: 0.8),
-                      ),
-                      width: double.infinity,
-                      height: 42.h,
-                      alignment: Alignment.centerLeft,
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Expanded(
-                            child: Text(
-                              _srcName.isNotEmpty ? _srcName : 'Choose starting point...',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                color: _srcName.isNotEmpty
-                                    ? AppColors.primaryText
-                                    : AppColors.tertiaryText,
-                                fontFamily: 'Poppins',
-                                fontSize: 13.sp,
-                                fontWeight: _srcName.isNotEmpty ? FontWeight.w600 : FontWeight.w400,
-                              ),
-                            ),
-                          ),
-                          GestureDetector(
-                            onTap: () {
-                              // Prevent bottom sheet trigger
-                              _useCurrentLocation();
-                            },
-                            child: Icon(
-                              CupertinoIcons.location,
-                              color: AppColors.primaryAccent,
-                              size: 16.sp,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  SizedBox(height: 10.h),
-                  GestureDetector(
-                    onTap: () => _openStopSelector(false),
-                    child: Container(
-                      padding: EdgeInsets.symmetric(vertical: 8.h, horizontal: 10.w),
-                      decoration: BoxDecoration(
-                        color: AppColors.foreground,
-                        border: Border.all(color: AppColors.inputBorder, width: 0.8),
-                      ),
-                      width: double.infinity,
-                      height: 42.h,
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        _dstName.isNotEmpty ? _dstName : 'Choose destination...',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: _dstName.isNotEmpty
-                              ? AppColors.primaryText
-                              : AppColors.tertiaryText,
-                          fontFamily: 'Poppins',
-                          fontSize: 13.sp,
-                          fontWeight: _dstName.isNotEmpty ? FontWeight.w600 : FontWeight.w400,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+            onTap: () {
+              _useCurrentLocation();
+            },
+          );
+        }
+
+        final stopIndex = isSource ? index - 1 : index;
+        final stop = filtered[stopIndex];
+        final name = stop['Name']?.toString() ?? 'Unknown Stop';
+        final hindi = stop['Hindi']?.toString() ?? '';
+        final lat = double.tryParse(stop['Latitude']?.toString() ?? '') ?? 0.0;
+        final lon = double.tryParse(stop['Longitude']?.toString() ?? '') ?? 0.0;
+
+        return ListTile(
+          contentPadding: EdgeInsets.zero,
+          title: Text(
+            name,
+            style: TextStyle(
+              color: Colors.white,
+              fontFamily: 'Poppins',
+              fontWeight: FontWeight.w500,
+              fontSize: 13.sp,
             ),
-          ],
-        ),
-      ),
+          ),
+          subtitle: hindi.isNotEmpty
+              ? Text(
+                  hindi,
+                  style: TextStyle(
+                    color: AppColors.secondaryText,
+                    fontFamily: 'Poppins',
+                    fontSize: 11.sp,
+                  ),
+                )
+              : null,
+          onTap: () {
+            setState(() {
+              if (isSource) {
+                _srcName = name;
+                _srcLat = lat;
+                _srcLon = lon;
+                _srcType = 'place';
+                _srcController.text = name;
+                if (_dstLat == null || _dstLon == null) {
+                  _dstFocusNode.requestFocus();
+                } else {
+                  _srcFocusNode.unfocus();
+                }
+              } else {
+                _dstName = name;
+                _dstLat = lat;
+                _dstLon = lon;
+                _dstType = 'place';
+                _dstController.text = name;
+                if (_srcLat == null || _srcLon == null) {
+                  _srcFocusNode.requestFocus();
+                } else {
+                  _dstFocusNode.unfocus();
+                }
+              }
+            });
+
+            _checkAndAutoSearch();
+          },
+        );
+      },
     );
   }
 
-
-
-  Widget _buildTimeAndSearchButton() {
-    return Row(
-      children: [
-        GestureDetector(
-          onTap: _selectTime,
-          child: Container(
-            width: 44.h,
-            height: 44.h,
-            decoration: BoxDecoration(
-              color: Colors.black,
-              border: Border.all(
-                color: const Color.fromARGB(58, 58, 58, 58),
-                width: 0.8,
-              ),
-              gradient: const LinearGradient(
-                begin: Alignment.centerRight,
-                end: Alignment.centerLeft,
-                colors: [
-                  Color.fromARGB(18, 0, 229, 255),
-                  Color.fromARGB(14, 41, 121, 255),
-                  Color.fromARGB(10, 213, 0, 249),
-                  Color.fromARGB(8, 255, 109, 0),
-                  Color.fromARGB(2, 255, 109, 0),
-                ],
-                stops: [0.0, 0.25, 0.55, 0.8, 1.0],
-              ),
+  Widget _buildHistoryList() {
+    final history = Provider.of<DataProvider>(context).journeySearchHistory;
+    if (history.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: 14.w),
+          child: Text(
+            "Select start and destination to find optimal routes.",
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: AppColors.tertiaryText,
+              fontFamily: 'Poppins',
+              fontSize: 13.sp,
             ),
-            child: Icon(
-              CupertinoIcons.time,
+          ),
+        ),
+      );
+    }
+
+    return ListView.separated(
+      physics: const AlwaysScrollableScrollPhysics(
+        parent: BouncingScrollPhysics(),
+      ),
+      padding: EdgeInsets.only(left: 14.w, right: 14.w, bottom: 10.h),
+      itemCount: history.length,
+      separatorBuilder: (context, index) => const Divider(color: AppColors.divider, height: 1),
+      itemBuilder: (context, index) {
+        final item = history[index];
+        final src = item['src_name'] ?? '';
+        final dst = item['dst_name'] ?? '';
+
+        return ListTile(
+          contentPadding: EdgeInsets.zero,
+          leading: Icon(Icons.history, color: AppColors.secondaryText, size: 18.sp),
+          title: Text(
+            "$src ➔ $dst",
+            style: TextStyle(
               color: Colors.white,
-              size: 20.sp,
+              fontFamily: 'Poppins',
+              fontWeight: FontWeight.w500,
+              fontSize: 13.sp,
             ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
-        ),
-        SizedBox(width: 10.w),
-        Expanded(
-          child: GestureDetector(
-            onTap: _planJourney,
-            child: Container(
-              height: 44.h,
-              decoration: const BoxDecoration(
-                color: AppColors.whiteAccent,
-              ),
-              child: Center(
-                child: Text(
-                  "Plan Journey",
-                  style: TextStyle(
-                    color: Colors.black,
-                    fontFamily: 'Poppins',
-                    fontSize: 14.sp,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ],
+          onTap: () {
+            _srcFocusNode.unfocus();
+            _dstFocusNode.unfocus();
+            _applyInitialParams(item);
+          },
+        );
+      },
     );
   }
 
@@ -610,6 +805,15 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
           child: const CupertinoActivityIndicator(color: Colors.white, radius: 14),
         ),
       );
+    }
+
+    if (_isFocusingSource || _isFocusingDestination) {
+      final query = _isFocusingSource ? _srcController.text : _dstController.text;
+      if (query.isEmpty) {
+        return _buildHistoryList();
+      } else {
+        return _buildAutocompleteList(query);
+      }
     }
 
     if (_errorMessage != null) {
@@ -689,23 +893,13 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
     }
 
     if (_routes.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: EdgeInsets.symmetric(horizontal: 14.w),
-          child: Text(
-            "Select start and destination to find optimal routes.",
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: AppColors.tertiaryText,
-              fontFamily: 'Poppins',
-              fontSize: 13.sp,
-            ),
-          ),
-        ),
-      );
+      return _buildHistoryList();
     }
 
     return ListView.separated(
+      physics: const AlwaysScrollableScrollPhysics(
+        parent: BouncingScrollPhysics(),
+      ),
       padding: EdgeInsets.only(left: 14.w, right: 14.w, bottom: 20.h),
       itemCount: _routes.length + 1,
       separatorBuilder: (context, index) {
@@ -921,197 +1115,5 @@ class RouteCard extends StatelessWidget {
     }
 
     return widgets;
-  }
-}
-
-// -------------------- STOP SELECTOR MODAL --------------------
-
-class StopSelectorModal extends StatefulWidget {
-  final List<dynamic> allStops;
-  final bool allowCurrentLocation;
-  final Function(String name, double lat, double lon, String type) onSelect;
-
-  const StopSelectorModal({
-    super.key,
-    required this.allStops,
-    required this.allowCurrentLocation,
-    required this.onSelect,
-  });
-
-  @override
-  State<StopSelectorModal> createState() => _StopSelectorModalState();
-}
-
-class _StopSelectorModalState extends State<StopSelectorModal> {
-  final TextEditingController _searchController = TextEditingController();
-  List<dynamic> _filteredStops = [];
-
-  @override
-  void initState() {
-    super.initState();
-    _filteredStops = widget.allStops;
-  }
-
-  void _filterStops(String query) {
-    final q = query.trim().toLowerCase();
-    if (q.isEmpty) {
-      setState(() {
-        _filteredStops = widget.allStops;
-      });
-      return;
-    }
-
-    setState(() {
-      _filteredStops = widget.allStops.where((stop) {
-        final name = (stop['Name']?.toString() ?? '').toLowerCase();
-        final hindi = (stop['Hindi']?.toString() ?? '').toLowerCase();
-        return name.contains(q) || hindi.contains(q);
-      }).toList();
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: const BoxDecoration(
-        color: AppColors.background,
-        borderRadius: BorderRadius.only(
-          topLeft: Radius.circular(16),
-          topRight: Radius.circular(16),
-        ),
-      ),
-      padding: EdgeInsets.only(
-        top: 10.h,
-        bottom: MediaQuery.of(context).viewInsets.bottom + 10.h,
-      ),
-      height: MediaQuery.of(context).size.height * 0.75,
-      child: Column(
-        children: [
-          // Drag handle
-          Container(
-            width: 40.w,
-            height: 4.h,
-            decoration: BoxDecoration(
-              color: AppColors.divider,
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-          SizedBox(height: 12.h),
-          // Search Header
-          Padding(
-            padding: EdgeInsets.symmetric(horizontal: 14.w),
-            child: Container(
-              height: 44.h,
-              decoration: BoxDecoration(
-                color: AppColors.foreground,
-                border: Border.all(color: AppColors.inputBorder, width: 0.8),
-              ),
-              child: Row(
-                children: [
-                  SizedBox(width: 10.w),
-                  Icon(CupertinoIcons.search, color: AppColors.secondaryText, size: 18.sp),
-                  SizedBox(width: 8.w),
-                  Expanded(
-                    child: TextField(
-                      controller: _searchController,
-                      onChanged: _filterStops,
-                      autofocus: true,
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontFamily: 'Poppins',
-                        fontSize: 14.sp,
-                      ),
-                      decoration: const InputDecoration.collapsed(
-                        hintText: "Search bus or metro station...",
-                        hintStyle: TextStyle(
-                          color: AppColors.tertiaryText,
-                          fontFamily: 'Poppins',
-                        ),
-                      ),
-                    ),
-                  ),
-                  if (_searchController.text.isNotEmpty)
-                    GestureDetector(
-                      onTap: () {
-                        _searchController.clear();
-                        _filterStops('');
-                      },
-                      child: Padding(
-                        padding: EdgeInsets.all(8.h),
-                        child: Icon(CupertinoIcons.clear_thick, color: Colors.white, size: 14.sp),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          ),
-          SizedBox(height: 8.h),
-          // List
-          Expanded(
-            child: ListView.separated(
-              itemCount: _filteredStops.length + (widget.allowCurrentLocation ? 1 : 0),
-              separatorBuilder: (context, index) => const Divider(color: AppColors.divider, height: 1),
-              itemBuilder: (context, index) {
-                if (widget.allowCurrentLocation && index == 0) {
-                  return ListTile(
-                    leading: Icon(CupertinoIcons.location, color: AppColors.primaryAccent, size: 20.sp),
-                    title: Text(
-                      "Current Location",
-                      style: TextStyle(
-                        color: AppColors.primaryAccent,
-                        fontFamily: 'Poppins',
-                        fontWeight: FontWeight.w600,
-                        fontSize: 13.sp,
-                      ),
-                    ),
-                    onTap: () {
-                      widget.onSelect("My Location", 0.0, 0.0, 'place');
-                      Navigator.pop(context);
-                    },
-                  );
-                }
-
-                final stopIndex = widget.allowCurrentLocation ? index - 1 : index;
-                final stop = _filteredStops[stopIndex];
-                final name = stop['Name']?.toString() ?? 'Unknown Stop';
-                final hindi = stop['Hindi']?.toString() ?? '';
-                final lat = double.tryParse(stop['Latitude']?.toString() ?? '') ?? 0.0;
-                final lon = double.tryParse(stop['Longitude']?.toString() ?? '') ?? 0.0;
-
-                // Infer stop type based on Line
-                final line = stop['Line']?.toString() ?? '';
-                final type = line.isNotEmpty && line.toLowerCase().contains('metro') ? 'metro' : 'bus';
-
-                return ListTile(
-                  title: Text(
-                    name,
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontFamily: 'Poppins',
-                      fontWeight: FontWeight.w500,
-                      fontSize: 13.sp,
-                    ),
-                  ),
-                  subtitle: hindi.isNotEmpty
-                      ? Text(
-                          hindi,
-                          style: TextStyle(
-                            color: AppColors.secondaryText,
-                            fontFamily: 'Poppins',
-                            fontSize: 11.sp,
-                          ),
-                        )
-                      : null,
-                  onTap: () {
-                    widget.onSelect(name, lat, lon, type);
-                    Navigator.pop(context);
-                  },
-                );
-              },
-            ),
-          ),
-        ],
-      ),
-    );
   }
 }

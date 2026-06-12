@@ -10,6 +10,7 @@ import 'package:string_similarity/string_similarity.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:provider/provider.dart';
 import 'package:metroapp/elements/ServicesDir/data_provider.dart';
+import 'package:metroapp/main.dart';
 
 
 class StationSearchScreen extends StatefulWidget {
@@ -423,48 +424,32 @@ class _SearchScreenState extends State<StationSearchScreen> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        SizedBox(
-          height: 50.h,
-          child: GestureDetector(
-            onTap: () {
+        Transform.translate(
+          offset: Offset(-8.w, 0),
+          child: BackButton(
+            color: AppColors.primaryAccent,
+            onPressed: () {
               if (MediaQuery.of(context).viewInsets.bottom != 0) {
                 FocusScope.of(context).unfocus();
-                Navigator.pop(context);
-              } else {
-                Navigator.pop(context);
               }
+              Navigator.pop(context);
             },
-            child: Row(
-              children: [
-                Icon(
-                  CupertinoIcons.back,
-                  color: const Color.fromARGB(255, 47, 130, 255),
-                ),
-                Text(
-                  "Back",
-                  style: TextStyle(
-                    color: const Color.fromARGB(255, 47, 130, 255),
-                    fontWeight: FontWeight.w500,
-                    fontFamily: 'Poppins',
-                    fontSize: 18.sp,
-                  ),
-                ),
-              ],
-            ),
           ),
         ),
       ],
     );
   }
 
-  Widget _buildScreenName() {
-    return Center(
+  Widget _buildScreenTitle() {
+    return Container(
+      margin: EdgeInsets.only(bottom: 12.h),
       child: Text(
         "Stop Search",
         style: TextStyle(
-          color: const Color.fromARGB(255, 220, 220, 220),
-          fontSize: 20.sp,
-          fontWeight: FontWeight.w500,
+          color: AppColors.primaryText,
+          fontSize: 22.sp,
+          fontWeight: FontWeight.w700,
+          fontFamily: 'Poppins',
         ),
       ),
     );
@@ -510,6 +495,7 @@ class _SearchScreenState extends State<StationSearchScreen> {
 
     final listView = Expanded(
       child: ListView.separated(
+        padding: EdgeInsets.zero,
         itemCount: _filteredStations.length,
         itemBuilder: (context, index) {
           var station = _filteredStations[index];
@@ -600,16 +586,17 @@ class _SearchScreenState extends State<StationSearchScreen> {
           height: double.infinity,
           padding: const EdgeInsets.symmetric(horizontal: 10),
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _buildBackBox(),
-              _buildScreenName(),
+              _buildScreenTitle(),
               Stack(
                 alignment: Alignment.centerLeft,
                 children: [
                   Column(
                     children: [
                       Container(
-                        margin: const EdgeInsets.only(bottom: 10, top: 20),
+                        margin: EdgeInsets.only(bottom: 4.h),
                         decoration: BoxDecoration(
                           color: const Color.fromARGB(255, 208, 208, 208),
                           border: Border.all(
@@ -654,7 +641,7 @@ class _SearchScreenState extends State<StationSearchScreen> {
                       Divider(
                         color: const Color.fromARGB(255, 130, 130, 130),
                         thickness: 0.2,
-                        height: 1.h,
+                        height: 4.h,
                       ),
                     ],
                   ),

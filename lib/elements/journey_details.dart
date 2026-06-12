@@ -23,14 +23,23 @@ class JourneyDetailsScreen extends StatelessWidget {
       body: SafeArea(
         child: Column(
           children: [
-            _buildHeader(context),
             Padding(
               padding: EdgeInsets.symmetric(horizontal: 14.w),
-              child: _buildSummaryCard(),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildBackBox(context),
+                  _buildScreenTitle(),
+                  _buildSummaryCard(),
+                ],
+              ),
             ),
             SizedBox(height: 20.h),
             Expanded(
               child: ListView(
+                physics: const AlwaysScrollableScrollPhysics(
+                  parent: BouncingScrollPhysics(),
+                ),
                 padding: EdgeInsets.only(left: 14.w, right: 14.w, bottom: 30.h),
                 children: [
                   _buildTimelineSection(),
@@ -43,45 +52,34 @@ class JourneyDetailsScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildHeader(BuildContext context) {
+  Widget _buildBackBox(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Transform.translate(
+          offset: Offset(-8.w, 0),
+          child: BackButton(
+            color: AppColors.primaryAccent,
+            onPressed: () {
+              Navigator.pop(context);
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildScreenTitle() {
     return Container(
-      color: Colors.black,
-      padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 12.h),
-      child: Row(
-        children: [
-          GestureDetector(
-            onTap: () => Navigator.pop(context),
-            child: Row(
-              children: [
-                Icon(
-                  CupertinoIcons.back,
-                  color: AppColors.primaryAccent,
-                  size: 20.sp,
-                ),
-                SizedBox(width: 4.w),
-                Text(
-                  "Back",
-                  style: TextStyle(
-                    color: AppColors.primaryAccent,
-                    fontWeight: FontWeight.w600,
-                    fontFamily: 'Poppins',
-                    fontSize: 16.sp,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          SizedBox(width: 20.w),
-          Text(
-            "Trip Details",
-            style: TextStyle(
-              color: AppColors.primaryText,
-              fontFamily: 'Poppins',
-              fontWeight: FontWeight.w700,
-              fontSize: 18.sp,
-            ),
-          ),
-        ],
+      margin: EdgeInsets.only(bottom: 12.h),
+      child: Text(
+        "Trip Details",
+        style: TextStyle(
+          color: AppColors.primaryText,
+          fontSize: 22.sp,
+          fontWeight: FontWeight.w700,
+          fontFamily: 'Poppins',
+        ),
       ),
     );
   }

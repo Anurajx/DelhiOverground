@@ -377,26 +377,11 @@ class _MapMetroScreenState extends State<MapMetroScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          GestureDetector(
-            onTap: () => Navigator.pop(context),
-            child: Row(
-              children: [
-                Icon(
-                  CupertinoIcons.back,
-                  color: AppColors.primaryAccent,
-                  size: 20.sp,
-                ),
-                SizedBox(width: 4.w),
-                Text(
-                  "Back",
-                  style: TextStyle(
-                    color: AppColors.primaryAccent,
-                    fontWeight: FontWeight.w600,
-                    fontFamily: 'Poppins',
-                    fontSize: 16.sp,
-                  ),
-                ),
-              ],
+          Transform.translate(
+            offset: Offset(-8.w, 0),
+            child: BackButton(
+              color: AppColors.primaryAccent,
+              onPressed: () => Navigator.pop(context),
             ),
           ),
           Text(
@@ -408,7 +393,7 @@ class _MapMetroScreenState extends State<MapMetroScreen> {
               fontSize: 16.sp,
             ),
           ),
-          SizedBox(width: 40.w), // Placeholder to balance back button width
+          SizedBox(width: 48.w), // Balanced to match BackButton width
         ],
       ),
     );

@@ -194,36 +194,26 @@ class _BusInfoScreenState extends State<BusInfoScreen> {
 
   Widget _buildHeader(BuildContext context) {
     return Container(
-      padding: EdgeInsets.only(left: 12.w, right: 12.w, top: 12.h, bottom: 4.h),
+      padding: EdgeInsets.only(left: 12.w, right: 12.w, top: 0.h, bottom: 4.h),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          GestureDetector(
-            onTap: () => Navigator.pop(context),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  CupertinoIcons.back,
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Transform.translate(
+                offset: Offset(-8.w, 0),
+                child: BackButton(
                   color: AppColors.primaryAccent,
-                  size: 20.sp,
+                  onPressed: () {
+                    Navigator.pop(context);
+                  },
                 ),
-                SizedBox(width: 4.w),
-                Text(
-                  "Back",
-                  style: TextStyle(
-                    color: AppColors.primaryAccent,
-                    fontWeight: FontWeight.w600,
-                    fontFamily: 'Poppins',
-                    fontSize: 16.sp,
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
-          SizedBox(height: 15.h),
-          Padding(
-            padding: EdgeInsets.symmetric(vertical: 22.h),
+          Container(
+            margin: EdgeInsets.only(bottom: 12.h),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -235,13 +225,13 @@ class _BusInfoScreenState extends State<BusInfoScreen> {
                         "Route ${widget.routeLongName}",
                         style: TextStyle(
                           color: AppColors.primaryText,
-                          fontSize: 16.sp,
+                          fontSize: 22.sp,
                           fontWeight: FontWeight.w700,
                           fontFamily: 'Poppins',
                         ),
                       ),
                       if (!_isLoadingDirections && _directions.isNotEmpty) ...[
-                        SizedBox(height: 2.h),
+                        SizedBox(height: 6.h),
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: _directions.map((dir) {
@@ -258,7 +248,7 @@ class _BusInfoScreenState extends State<BusInfoScreen> {
                               },
                               child: Container(
                                 color: Colors.transparent,
-                                padding: EdgeInsets.symmetric(vertical: 2.h),
+                                padding: EdgeInsets.symmetric(vertical: 3.h),
                                 alignment: Alignment.centerLeft,
                                 child: Text(
                                   dir['trip_headsign'] ?? "Option ${index + 1}",
@@ -266,7 +256,7 @@ class _BusInfoScreenState extends State<BusInfoScreen> {
                                     color: isSelected
                                         ? AppColors.secondaryText
                                         : AppColors.tertiaryText,
-                                    fontSize: 12.sp,
+                                    fontSize: 13.sp,
                                     fontWeight: isSelected
                                         ? FontWeight.w700
                                         : FontWeight.w500,
@@ -282,36 +272,39 @@ class _BusInfoScreenState extends State<BusInfoScreen> {
                   ),
                 ),
                 SizedBox(width: 8.w),
-                SizedBox(
-                  width: 32.w,
-                  child: Center(
-                    child: _agencyId == 'DTC'
-                        ? Image.asset(
-                            'assets/Image/dtc.png',
-                            height: 14.h,
-                            fit: BoxFit.contain,
-                        )
-                        : Container(
-                            width: 30.w,
-                            height: 13.h,
-                            alignment: Alignment.center,
-                            decoration: BoxDecoration(
-                              border: Border.all(
-                                color: Colors.orange,
-                                width: 1.0,
+                Padding(
+                  padding: EdgeInsets.only(top: 6.h),
+                  child: SizedBox(
+                    width: 32.w,
+                    child: Center(
+                      child: _agencyId == 'DTC'
+                          ? Image.asset(
+                              'assets/Image/dtc.png',
+                              height: 14.h,
+                              fit: BoxFit.contain,
+                            )
+                          : Container(
+                              width: 30.w,
+                              height: 13.h,
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                border: Border.all(
+                                  color: Colors.orange,
+                                  width: 1.0,
+                                ),
+                                borderRadius: BorderRadius.zero,
                               ),
-                              borderRadius: BorderRadius.zero,
-                            ),
-                            child: Text(
-                              "DIMTS",
-                              style: TextStyle(
-                                color: Colors.orange,
-                                fontSize: 5.5,
-                                fontWeight: FontWeight.w800,
-                                fontFamily: 'Poppins',
+                              child: Text(
+                                "DIMTS",
+                                style: TextStyle(
+                                  color: Colors.orange,
+                                  fontSize: 5.5,
+                                  fontWeight: FontWeight.w800,
+                                  fontFamily: 'Poppins',
+                                ),
                               ),
                             ),
-                          ),
+                    ),
                   ),
                 ),
               ],
@@ -363,6 +356,9 @@ class _BusInfoScreenState extends State<BusInfoScreen> {
     }
 
     return ListView.builder(
+      physics: const AlwaysScrollableScrollPhysics(
+        parent: BouncingScrollPhysics(),
+      ),
       itemCount: _stops.length,
       padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 12.h),
       itemBuilder: (context, index) {

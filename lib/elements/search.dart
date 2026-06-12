@@ -207,7 +207,7 @@ class _SearchBodyState extends State<SearchBody> {
           Divider(
             color: AppColors.divider,
             thickness: 0.2,
-            height: 15.h,
+            height: 4.h,
           ),
           Expanded(
             child: _isLoading
@@ -223,34 +223,16 @@ class _SearchBodyState extends State<SearchBody> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Container(
-          padding: EdgeInsets.fromLTRB(0, 15.h, 15.w, 15.h),
-          child: GestureDetector(
-            onTap: () {
+        Transform.translate(
+          offset: Offset(-8.w, 0),
+          child: BackButton(
+            color: AppColors.primaryAccent,
+            onPressed: () {
               if (MediaQuery.of(context).viewInsets.bottom != 0) {
                 FocusScope.of(context).unfocus();
               }
               Navigator.pop(context);
             },
-            child: Row(
-              children: [
-                Icon(
-                  CupertinoIcons.back,
-                  color: AppColors.primaryAccent,
-                  size: 20.sp,
-                ),
-                SizedBox(width: 4.w),
-                Text(
-                  "Back",
-                  style: TextStyle(
-                    color: AppColors.primaryAccent,
-                    fontWeight: FontWeight.w600,
-                    fontFamily: 'Poppins',
-                    fontSize: 16.sp,
-                  ),
-                ),
-              ],
-            ),
           ),
         ),
       ],
@@ -274,7 +256,7 @@ class _SearchBodyState extends State<SearchBody> {
 
   Widget _buildSearchField() {
     return Container(
-      margin: EdgeInsets.only(bottom: 10.h),
+      margin: EdgeInsets.only(bottom: 4.h),
       decoration: BoxDecoration(
         color: AppColors.whiteAccent,
         borderRadius: BorderRadius.zero, // NeoPop Sharp Corners
@@ -357,6 +339,7 @@ class _SearchBodyState extends State<SearchBody> {
     }
 
     return ListView.separated(
+      padding: EdgeInsets.zero,
       itemCount: _filteredRoutes.length,
       separatorBuilder: (context, index) => Divider(
         color: AppColors.divider,

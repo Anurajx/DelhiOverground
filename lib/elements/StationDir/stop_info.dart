@@ -77,38 +77,19 @@ class _StopInfoScreenState extends State<StopInfoScreen> {
   }
 
   Widget _buildTopNavBar(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.symmetric(vertical: 12.h),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.start,
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          GestureDetector(
-            onTap: () {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Transform.translate(
+          offset: Offset(-8.w, 0),
+          child: BackButton(
+            color: AppColors.primaryAccent,
+            onPressed: () {
               Navigator.pop(context);
             },
-            child: Row(
-              children: [
-                Icon(
-                  CupertinoIcons.back,
-                  color: AppColors.primaryAccent,
-                  size: 20.sp,
-                ),
-                SizedBox(width: 4.w),
-                Text(
-                  "Back",
-                  style: TextStyle(
-                    color: AppColors.primaryAccent,
-                    fontWeight: FontWeight.w600,
-                    fontFamily: 'Poppins',
-                    fontSize: 16.sp,
-                  ),
-                ),
-              ],
-            ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
