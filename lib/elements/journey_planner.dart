@@ -908,7 +908,7 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
       itemCount: _routes.length + 1,
       separatorBuilder: (context, index) {
         if (index == 0) return const SizedBox.shrink();
-        return SizedBox(height: 10.h);
+        return SizedBox(height: 5.h);
       },
       itemBuilder: (context, index) {
         if (index == 0) {
@@ -951,6 +951,10 @@ class RouteCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final transitLegsCount = route.legs.where((leg) => leg.type.toLowerCase() != 'walk').length;
+    final interchangeCount = transitLegsCount > 1 ? transitLegsCount - 1 : 0;
+    final interchangeText = interchangeCount == 0 ? "Direct" : "$interchangeCount interchange${interchangeCount > 1 ? 's' : ''}";
+
     return Container(
       decoration: BoxDecoration(
         color: Colors.black,
@@ -985,7 +989,7 @@ class RouteCard extends StatelessWidget {
           );
         },
         child: Container(
-          padding: EdgeInsets.all(12.w),
+          padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 18.h),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -1005,10 +1009,28 @@ class RouteCard extends StatelessWidget {
                           fontSize: 15.sp,
                         ),
                       ),
+                      SizedBox(width: 10.w),
+                      Container(
+                        padding: EdgeInsets.symmetric(horizontal: 6.w, vertical: 3.h),
+                        decoration: BoxDecoration(
+                          color: AppColors.divider.withValues(alpha: 0.15),
+                          border: Border.all(color: AppColors.divider, width: 0.6),
+                          borderRadius: BorderRadius.circular(3.r),
+                        ),
+                        child: Text(
+                          "by ${route.reachBy}",
+                          style: TextStyle(
+                            color: AppColors.secondaryText,
+                            fontFamily: 'Poppins',
+                            fontSize: 10.sp,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
                     ],
                   ),
                   Text(
-                    "Reach by: ${route.reachBy}",
+                    interchangeText,
                     style: TextStyle(
                       color: AppColors.secondaryText,
                       fontFamily: 'Poppins',
@@ -1017,7 +1039,7 @@ class RouteCard extends StatelessWidget {
                   ),
                 ],
               ),
-              SizedBox(height: 10.h),
+              SizedBox(height: 14.h),
               // Render badges for the legs
               Wrap(
                 crossAxisAlignment: WrapCrossAlignment.center,
@@ -1044,12 +1066,8 @@ class RouteCard extends StatelessWidget {
 
       if (isWalk) {
         widgets.add(
-          Container(
-            padding: EdgeInsets.symmetric(horizontal: 6.w, vertical: 3.h),
-            decoration: BoxDecoration(
-              color: Colors.transparent,
-              border: Border.all(color: AppColors.divider, width: 0.8),
-            ),
+          Padding(
+            padding: EdgeInsets.symmetric(vertical: 3.h),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [

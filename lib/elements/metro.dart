@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:metroapp/elements/ServicesDir/geolocator_service.dart';
 import 'package:metroapp/elements/StationDir/stop_info.dart';
 import 'package:metroapp/main.dart';
@@ -560,19 +561,51 @@ class _HomeScreenState extends State<HomeScreen> {
         children: [
           Container(
             margin: const EdgeInsets.all(20),
-            child: Text(
-              "Delhi\nOverground",
-              textAlign: TextAlign.left,
-              style: TextStyle(
-                color: const Color.fromARGB(255, 255, 255, 255),
-                height: 1.h,
-                fontSize: 30.sp,
-                fontFamily: 'Poppins',
-                fontWeight: FontWeight.w800,
-              ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  "Delhi\nOverground",
+                  textAlign: TextAlign.left,
+                  style: TextStyle(
+                    color: const Color.fromARGB(255, 255, 255, 255),
+                    height: 1.h,
+                    fontSize: 30.sp,
+                    fontFamily: 'Poppins',
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                _buildBlurSettingsButton(),
+              ],
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildBlurSettingsButton() {
+    return GestureDetector(
+      onTap: () {},
+      behavior: HitTestBehavior.opaque,
+      child: ClipOval(
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10.0, sigmaY: 10.0),
+          child: Container(
+            width: 42.w,
+            height: 42.w,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.white.withValues(alpha: 0.08),
+            ),
+            child: Icon(
+              CupertinoIcons.settings,
+              color: Colors.white,
+              size: 20.sp,
+            ),
+          ),
+        ),
       ),
     );
   }

@@ -35,7 +35,7 @@ class JourneyDetailsScreen extends StatelessWidget {
                 ],
               ),
             ),
-            SizedBox(height: 20.h),
+            SizedBox(height: 5.h),
             Expanded(
               child: ListView(
                 physics: const AlwaysScrollableScrollPhysics(
@@ -245,6 +245,18 @@ class JourneyDetailsScreen extends StatelessWidget {
   Widget _buildTimelineSection() {
     final List<Widget> timelineItems = [];
 
+    Color firstLineColor = AppColors.divider;
+    bool isFirstLineDashed = true;
+    if (route.legs.isNotEmpty) {
+      final firstLeg = route.legs.first;
+      final isWalk = firstLeg.type.toLowerCase() == 'walk';
+      if (!isWalk) {
+        final colorStr = firstLeg.color.replaceAll('#', '0xFF');
+        firstLineColor = Color(int.tryParse(colorStr) ?? 0xFFF8CA35);
+        isFirstLineDashed = false;
+      }
+    }
+
     // 1. Start Node
     timelineItems.add(
       IntrinsicHeight(
@@ -260,16 +272,25 @@ class JourneyDetailsScreen extends StatelessWidget {
                     color: Colors.greenAccent,
                     shape: BoxShape.circle,
                   ),
-                  child: Icon(
-                    CupertinoIcons.location_solid,
-                    color: Colors.black,
-                    size: 12.sp,
+                  child: Center(
+                    child: Container(
+                      width: 12.w,
+                      height: 12.w,
+                      decoration: const BoxDecoration(
+                        color: Colors.black,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
                   ),
                 ),
                 Expanded(
-                  child: Container(
-                    width: 2.w,
-                    color: AppColors.divider, // Neutral vertical line
+                  child: CustomPaint(
+                    size: Size(2.w, double.infinity),
+                    painter: LinePainter(
+                      color: firstLineColor,
+                      nextColor: firstLineColor,
+                      isDashed: isFirstLineDashed,
+                    ),
                   ),
                 ),
               ],
@@ -311,16 +332,48 @@ class JourneyDetailsScreen extends StatelessWidget {
     // 2. Middle Leg Nodes
     for (int i = 0; i < route.legs.length; i++) {
       final leg = route.legs[i];
-      final nextLegColor = (i < route.legs.length - 1)
-          ? Color(int.tryParse(route.legs[i + 1].color.replaceAll('#', '0xFF')) ?? 0xFFF8CA35)
-          : Colors.transparent;
+      final isWalk = leg.type.toLowerCase() == 'walk';
 
-      timelineItems.add(
-        TransitLegTimelineTile(
-          leg: leg,
-          nextLegColor: nextLegColor,
-        ),
-      );
+      Color nextLineColor = AppColors.divider;
+      bool isNextLineDashed = true;
+      if (i < route.legs.length - 1) {
+        final nextLeg = route.legs[i + 1];
+        final isNextWalk = nextLeg.type.toLowerCase() == 'walk';
+        if (!isNextWalk) {
+          final colorStr = nextLeg.color.replaceAll('#', '0xFF');
+          nextLineColor = Color(int.tryParse(colorStr) ?? 0xFFF8CA35);
+          isNextLineDashed = false;
+        }
+      }
+
+      if (isWalk) {
+        timelineItems.add(
+          WalkLegTimelineTile(
+            leg: leg,
+            nextLineColor: nextLineColor,
+            isNextDashed: isNextLineDashed,
+          ),
+        );
+      } else {
+        final colorStr = leg.color.replaceAll('#', '0xFF');
+        final legColor = Color(int.tryParse(colorStr) ?? 0xFFF8CA35);
+
+        timelineItems.add(
+          TransitLegBoardingTile(
+            leg: leg,
+            legColor: legColor,
+          ),
+        );
+
+        timelineItems.add(
+          TransitLegDepaboardingTile(
+            leg: leg,
+            legColor: legColor,
+            nextLineColor: nextLineColor,
+            isNextDashed: isNextLineDashed,
+          ),
+        );
+      }
     }
 
     // 3. Destination Node
@@ -334,10 +387,15 @@ class JourneyDetailsScreen extends StatelessWidget {
               color: AppColors.destructive,
               shape: BoxShape.circle,
             ),
-            child: Icon(
-              CupertinoIcons.location_solid,
-              color: Colors.white,
-              size: 12.sp,
+            child: Center(
+              child: Container(
+                width: 12.w,
+                height: 12.w,
+                decoration: const BoxDecoration(
+                  color: Colors.black,
+                  shape: BoxShape.rectangle,
+                ),
+              ),
             ),
           ),
           SizedBox(width: 14.w),
@@ -389,124 +447,152 @@ class JourneyDetailsScreen extends StatelessWidget {
   }
 }
 
-class TransitLegTimelineTile extends StatefulWidget {
+class WalkLegTimelineTile extends StatelessWidget {
   final JourneyLeg leg;
-  final Color nextLegColor;
+  final Color nextLineColor;
+  final bool isNextDashed;
 
-  const TransitLegTimelineTile({
+  const WalkLegTimelineTile({
     super.key,
     required this.leg,
-    required this.nextLegColor,
+    required this.nextLineColor,
+    required this.isNextDashed,
   });
 
   @override
-  State<TransitLegTimelineTile> createState() => _TransitLegTimelineTileState();
-}
-
-class _TransitLegTimelineTileState extends State<TransitLegTimelineTile> {
-  bool _showStops = false;
-
-  @override
   Widget build(BuildContext context) {
-    final leg = widget.leg;
-    final isWalk = leg.type.toLowerCase() == 'walk';
-    final colorStr = leg.color.replaceAll('#', '0xFF');
-    final legColor = Color(int.tryParse(colorStr) ?? 0xFFF8CA35);
-    final intermediateStops = leg.stops.length > 2
-        ? leg.stops.sublist(1, leg.stops.length - 1)
-        : <JourneyStop>[];
-
-    // Define neutral colors for walk nodes, and transit colors for bus nodes
-    final circleBorderColor = isWalk ? AppColors.tertiaryText : legColor;
-    final circleBgColor = isWalk ? AppColors.divider.withValues(alpha: 0.3) : legColor.withValues(alpha: 0.15);
-    final circleIconColor = isWalk ? AppColors.secondaryText : legColor;
-
-    final canToggle = !isWalk && intermediateStops.isNotEmpty;
-
-    Widget tileContent = Row(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        // Left Column: Icon and custom drawn vertical line
-        Column(
-          children: [
-            Container(
-              margin: EdgeInsets.only(top: 2.h),
-              width: 24.w,
-              height: 24.w,
-              decoration: BoxDecoration(
-                color: circleBgColor,
-                border: Border.all(color: circleBorderColor, width: 1.2),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                isWalk ? Icons.directions_walk : CupertinoIcons.bus,
-                color: circleIconColor,
-                size: 13.sp,
-              ),
-            ),
-            Expanded(
-              child: CustomPaint(
-                size: Size(2.w, double.infinity),
-                painter: LinePainter(
-                  color: AppColors.divider, // Neutral line color
-                  nextColor: AppColors.divider, // Neutral line color
-                  isDashed: isWalk,
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Column(
+            children: [
+              SizedBox(
+                width: 24.w,
+                height: 24.w,
+                child: Center(
+                  child: Icon(
+                    Icons.directions_walk,
+                    color: AppColors.secondaryText,
+                    size: 16.sp,
+                  ),
                 ),
               ),
-            ),
-          ],
-        ),
-        SizedBox(width: 14.w),
-        // Right Column: Timeline Content Details
-        Expanded(
-          child: Padding(
-            padding: EdgeInsets.only(bottom: 24.h),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        isWalk
-                            ? "Walk ${leg.distance.toInt()}m"
-                            : "Bus ${leg.routes.isNotEmpty ? leg.routes.first : 'Transit'}",
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontFamily: 'Poppins',
-                          fontWeight: FontWeight.w700,
-                          fontSize: 15.sp,
+              Expanded(
+                child: CustomPaint(
+                  size: Size(2.w, double.infinity),
+                  painter: LinePainter(
+                    color: AppColors.divider,
+                    nextColor: AppColors.divider,
+                    isDashed: true,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          SizedBox(width: 14.w),
+          Expanded(
+            child: Padding(
+              padding: EdgeInsets.only(bottom: 24.h),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: RichText(
+                          text: TextSpan(
+                            children: [
+                              TextSpan(
+                                text: "Walk ${leg.tripTime} min",
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontFamily: 'Poppins',
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 15.sp,
+                                ),
+                              ),
+                              WidgetSpan(
+                                alignment: PlaceholderAlignment.middle,
+                                child: Container(
+                                  margin: EdgeInsets.only(left: 8.w),
+                                  padding: EdgeInsets.symmetric(horizontal: 6.w, vertical: 2.h),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.divider.withValues(alpha: 0.2),
+                                    border: Border.all(
+                                      color: AppColors.divider,
+                                      width: 0.6,
+                                    ),
+                                    borderRadius: BorderRadius.circular(3.r),
+                                  ),
+                                  child: Text(
+                                    "${leg.distance.toInt()}m",
+                                    style: TextStyle(
+                                      color: AppColors.secondaryText,
+                                      fontFamily: 'Poppins',
+                                      fontSize: 9.sp,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
-                    ),
-                    SizedBox(width: 8.w),
-                    Text(
-                      "${leg.tripTime} min",
+                    ],
+                  ),
+                  SizedBox(height: 4.h),
+                  RichText(
+                    text: TextSpan(
                       style: TextStyle(
                         color: AppColors.secondaryText,
                         fontFamily: 'Poppins',
-                        fontWeight: FontWeight.w500,
                         fontSize: 13.sp,
+                        height: 1.3,
                       ),
+                      children: [
+                        const TextSpan(text: "Walk from "),
+                        TextSpan(
+                          text: leg.stops.first.name,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        WidgetSpan(
+                          alignment: PlaceholderAlignment.middle,
+                          child: Container(
+                            margin: EdgeInsets.symmetric(horizontal: 6.w),
+                            padding: EdgeInsets.symmetric(horizontal: 5.w, vertical: 1.5.h),
+                            decoration: BoxDecoration(
+                              color: AppColors.divider.withValues(alpha: 0.2),
+                              border: Border.all(
+                                color: AppColors.divider,
+                                width: 0.6,
+                              ),
+                              borderRadius: BorderRadius.circular(3.r),
+                            ),
+                            child: Text(
+                              "TO",
+                              style: TextStyle(
+                                color: AppColors.secondaryText,
+                                fontFamily: 'Poppins',
+                                fontSize: 9.sp,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        ),
+                        TextSpan(
+                          text: leg.stops.last.name,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-                SizedBox(height: 4.h),
-                Text(
-                  isWalk
-                      ? "Walk from ${leg.stops.first.name} to ${leg.stops.last.name}"
-                      : "Board from ${leg.stops.first.name} at ${leg.departureTime}",
-                  style: TextStyle(
-                    color: AppColors.secondaryText,
-                    fontFamily: 'Poppins',
-                    fontSize: 13.sp,
-                    height: 1.3,
                   ),
-                ),
-                if (isWalk) ...[
                   SizedBox(height: 8.h),
                   GestureDetector(
                     onTap: () async {
@@ -564,131 +650,312 @@ class _TransitLegTimelineTileState extends State<TransitLegTimelineTile> {
                     ),
                   ),
                 ],
-                if (!isWalk && intermediateStops.isNotEmpty) ...[
-                  SizedBox(height: 8.h),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        _showStops ? CupertinoIcons.chevron_up : CupertinoIcons.chevron_down,
-                        color: AppColors.primaryAccent,
-                        size: 14.sp,
-                      ),
-                      SizedBox(width: 4.w),
-                      Text(
-                        "${intermediateStops.length} intermediate stop${intermediateStops.length > 1 ? 's' : ''}",
-                        style: TextStyle(
-                          color: AppColors.primaryAccent,
-                          fontFamily: 'Poppins',
-                          fontSize: 12.sp,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class TransitLegBoardingTile extends StatefulWidget {
+  final JourneyLeg leg;
+  final Color legColor;
+
+  const TransitLegBoardingTile({
+    super.key,
+    required this.leg,
+    required this.legColor,
+  });
+
+  @override
+  State<TransitLegBoardingTile> createState() => _TransitLegBoardingTileState();
+}
+
+class _TransitLegBoardingTileState extends State<TransitLegBoardingTile> {
+  bool _showStops = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final intermediateStops = widget.leg.stops.length > 2
+        ? widget.leg.stops.sublist(1, widget.leg.stops.length - 1)
+        : <JourneyStop>[];
+
+    final hasStops = intermediateStops.isNotEmpty;
+
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: hasStops
+          ? () {
+              setState(() {
+                _showStops = !_showStops;
+              });
+            }
+          : null,
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Column(
+              children: [
+                Container(
+                  margin: EdgeInsets.only(top: 2.h),
+                  width: 24.w,
+                  height: 24.w,
+                  decoration: BoxDecoration(
+                    color: widget.legColor,
+                    shape: BoxShape.circle,
                   ),
-                  AnimatedCrossFade(
-                    firstChild: const SizedBox(width: double.infinity, height: 0),
-                    secondChild: Container(
-                      margin: EdgeInsets.only(top: 8.h),
-                      width: double.infinity,
-                      decoration: BoxDecoration(
-                        color: Colors.black,
-                        border: Border.all(color: AppColors.divider, width: 0.5),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: intermediateStops.map((stop) {
-                          return Container(
-                            padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 8.h),
-                            decoration: const BoxDecoration(
-                              border: Border(
-                                bottom: BorderSide(color: AppColors.divider, width: 0.3),
-                              ),
-                            ),
-                            child: Row(
-                              children: [
-                                Container(
-                                  width: 4.w,
-                                  height: 4.w,
-                                  decoration: const BoxDecoration(
-                                    color: AppColors.tertiaryText,
-                                    shape: BoxShape.circle,
-                                  ),
-                                ),
-                                SizedBox(width: 8.w),
-                                Expanded(
-                                  child: Text(
-                                    stop.name,
-                                    style: TextStyle(
-                                      color: AppColors.secondaryText,
-                                      fontFamily: 'Poppins',
-                                      fontSize: 12.sp,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-                        }).toList(),
+                  child: Icon(
+                    CupertinoIcons.bus,
+                    color: Colors.white,
+                    size: 13.sp,
+                  ),
+                ),
+                Expanded(
+                  child: CustomPaint(
+                    size: Size(2.w, double.infinity),
+                    painter: LinePainter(
+                      color: widget.legColor,
+                      nextColor: widget.legColor,
+                      isDashed: false,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(width: 14.w),
+            Expanded(
+              child: Padding(
+                padding: EdgeInsets.only(bottom: 16.h),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      widget.leg.stops.first.name,
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontFamily: 'Poppins',
+                        fontWeight: FontWeight.w700,
+                        fontSize: 15.sp,
                       ),
                     ),
-                    crossFadeState: _showStops ? CrossFadeState.showSecond : CrossFadeState.showFirst,
-                    duration: const Duration(milliseconds: 200),
-                    sizeCurve: Curves.easeInOut,
-                  ),
-                ],
-                if (!isWalk) ...[
-                  SizedBox(height: 10.h),
-                  Container(
-                    padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 8.h),
-                    decoration: BoxDecoration(
-                      color: AppColors.divider.withValues(alpha: 0.25),
-                      border: Border.all(color: AppColors.divider, width: 0.5),
-                    ),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.center,
+                    SizedBox(height: 6.h),
+                    Row(
                       children: [
-                        Icon(
-                          CupertinoIcons.square_arrow_right,
-                          color: AppColors.primaryAccent,
-                          size: 14.sp,
+                        Container(
+                          clipBehavior: Clip.antiAlias,
+                          decoration: BoxDecoration(
+                            color: Colors.black,
+                            border: Border.all(color: AppColors.divider, width: 0.8),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                width: 4.w,
+                                height: 18.h,
+                                color: widget.legColor,
+                              ),
+                              SizedBox(width: 6.w),
+                              Icon(
+                                CupertinoIcons.bus,
+                                color: Colors.white,
+                                size: 11.sp,
+                              ),
+                              SizedBox(width: 4.w),
+                              Text(
+                                widget.leg.routes.isNotEmpty ? widget.leg.routes.first : 'Transit',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontFamily: 'Poppins',
+                                  fontSize: 10.sp,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              SizedBox(width: 6.w),
+                            ],
+                          ),
                         ),
-                        SizedBox(width: 8.w),
+                        SizedBox(width: 10.w),
                         Expanded(
                           child: Text(
-                            "Alight at ${leg.stops.last.name} around ${leg.endingTime}",
+                            "Depart ${widget.leg.departureTime} • ${widget.leg.tripTime} min",
                             style: TextStyle(
-                              color: AppColors.primaryText,
+                              color: AppColors.secondaryText,
                               fontFamily: 'Poppins',
                               fontSize: 12.sp,
-                              fontWeight: FontWeight.w600,
+                              fontWeight: FontWeight.w500,
                             ),
                           ),
                         ),
                       ],
                     ),
+                    if (hasStops) ...[
+                      SizedBox(height: 10.h),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            _showStops ? CupertinoIcons.chevron_up : CupertinoIcons.chevron_down,
+                            color: AppColors.primaryAccent,
+                            size: 14.sp,
+                          ),
+                          SizedBox(width: 4.w),
+                          Text(
+                            "${intermediateStops.length} intermediate stop${intermediateStops.length > 1 ? 's' : ''}",
+                            style: TextStyle(
+                              color: AppColors.primaryAccent,
+                              fontFamily: 'Poppins',
+                              fontSize: 12.sp,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                      AnimatedCrossFade(
+                        firstChild: const SizedBox(width: double.infinity, height: 0),
+                        secondChild: Container(
+                          margin: EdgeInsets.only(top: 8.h),
+                          width: double.infinity,
+                          decoration: BoxDecoration(
+                            color: Colors.black,
+                            border: Border.all(color: AppColors.divider, width: 0.5),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: intermediateStops.map((stop) {
+                              return Container(
+                                padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 8.h),
+                                decoration: const BoxDecoration(
+                                  border: Border(
+                                    bottom: BorderSide(color: AppColors.divider, width: 0.3),
+                                  ),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      width: 4.w,
+                                      height: 4.w,
+                                      decoration: const BoxDecoration(
+                                        color: AppColors.tertiaryText,
+                                        shape: BoxShape.circle,
+                                      ),
+                                    ),
+                                    SizedBox(width: 8.w),
+                                    Expanded(
+                                      child: Text(
+                                        stop.name,
+                                        style: TextStyle(
+                                          color: AppColors.secondaryText,
+                                          fontFamily: 'Poppins',
+                                          fontSize: 12.sp,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            }).toList(),
+                          ),
+                        ),
+                        crossFadeState: _showStops ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+                        duration: const Duration(milliseconds: 200),
+                        sizeCurve: Curves.easeInOut,
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class TransitLegDepaboardingTile extends StatelessWidget {
+  final JourneyLeg leg;
+  final Color legColor;
+  final Color nextLineColor;
+  final bool isNextDashed;
+
+  const TransitLegDepaboardingTile({
+    super.key,
+    required this.leg,
+    required this.legColor,
+    required this.nextLineColor,
+    required this.isNextDashed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Column(
+            children: [
+              Container(
+                margin: EdgeInsets.only(top: 2.h),
+                width: 24.w,
+                height: 24.w,
+                decoration: BoxDecoration(
+                  color: legColor,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  CupertinoIcons.square_arrow_right,
+                  color: Colors.white,
+                  size: 11.sp,
+                ),
+              ),
+              Expanded(
+                child: CustomPaint(
+                  size: Size(2.w, double.infinity),
+                  painter: LinePainter(
+                    color: nextLineColor,
+                    nextColor: nextLineColor,
+                    isDashed: isNextDashed,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          SizedBox(width: 14.w),
+          Expanded(
+            child: Padding(
+              padding: EdgeInsets.only(bottom: 24.h),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    leg.stops.last.name,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontFamily: 'Poppins',
+                      fontWeight: FontWeight.w700,
+                      fontSize: 15.sp,
+                    ),
+                  ),
+                  SizedBox(height: 4.h),
+                  Text(
+                    "Alight around ${leg.endingTime}",
+                    style: TextStyle(
+                      color: AppColors.secondaryText,
+                      fontFamily: 'Poppins',
+                      fontSize: 13.sp,
+                    ),
                   ),
                 ],
-              ],
+              ),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
-
-    if (canToggle) {
-      return GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: () {
-          setState(() {
-            _showStops = !_showStops;
-          });
-        },
-        child: IntrinsicHeight(child: tileContent),
-      );
-    }
-
-    return IntrinsicHeight(child: tileContent);
   }
 }
 
@@ -712,7 +979,7 @@ class LinePainter extends CustomPainter {
 
     final double startY = 0;
     final double endY = size.height;
-    final double midY = size.height * 0.7; // Transition color blend halfway down if next color exists
+    final double midY = size.height * 0.9;
 
     if (isDashed) {
       const double dashHeight = 4;
@@ -737,13 +1004,11 @@ class LinePainter extends CustomPainter {
           paint,
         );
       } else {
-        // Draw top half with current leg color
         canvas.drawLine(
           Offset(size.width / 2, startY),
           Offset(size.width / 2, midY),
           paint,
         );
-        // Draw bottom half with next leg color transition
         paint.color = nextColor;
         canvas.drawLine(
           Offset(size.width / 2, midY),

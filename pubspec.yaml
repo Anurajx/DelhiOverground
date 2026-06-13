@@ -49,7 +49,6 @@ dependencies:
   jovial_svg: ^1.1.25
   neopop: ^1.0.2
   string_similarity: ^2.1.1
-  liquid_glass_renderer: ^0.1.1-dev.6
   provider: ^6.1.5
   auto_size_text: ^3.0.0
   skeletonizer: ^2.1.0+1
