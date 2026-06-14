@@ -52,7 +52,7 @@ class StopsManager {
     }
 
     // 3. Last resort fallback (avoid literal hardcoded placeholders)
-    return 'Towards $cleanedName';
+    return 'To $cleanedName';
   }
 
   static Future<void> init() async {

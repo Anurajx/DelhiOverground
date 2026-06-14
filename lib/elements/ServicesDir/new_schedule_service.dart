@@ -789,38 +789,52 @@ class _ScheduleWidgetState extends State<ScheduleWidget> {
 
   Widget _buildHeader() {
     return Container(
-      margin: EdgeInsets.only(bottom: 12.h),
+      margin: EdgeInsets.only(bottom: 6.h),
       child: Text(
-        "REALTIME DEPARTURES",
+        "Realtime Departures",
         style: TextStyle(
-          color: AppColors.tertiaryText,
-          fontSize: 14.sp,
-          fontWeight: FontWeight.w700,
+          color: AppColors.secondaryText,
+          fontSize: 16.sp,
+          fontWeight: FontWeight.w600,
           fontFamily: 'Poppins',
-          letterSpacing: 1.0,
+          letterSpacing: 0.2,
         ),
       ),
     );
   }
 
   Widget _buildDirectionSelector() {
+    final Map<int, Widget> children = {};
+    for (var opt in realtimeOptions) {
+      final rtId = opt['realtime_stop_id'] as int;
+      final direction = (opt['direction'] as String).replaceAll(RegExp(r'\b[Tt]owards\b'), 'To');
+      final isSelected = rtId == selectedRealtimeStopId;
+
+      children[rtId] = Padding(
+        padding: EdgeInsets.symmetric(vertical: 8.h, horizontal: 4.w),
+        child: Text(
+          direction,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: isSelected ? Colors.white : AppColors.secondaryText,
+            fontSize: 10.sp,
+            fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+            fontFamily: 'Poppins',
+            letterSpacing: 0.2,
+          ),
+        ),
+      );
+    }
+
     return Container(
       margin: EdgeInsets.only(bottom: 16.h),
-      decoration: BoxDecoration(
-        color: Colors.black,
-        border: Border.all(
-          color: const Color.fromARGB(58, 58, 58, 58),
-          width: 1.0,
-        ),
-        borderRadius: BorderRadius.zero,
-      ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Padding(
-            padding: EdgeInsets.fromLTRB(16.w, 12.h, 16.w, 8.h),
+            padding: EdgeInsets.only(bottom: 8.h),
             child: Text(
-              "SELECT DIRECTION",
+              "Select Directions",
               style: TextStyle(
                 color: AppColors.secondaryText,
                 fontSize: 10.sp,
@@ -830,83 +844,20 @@ class _ScheduleWidgetState extends State<ScheduleWidget> {
               ),
             ),
           ),
-          ...realtimeOptions.asMap().entries.map((entry) {
-            final idx = entry.key;
-            final opt = entry.value;
-            final rtId = opt['realtime_stop_id'] as int;
-            final direction = opt['direction'] as String;
-            final isSelected = rtId == selectedRealtimeStopId;
-
-            return Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (idx > 0)
-                  Container(
-                    height: 1.0,
-                    color: const Color.fromARGB(24, 255, 255, 255),
-                  ),
-                GestureDetector(
-                  onTap: () {
-                    if (selectedRealtimeStopId != rtId) {
-                      setState(() {
-                        selectedRealtimeStopId = rtId;
-                      });
-                      _loadData();
-                    }
-                  },
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    curve: Curves.easeInOut,
-                    width: double.infinity,
-                    padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 14.h),
-                    color: isSelected ? Colors.white.withValues(alpha: 0.05) : Colors.transparent,
-                    child: Row(
-                      children: [
-                        AnimatedContainer(
-                          duration: const Duration(milliseconds: 200),
-                          curve: Curves.easeInOut,
-                          width: 16.w,
-                          height: 16.w,
-                          decoration: BoxDecoration(
-                            border: Border.all(
-                              color: isSelected ? AppColors.primaryAccent : AppColors.secondaryText,
-                              width: 1.5,
-                            ),
-                            color: isSelected ? AppColors.primaryAccent : Colors.transparent,
-                            borderRadius: BorderRadius.zero,
-                          ),
-                          child: Center(
-                            child: AnimatedSwitcher(
-                              duration: const Duration(milliseconds: 150),
-                              child: isSelected
-                                  ? Icon(
-                                      Icons.check,
-                                      color: Colors.white,
-                                      size: 11.sp,
-                                    )
-                                  : const SizedBox.shrink(),
-                            ),
-                          ),
-                        ),
-                        SizedBox(width: 12.w),
-                        Expanded(
-                          child: Text(
-                            direction,
-                            style: TextStyle(
-                              color: isSelected ? Colors.white : AppColors.secondaryText,
-                              fontSize: 12.sp,
-                              fontWeight: FontWeight.w500,
-                              fontFamily: 'Poppins',
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            );
-          }),
+          CupertinoSlidingSegmentedControl<int>(
+            groupValue: selectedRealtimeStopId,
+            backgroundColor: AppColors.surface,
+            thumbColor: AppColors.inputBackground,
+            children: children,
+            onValueChanged: (int? newValue) {
+              if (newValue != null && selectedRealtimeStopId != newValue) {
+                setState(() {
+                  selectedRealtimeStopId = newValue;
+                });
+                _loadData();
+              }
+            },
+          ),
         ],
       ),
     );
