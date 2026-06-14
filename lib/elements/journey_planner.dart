@@ -7,6 +7,7 @@ import 'package:metroapp/elements/ServicesDir/journey_planner_service.dart';
 import 'package:metroapp/elements/ServicesDir/geolocator_service.dart' as geo_service;
 import 'package:metroapp/main.dart';
 import 'package:metroapp/elements/journey_details.dart';
+import 'package:metroapp/elements/ServicesDir/stops_manager.dart';
 
 
 class JourneyPlannerScreen extends StatefulWidget {
@@ -132,7 +133,7 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
 
   Future<void> _loadStops() async {
     try {
-      final stops = await geo_service.loadStationsFromJson();
+      final stops = StopsManager.getStations();
       if (mounted) {
         setState(() {
           _allStops = stops;

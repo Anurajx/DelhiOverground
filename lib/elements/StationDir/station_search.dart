@@ -1,6 +1,3 @@
-import 'dart:convert';
-
-import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:metroapp/elements/ServicesDir/station_element.dart';
 import 'stop_info.dart';
@@ -11,6 +8,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:provider/provider.dart';
 import 'package:metroapp/elements/ServicesDir/data_provider.dart';
 import 'package:metroapp/main.dart';
+import 'package:metroapp/elements/ServicesDir/stops_manager.dart';
 
 
 class StationSearchScreen extends StatefulWidget {
@@ -60,46 +58,35 @@ class _SearchScreenState extends State<StationSearchScreen> {
       _focusNode1.requestFocus();
     });
 
-    Future.wait([_loadStationsFromJson(), _loadReconciledStops()]).then((
-      results,
-    ) {
-      final stations = results[0] as List<dynamic>;
-      final staticStopIdsWithRealtime = results[1] as Set<String>;
+    final stations = StopsManager.getStations();
+    final items = stations.map((station) {
+      final Map<String, dynamic> stationMap = Map<String, dynamic>.from(
+        station as Map,
+      );
+      final name = stationMap["Name"]?.toString().toLowerCase() ?? "";
+      final hindi = stationMap["Hindi"]?.toString().toLowerCase() ?? "";
+      final nameWords =
+          name.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+      final hindiWords =
+          hindi.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
 
-      final items =
-          stations.map((station) {
-            final Map<String, dynamic> stationMap = Map<String, dynamic>.from(
-              station as Map,
-            );
-            final name = stationMap["Name"]?.toString().toLowerCase() ?? "";
-            final hindi = stationMap["Hindi"]?.toString().toLowerCase() ?? "";
-            final nameWords =
-                name.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
-            final hindiWords =
-                hindi.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+      return _StationSearchItem(
+        station: stationMap,
+        normalizedName: name,
+        normalizedHindi: hindi,
+        nameWords: nameWords,
+        hindiWords: hindiWords,
+        hasRealtime: true,
+      );
+    }).toList();
 
-            final stationCode = stationMap["StationCode"]?.toString() ?? "";
-            final stopIds =
-                stationCode.split(',').map((id) => id.trim()).toList();
-            final hasRealtime = stopIds.any(
-              (id) => staticStopIdsWithRealtime.contains(id),
-            );
+    setState(() {
+      _originalStations = stations;
+      _searchItems = items;
+      _filteredStations = [];
+    });
 
-            return _StationSearchItem(
-              station: stationMap,
-              normalizedName: name,
-              normalizedHindi: hindi,
-              nameWords: nameWords,
-              hindiWords: hindiWords,
-              hasRealtime: hasRealtime,
-            );
-          }).toList();
-
-      setState(() {
-        _originalStations = stations;
-        _searchItems = items;
-        _filteredStations = [];
-      });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
       _determineNearestStops();
     });
   }
@@ -346,38 +333,7 @@ class _SearchScreenState extends State<StationSearchScreen> {
     }
   }
 
-  Future<List> _loadStationsFromJson() async {
-    try {
-      final jsonRawData = await rootBundle.loadString(
-        "assets/Map/stationsjson.json",
-      );
-      final List<dynamic> jsonList = jsonDecode(jsonRawData);
-      return jsonList;
-    } catch (e) {
-      return [];
-    }
-  }
 
-  Future<Set<String>> _loadReconciledStops() async {
-    try {
-      final reconciledStr = await rootBundle.loadString(
-        'assets/reconciled_stops.json',
-      );
-      final List<dynamic> reconciledJson = jsonDecode(reconciledStr);
-      final Set<String> staticStopIdsWithRealtime = {};
-      for (final item in reconciledJson) {
-        if (item['realtime_stop_id'] != null) {
-          final staticId = item['static_stop_id']?.toString();
-          if (staticId != null) {
-            staticStopIdsWithRealtime.add(staticId);
-          }
-        }
-      }
-      return staticStopIdsWithRealtime;
-    } catch (e) {
-      return {};
-    }
-  }
 
   bool _ifSourceSelected() {
     try {
@@ -495,6 +451,7 @@ class _SearchScreenState extends State<StationSearchScreen> {
 
     final listView = Expanded(
       child: ListView.separated(
+        physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
         padding: EdgeInsets.zero,
         itemCount: _filteredStations.length,
         itemBuilder: (context, index) {

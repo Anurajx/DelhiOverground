@@ -3,10 +3,12 @@ import 'package:flutter/services.dart';
 import 'package:metroapp/elements/ServicesDir/data_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:skeletonizer/skeletonizer.dart';
+import 'package:metroapp/elements/ServicesDir/stops_manager.dart';
 import 'elements/metro.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await StopsManager.init();
   final dataProvider = DataProvider();
   await dataProvider.loadBusSearchHistory();
   await dataProvider.loadJourneySearchHistory();

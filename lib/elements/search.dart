@@ -339,6 +339,7 @@ class _SearchBodyState extends State<SearchBody> {
     }
 
     return ListView.separated(
+      physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
       padding: EdgeInsets.zero,
       itemCount: _filteredRoutes.length,
       separatorBuilder: (context, index) => Divider(

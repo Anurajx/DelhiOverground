@@ -1,11 +1,10 @@
-import 'dart:convert';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import '../search.dart';
 import 'package:metroapp/main.dart';
 import 'package:http/http.dart' as http;
+import 'package:metroapp/elements/ServicesDir/stops_manager.dart';
 
 // -------------------- MODEL --------------------
 class ScheduleInfo {
@@ -163,26 +162,11 @@ Future<List<ScheduleInfo>> getRealtimeScheduleForStation(String stationCode) asy
     print("MERGED RECORD STATIC ON");
   }
 
-  // 1. Load and parse reconciled stops
-  final reconciledStr = await rootBundle.loadString('assets/reconciled_stops.json');
-  final List<dynamic> reconciledJson = jsonDecode(reconciledStr);
-  
   final Set<int> realtimeStopIds = {};
   for (final stopId in stopIds) {
-    for (final item in reconciledJson) {
-      if (item['static_stop_id']?.toString() == stopId) {
-        final rtId = item['realtime_stop_id'];
-        if (rtId != null) {
-          if (rtId is int) {
-            realtimeStopIds.add(rtId);
-          } else {
-            final parsed = int.tryParse(rtId.toString());
-            if (parsed != null) {
-              realtimeStopIds.add(parsed);
-            }
-          }
-        }
-      }
+    final parsed = int.tryParse(stopId);
+    if (parsed != null) {
+      realtimeStopIds.add(parsed);
     }
   }
 
@@ -301,28 +285,20 @@ class _ScheduleWidgetState extends State<ScheduleWidget> {
     if (optionsLoaded) return;
     try {
       final stopIds = widget.stationCode.split(',').map((id) => id.trim()).toList();
-      final reconciledStr = await rootBundle.loadString('assets/reconciled_stops.json');
-      final List<dynamic> reconciledJson = jsonDecode(reconciledStr);
       
       final List<Map<String, dynamic>> options = [];
       final Set<int> seenIds = {};
 
       for (final stopId in stopIds) {
-        for (final item in reconciledJson) {
-          if (item['static_stop_id']?.toString() == stopId) {
-            final rtId = item['realtime_stop_id'];
-            final rtNext = item['realtime_next_stop_name'];
-            if (rtId != null) {
-              final intParsed = rtId is int ? rtId : int.tryParse(rtId.toString());
-              if (intParsed != null && !seenIds.contains(intParsed)) {
-                seenIds.add(intParsed);
-                options.add({
-                  'realtime_stop_id': intParsed,
-                  'direction': rtNext?.toString() ?? 'Unknown Direction',
-                });
-              }
-            }
-          }
+        final parsed = int.tryParse(stopId);
+        if (parsed != null && !seenIds.contains(parsed)) {
+          seenIds.add(parsed);
+          final String name = StopsManager.getStopNameById(parsed) ?? 'Stop';
+          final direction = StopsManager.getDirectionForId(parsed, name);
+          options.add({
+            'realtime_stop_id': parsed,
+            'direction': direction,
+          });
         }
       }
 
@@ -346,18 +322,13 @@ class _ScheduleWidgetState extends State<ScheduleWidget> {
     });
 
     try {
-      final stationsStr = await rootBundle.loadString(
-        'assets/Map/stationsjson.json',
-      );
-      final stationsJson = List<Map<String, dynamic>>.from(
-        jsonDecode(stationsStr),
-      );
-
-      final stationDataForName = stationsJson.firstWhere(
-        (s) => s['StationCode'] == widget.stationCode,
-        orElse: () => <String, dynamic>{},
-      );
-      stationName = stationDataForName['Name'] ?? 'the selected station';
+      final stopIds = widget.stationCode.split(',').map((id) => id.trim()).toList();
+      final parsedCode = stopIds.isNotEmpty ? int.tryParse(stopIds.first) : null;
+      if (parsedCode != null) {
+        stationName = StopsManager.getStopNameById(parsedCode) ?? 'the selected station';
+      } else {
+        stationName = 'the selected station';
+      }
 
       if (isRealtime) {
         await _loadRealtimeOptions();

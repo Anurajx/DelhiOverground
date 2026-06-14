@@ -105,6 +105,8 @@ flutter:
     - assets/Map/stationsjson.json
     - assets/routes.db
     - assets/reconciled_stops.json
+    - assets/stops_backup.json
+    - assets/stop_directions_map.json
     - assets/Image/nighthero.jpg
     - assets/Image/bushero.jpg
     - assets/Image/stophero.jpg
