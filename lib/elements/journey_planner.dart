@@ -35,7 +35,6 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
 
   bool _isLoading = false;
   String? _errorMessage;
-  String? _errorSubtitle;
   List<JourneyRoute> _routes = [];
 
   List<dynamic> _allStops = [];
@@ -75,10 +74,9 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
     if (widget.initialParams != null) {
       _applyInitialParams(widget.initialParams!);
     } else {
-      _useCurrentLocation();
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
-          _dstFocusNode.requestFocus();
+          _srcFocusNode.requestFocus();
         }
       });
     }
@@ -145,10 +143,18 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
   }
 
   Future<void> _useCurrentLocation() async {
+    final bool targetIsSource = !_isFocusingDestination;
+
     setState(() {
-      _srcName = 'Loading current location...';
-      _srcController.text = _srcName;
+      if (targetIsSource) {
+        _srcName = 'Loading current location...';
+        _srcController.text = _srcName;
+      } else {
+        _dstName = 'Loading current location...';
+        _dstController.text = _dstName;
+      }
     });
+
     try {
       final position = await geo_service.getCurrentLocation();
       final lat = position.latitude;
@@ -157,26 +163,47 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
       if (lat >= 28.0 && lat <= 29.2 && lon >= 76.5 && lon <= 77.8) {
         if (mounted) {
           setState(() {
-            _srcName = 'My Location';
-            _srcController.text = _srcName;
-            _srcLat = lat;
-            _srcLon = lon;
-            _srcType = 'place';
+            if (targetIsSource) {
+              _srcName = 'My Location';
+              _srcController.text = _srcName;
+              _srcLat = lat;
+              _srcLon = lon;
+              _srcType = 'place';
+              if (_dstLat == null || _dstLon == null) {
+                _dstFocusNode.requestFocus();
+              }
+            } else {
+              _dstName = 'My Location';
+              _dstController.text = _dstName;
+              _dstLat = lat;
+              _dstLon = lon;
+              _dstType = 'place';
+              if (_srcLat == null || _srcLon == null) {
+                _srcFocusNode.requestFocus();
+              }
+            }
           });
           _checkAndAutoSearch();
         }
       } else {
         if (mounted) {
           setState(() {
-            _srcName = '';
-            _srcController.text = '';
-            _srcLat = null;
-            _srcLon = null;
+            if (targetIsSource) {
+              _srcName = '';
+              _srcController.text = '';
+              _srcLat = null;
+              _srcLon = null;
+            } else {
+              _dstName = '';
+              _dstController.text = '';
+              _dstLat = null;
+              _dstLon = null;
+            }
           });
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
-                'Location is outside Delhi NCR. Please select a starting stop manually.',
+                'Location is outside Delhi NCR. Please select manually.',
                 style: TextStyle(fontFamily: 'Poppins', fontSize: 13.sp),
               ),
               backgroundColor: AppColors.destructive,
@@ -187,10 +214,17 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
     } catch (e) {
       if (mounted) {
         setState(() {
-          _srcName = '';
-          _srcController.text = '';
-          _srcLat = null;
-          _srcLon = null;
+          if (targetIsSource) {
+            _srcName = '';
+            _srcController.text = '';
+            _srcLat = null;
+            _srcLon = null;
+          } else {
+            _dstName = '';
+            _dstController.text = '';
+            _dstLat = null;
+            _dstLon = null;
+          }
         });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -296,7 +330,6 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
     setState(() {
       _isLoading = true;
       _errorMessage = null;
-      _errorSubtitle = null;
       _routes = [];
     });
 
@@ -318,32 +351,33 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
         setState(() {
           _routes = result;
           _isLoading = false;
+          if (result.isEmpty) {
+            _errorMessage = 'could not find viable route';
+          } else {
+            _errorMessage = null;
+          }
         });
 
-        // Save to search history provider
-        Provider.of<DataProvider>(context, listen: false).addJourneyToHistory(
-          srcName: _srcName,
-          srcLat: _srcLat!.toString(),
-          srcLon: _srcLon!.toString(),
-          srcType: _srcType,
-          dstName: _dstName,
-          dstLat: _dstLat!.toString(),
-          dstLon: _dstLon!.toString(),
-          dstType: _dstType,
-          mode: _selectedMode,
-          time: timeStr,
-        );
+        if (result.isNotEmpty) {
+          // Save to search history provider
+          Provider.of<DataProvider>(context, listen: false).addJourneyToHistory(
+            srcName: _srcName,
+            srcLat: _srcLat!.toString(),
+            srcLon: _srcLon!.toString(),
+            srcType: _srcType,
+            dstName: _dstName,
+            dstLat: _dstLat!.toString(),
+            dstLon: _dstLon!.toString(),
+            dstType: _dstType,
+            mode: _selectedMode,
+            time: timeStr,
+          );
+        }
       }
     } catch (e) {
       if (mounted) {
-        final errStr = e.toString();
-        final RegExp codeRegExp = RegExp(r'\b\d{3}\b');
-        final match = codeRegExp.firstMatch(errStr);
-        final errCode = match != null ? match.group(0) : '500';
-
         setState(() {
-          _errorMessage = 'We are experiencing difficulty fetching route. Please try again later.';
-          _errorSubtitle = errCode;
+          _errorMessage = 'could not find viable route';
           _isLoading = false;
         });
       }
@@ -595,6 +629,7 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
                   ],
                 ),
               ),
+              _buildYourLocationPill(),
             ],
           ),
           // Z-Axis Centered Flip Button
@@ -642,6 +677,59 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
     );
   }
 
+  Widget _buildYourLocationPill() {
+    final bool showPill = _routes.isEmpty || _isFocusingSource || _isFocusingDestination;
+
+    return AnimatedOpacity(
+      duration: const Duration(milliseconds: 250),
+      opacity: showPill ? 1.0 : 0.0,
+      curve: Curves.easeInOut,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeInOut,
+        height: showPill ? 34.h : 0.0,
+        margin: EdgeInsets.only(top: showPill ? 8.h : 0.0),
+        child: ClipRect(
+          child: OverflowBox(
+            minHeight: 0.0,
+            maxHeight: 34.h,
+            alignment: Alignment.topLeft,
+            child: GestureDetector(
+              onTap: showPill ? _useCurrentLocation : null,
+              child: Container(
+                padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 6.h),
+                decoration: BoxDecoration(
+                  color: AppColors.primaryAccent,
+                  borderRadius: BorderRadius.circular(20.r),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      CupertinoIcons.location_solid,
+                      color: Colors.white,
+                      size: 13.sp,
+                    ),
+                    SizedBox(width: 4.w),
+                    Text(
+                      "your location",
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontFamily: 'Poppins',
+                        fontWeight: FontWeight.w600,
+                        fontSize: 12.sp,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   List<dynamic> _getFilteredStops(String query) {
     final q = query.trim().toLowerCase();
     if (q.isEmpty) {
@@ -663,30 +751,10 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
         parent: BouncingScrollPhysics(),
       ),
       padding: EdgeInsets.only(left: 14.w, right: 14.w, bottom: 10.h),
-      itemCount: filtered.length + (isSource ? 1 : 0),
+      itemCount: filtered.length,
       separatorBuilder: (context, index) => const Divider(color: AppColors.divider, height: 1),
       itemBuilder: (context, index) {
-        if (isSource && index == 0) {
-          return ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: Icon(CupertinoIcons.location, color: AppColors.primaryAccent, size: 20.sp),
-            title: Text(
-              "Current Location",
-              style: TextStyle(
-                color: AppColors.primaryAccent,
-                fontFamily: 'Poppins',
-                fontWeight: FontWeight.w600,
-                fontSize: 13.sp,
-              ),
-            ),
-            onTap: () {
-              _useCurrentLocation();
-            },
-          );
-        }
-
-        final stopIndex = isSource ? index - 1 : index;
-        final stop = filtered[stopIndex];
+        final stop = filtered[index];
         final name = stop['Name']?.toString() ?? 'Unknown Stop';
         final hindi = stop['Hindi']?.toString() ?? '';
         final lat = double.tryParse(stop['Latitude']?.toString() ?? '') ?? 0.0;
@@ -814,7 +882,7 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
 
     if (_isFocusingSource || _isFocusingDestination) {
       final query = _isFocusingSource ? _srcController.text : _dstController.text;
-      if (query.isEmpty) {
+      if (_srcController.text.isEmpty && _dstController.text.isEmpty) {
         return _buildHistoryList();
       } else {
         return _buildAutocompleteList(query);
@@ -822,83 +890,39 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
     }
 
     if (_errorMessage != null) {
-      return SingleChildScrollView(
-        padding: EdgeInsets.symmetric(horizontal: 14.w),
-        child: Container(
-          padding: EdgeInsets.all(16.h),
-          decoration: BoxDecoration(
-            color: Colors.black,
-            border: Border.all(color: AppColors.destructive.withValues(alpha: 0.25), width: 0.8),
-          ),
-          child: Stack(
-            children: [
-              Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Icon(CupertinoIcons.exclamationmark_circle, color: AppColors.destructive, size: 24.sp),
-                  SizedBox(height: 8.h),
-                  Text(
-                    _errorMessage!,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: AppColors.destructive,
-                      fontFamily: 'Poppins',
-                      fontSize: 13.sp,
-                      height: 1.4,
-                    ),
-                  ),
-                  SizedBox(height: 14.h),
-                  GestureDetector(
-                    onTap: _planJourney,
-                    child: Container(
-                      height: 38.h,
-                      padding: EdgeInsets.symmetric(horizontal: 16.w),
-                      decoration: const BoxDecoration(
-                        color: AppColors.whiteAccent,
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(CupertinoIcons.refresh, size: 14.sp, color: Colors.black),
-                          SizedBox(width: 8.w),
-                          Text(
-                            "Retry Search",
-                            style: TextStyle(
-                              fontFamily: 'Poppins',
-                              fontSize: 12.sp,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.black,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
+      return Container(
+        padding: EdgeInsets.only(top: 80.h, left: 24.w, right: 24.w),
+        alignment: Alignment.topCenter,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              CupertinoIcons.exclamationmark_circle_fill,
+              color: AppColors.destructive,
+              size: 28.sp,
+            ),
+            SizedBox(height: 10.h),
+            Text(
+              _errorMessage!,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: AppColors.destructive,
+                fontSize: 16.sp,
+                fontWeight: FontWeight.w500,
+                fontFamily: 'Poppins',
               ),
-              if (_errorSubtitle != null)
-                Positioned(
-                  bottom: 0,
-                  right: 0,
-                  child: Text(
-                    _errorSubtitle!,
-                    style: TextStyle(
-                      color: AppColors.destructive.withValues(alpha: 0.4),
-                      fontFamily: 'Poppins',
-                      fontSize: 10.sp,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ),
-            ],
-          ),
+            ),
+          ],
         ),
       );
     }
 
     if (_routes.isEmpty) {
-      return _buildHistoryList();
+      if (_srcController.text.isEmpty && _dstController.text.isEmpty) {
+        return _buildHistoryList();
+      } else {
+        return const SizedBox.shrink();
+      }
     }
 
     return ListView.separated(
@@ -906,28 +930,11 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
         parent: BouncingScrollPhysics(),
       ),
       padding: EdgeInsets.only(left: 14.w, right: 14.w, bottom: 20.h),
-      itemCount: _routes.length + 1,
-      separatorBuilder: (context, index) {
-        if (index == 0) return const SizedBox.shrink();
-        return SizedBox(height: 5.h);
-      },
+      itemCount: _routes.length,
+      separatorBuilder: (context, index) => SizedBox(height: 5.h),
       itemBuilder: (context, index) {
-        if (index == 0) {
-          return Padding(
-            padding: EdgeInsets.only(bottom: 8.h),
-            child: Text(
-              "Recommended Routes",
-              style: TextStyle(
-                color: AppColors.secondaryText,
-                fontFamily: 'Poppins',
-                fontWeight: FontWeight.w600,
-                fontSize: 14.sp,
-              ),
-            ),
-          );
-        }
         return RouteCard(
-          route: _routes[index - 1],
+          route: _routes[index],
           srcName: _srcName,
           dstName: _dstName,
         );

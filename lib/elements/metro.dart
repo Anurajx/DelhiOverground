@@ -1,4 +1,5 @@
-import 'dart:ui';
+import 'dart:async';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:metroapp/elements/ServicesDir/geolocator_service.dart';
 import 'package:metroapp/elements/StationDir/stop_info.dart';
 import 'package:metroapp/main.dart';
@@ -15,9 +16,7 @@ import 'ServicesDir/data_provider.dart';
 import 'package:provider/provider.dart';
 import 'journey_planner.dart';
 import 'package:metroapp/elements/ServicesDir/stops_manager.dart';
-
-
-
+import 'package:metroapp/elements/ServicesDir/report_error_service.dart';
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -33,6 +32,8 @@ class _HomeScreenState extends State<HomeScreen> {
     'Source': {},
   };
   bool _isRefreshing = false;
+  late StreamSubscription<List<ConnectivityResult>> _connectivitySubscription;
+  bool _isOffline = false;
 
   Future<void> _refreshNearbyStations(DataProvider dataProvider) async {
     if (_isRefreshing) return;
@@ -53,10 +54,35 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  Future<void> _checkInitialConnectivity() async {
+    final results = await Connectivity().checkConnectivity();
+    final isOffline = results.isEmpty || results.contains(ConnectivityResult.none);
+    if (mounted) {
+      setState(() {
+        _isOffline = isOffline;
+      });
+    }
+  }
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) => initialize(context));
+    _connectivitySubscription = Connectivity().onConnectivityChanged.listen((List<ConnectivityResult> results) {
+      final isOffline = results.isEmpty || results.contains(ConnectivityResult.none);
+      if (mounted && _isOffline != isOffline) {
+        setState(() {
+          _isOffline = isOffline;
+        });
+      }
+    });
+    _checkInitialConnectivity();
+  }
+
+  @override
+  void dispose() {
+    _connectivitySubscription.cancel();
+    super.dispose();
   }
 
   @override
@@ -421,6 +447,24 @@ class _HomeScreenState extends State<HomeScreen> {
                 Expanded(
                   child: GestureDetector(
                     behavior: HitTestBehavior.opaque,
+                    onTap: () {
+                      _showSettingsBottomSheet(context);
+                    },
+                    child: Container(
+                      decoration: const BoxDecoration(
+                        color: AppColors.inputBackground,
+                        borderRadius: BorderRadius.all(Radius.circular(80)),
+                      ),
+                      child: const Center(
+                        child: Icon(CupertinoIcons.settings, color: Colors.white),
+                      ),
+                    ),
+                  ),
+                ),
+                SizedBox(width: 5.w),
+                Expanded(
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
                     onTap: () async {
                       final whatsappUrl = Uri.parse(
                         'https://wa.me/+911123456789?text=Hi',
@@ -441,36 +485,6 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
                 ),
-                SizedBox(width: 5.w),
-                Expanded(
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap: () {
-                      // Navigator.push(
-                      //   context,
-                      //   MaterialPageRoute(
-                      //     builder: (context) => const MapMetroScreen(),
-                      //   ),
-                      // );
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const SearchScreen(),
-                        ),
-                      );
-                    },
-                    child: Container(
-                      decoration: const BoxDecoration(
-                        color: AppColors.inputBackground,
-                        borderRadius: BorderRadius.all(Radius.circular(80)),
-                      ),
-                      child: const Center(
-                        child: Icon(CupertinoIcons.bus, color: Colors.white),
-                      ),
-                    ),
-                  ),
-                ),
-
               ],
             ),
           ),
@@ -517,9 +531,9 @@ class _HomeScreenState extends State<HomeScreen> {
                           repeatForever: true,
                           animatedTexts: [
                             RotateAnimatedText('Information'),
-                            RotateAnimatedText('Exit Gates'),
                             RotateAnimatedText('Schedule'),
-                            RotateAnimatedText('Status'),
+                            RotateAnimatedText('Location'),
+                            RotateAnimatedText('Route'),
                           ],
                           onTap: () {
                             Navigator.push(
@@ -544,72 +558,88 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildAppFooter(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      decoration: const BoxDecoration(
-        borderRadius: BorderRadius.only(
-          bottomLeft: Radius.circular(0),
-          bottomRight: Radius.circular(0),
-        ),
-        image: DecorationImage(
-          image: AssetImage('assets/Image/nighthero.jpg'),
-          fit: BoxFit.cover,
-        ),
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            margin: const EdgeInsets.all(20),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  "Delhi\nOverground",
-                  textAlign: TextAlign.left,
-                  style: TextStyle(
-                    color: const Color.fromARGB(255, 255, 255, 255),
-                    height: 1.h,
-                    fontSize: 30.sp,
-                    fontFamily: 'Poppins',
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                _buildBlurSettingsButton(),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildBlurSettingsButton() {
-    return GestureDetector(
-      onTap: () {
-        _showSettingsBottomSheet(context);
-      },
-      behavior: HitTestBehavior.opaque,
-      child: ClipOval(
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10.0, sigmaY: 10.0),
+    return Stack(
+      children: [
+        Positioned.fill(
           child: Container(
-            width: 42.w,
-            height: 42.w,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: Colors.white.withValues(alpha: 0.08),
-            ),
-            child: Icon(
-              CupertinoIcons.settings,
-              color: Colors.white,
-              size: 20.sp,
+            decoration: const BoxDecoration(
+              borderRadius: BorderRadius.only(
+                bottomLeft: Radius.circular(0),
+                bottomRight: Radius.circular(0),
+              ),
+              image: DecorationImage(
+                image: AssetImage('assets/Image/nighthero.jpg'),
+                fit: BoxFit.cover,
+              ),
             ),
           ),
         ),
-      ),
+        Positioned.fill(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                margin: const EdgeInsets.all(20),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          "Delhi\nOverground",
+                          textAlign: TextAlign.left,
+                          style: TextStyle(
+                            color: const Color.fromARGB(255, 255, 255, 255),
+                            height: 1.h,
+                            fontSize: 30.sp,
+                            fontFamily: 'Poppins',
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        if (_isOffline) ...[
+                          SizedBox(height: 14.h),
+                          Container(
+                            padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 6.h),
+                            decoration: const BoxDecoration(
+                              color: AppColors.destructive, // Solid red color
+                              borderRadius: BorderRadius.zero, // Sharp corners
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.wifi_off,
+                                  color: Colors.white,
+                                  size: 12.sp,
+                                ),
+                                SizedBox(width: 6.w),
+                                Text(
+                                  "you're offline",
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontFamily: 'Poppins',
+                                    fontSize: 10.sp,
+                                    fontWeight: FontWeight.w700,
+                                    letterSpacing: 0.5,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
@@ -617,6 +647,7 @@ class _HomeScreenState extends State<HomeScreen> {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
+      barrierColor: Colors.transparent,
       isScrollControlled: true,
       builder: (context) {
         return const SettingsBottomSheet();
@@ -723,7 +754,7 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> with SingleTi
     });
     _buttonAnimController.repeat();
 
-    final success = await StopsManager.forceRefresh();
+    await StopsManager.forceRefresh();
 
     if (mounted) {
       _buttonAnimController.stop();
@@ -731,78 +762,32 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> with SingleTi
         _isUpdating = false;
       });
       _loadLastFetchTime();
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          behavior: SnackBarBehavior.floating,
-          elevation: 6,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
-          backgroundColor: success ? AppColors.secondaryAccent : AppColors.destructive,
-          content: Row(
-            children: [
-              Icon(
-                success ? Icons.check_circle_rounded : Icons.error_rounded,
-                color: Colors.white,
-                size: 20.sp,
-              ),
-              SizedBox(width: 12.w),
-              Expanded(
-                child: Text(
-                  success ? "Stops updated successfully!" : "Failed to update stops. Please check your internet connection.",
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontFamily: 'Poppins',
-                    fontSize: 13.sp,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final totalStops = StopsManager.getStations().length;
-
     return Container(
       padding: EdgeInsets.only(
         left: 20.w,
         right: 20.w,
-        top: 16.h,
+        top: 20.h,
         bottom: MediaQuery.of(context).padding.bottom + 24.h,
       ),
-      decoration: BoxDecoration(
-        color: AppColors.background,
-        borderRadius: BorderRadius.only(
-          topLeft: Radius.circular(24.r),
-          topRight: Radius.circular(24.r),
-        ),
-        border: Border.all(
-          color: AppColors.divider,
-          width: 1.0,
+      decoration: const BoxDecoration(
+        color: Colors.black, // Solid black background
+        borderRadius: BorderRadius.zero, // Sharp corners
+        border: Border(
+          top: BorderSide(
+            color: AppColors.divider,
+            width: 1.0,
+          ),
         ),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Drag handle
-          Center(
-            child: Container(
-              width: 36.w,
-              height: 4.h,
-              decoration: BoxDecoration(
-                color: AppColors.divider,
-                borderRadius: BorderRadius.circular(2.r),
-              ),
-            ),
-          ),
-          SizedBox(height: 20.h),
-
           // Title Header
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -819,11 +804,12 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> with SingleTi
               ),
               GestureDetector(
                 onTap: () => Navigator.pop(context),
+                behavior: HitTestBehavior.opaque,
                 child: Container(
                   padding: EdgeInsets.all(6.w),
                   decoration: const BoxDecoration(
-                    color: AppColors.surface,
-                    shape: BoxShape.circle,
+                    color: Colors.black, // Solid color close background
+                    shape: BoxShape.rectangle, // Sharp corners
                   ),
                   child: Icon(
                     CupertinoIcons.xmark,
@@ -834,35 +820,190 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> with SingleTi
               )
             ],
           ),
-          SizedBox(height: 20.h),
+          SizedBox(height: 24.h),
 
-          // Card 1: Bus Stops Database
+          const Divider(
+            color: AppColors.divider,
+            thickness: 1.0,
+            height: 1,
+          ),
+
+          // Search Bus Route
           Container(
-            padding: EdgeInsets.all(16.w),
-            decoration: BoxDecoration(
-              color: AppColors.surface,
-              borderRadius: BorderRadius.circular(16.r),
-              border: Border.all(
-                color: AppColors.divider,
-                width: 1.0,
-              ),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 18.h),
+            child: Row(
               children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(
-                          CupertinoIcons.map_pin_ellipse,
-                          color: AppColors.primaryAccent,
-                          size: 18.sp,
+                Icon(
+                  CupertinoIcons.bus,
+                  color: AppColors.primaryAccent,
+                  size: 20.sp,
+                ),
+                SizedBox(width: 14.w),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        "Search Bus Route",
+                        style: TextStyle(
+                          color: AppColors.primaryText,
+                          fontSize: 14.sp,
+                          fontWeight: FontWeight.w600,
+                          fontFamily: 'Poppins',
                         ),
-                        SizedBox(width: 8.w),
+                      ),
+                      SizedBox(height: 4.h),
+                      Text(
+                        "Search route information and stops",
+                        style: TextStyle(
+                          color: AppColors.secondaryText,
+                          fontSize: 11.sp,
+                          fontWeight: FontWeight.w400,
+                          fontFamily: 'Poppins',
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                GestureDetector(
+                  onTap: () {
+                    Navigator.pop(context);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const SearchScreen(),
+                      ),
+                    );
+                  },
+                  behavior: HitTestBehavior.opaque,
+                  child: Container(
+                    padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 8.h),
+                    decoration: const BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.zero,
+                    ),
+                    child: Text(
+                      "Search",
+                      style: TextStyle(
+                        color: Colors.black,
+                        fontFamily: 'Poppins',
+                        fontSize: 12.sp,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Divider(
+            color: AppColors.divider,
+            thickness: 1.0,
+            height: 1,
+          ),
+
+          // Action 1: Update Stop Database
+          Container(
+            padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 18.h),
+            child: Row(
+              children: [
+                _isUpdating
+                    ? RotationTransition(
+                        turns: _buttonAnimController,
+                        child: Icon(
+                          CupertinoIcons.refresh_thick,
+                          color: AppColors.primaryAccent,
+                          size: 20.sp,
+                        ),
+                      )
+                    : Icon(
+                        CupertinoIcons.refresh,
+                        color: AppColors.primaryAccent,
+                        size: 20.sp,
+                      ),
+                SizedBox(width: 14.w),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _isUpdating ? "Updating Assets..." : "Update Assets",
+                        style: TextStyle(
+                          color: AppColors.primaryText,
+                          fontSize: 14.sp,
+                          fontWeight: FontWeight.w600,
+                          fontFamily: 'Poppins',
+                        ),
+                      ),
+                      SizedBox(height: 4.h),
+                      Text(
+                        "Last updated: $_lastFetchTime",
+                        style: TextStyle(
+                          color: AppColors.secondaryText,
+                          fontSize: 11.sp,
+                          fontWeight: FontWeight.w400,
+                          fontFamily: 'Poppins',
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                GestureDetector(
+                  onTap: _isUpdating ? null : _triggerForceUpdate,
+                  behavior: HitTestBehavior.opaque,
+                  child: Container(
+                    padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 8.h),
+                    decoration: BoxDecoration(
+                      color: _isUpdating ? Colors.white.withValues(alpha: 0.5) : Colors.white,
+                      borderRadius: BorderRadius.zero,
+                    ),
+                    child: Text(
+                      _isUpdating ? "Updating" : "Update",
+                      style: TextStyle(
+                        color: Colors.black,
+                        fontFamily: 'Poppins',
+                        fontSize: 12.sp,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Divider(
+            color: AppColors.divider,
+            thickness: 1.0,
+            height: 1,
+          ),
+
+          // Action 2: Report Error
+          GestureDetector(
+            onTap: () {
+              try {
+                sendToGoogleForm();
+              } catch (e) {
+                debugPrint("Error sending form: $e");
+              }
+            },
+            behavior: HitTestBehavior.opaque,
+            child: Container(
+              color: Colors.transparent,
+              padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 18.h),
+              child: Row(
+                children: [
+                  Icon(
+                    CupertinoIcons.mail,
+                    color: AppColors.destructive,
+                    size: 20.sp,
+                  ),
+                  SizedBox(width: 14.w),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
                         Text(
-                          "Bus Stops Database",
+                          "Report Error",
                           style: TextStyle(
                             color: AppColors.primaryText,
                             fontSize: 14.sp,
@@ -870,221 +1011,230 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> with SingleTi
                             fontFamily: 'Poppins',
                           ),
                         ),
-                      ],
-                    ),
-                    Container(
-                      padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
-                      decoration: BoxDecoration(
-                        color: AppColors.primaryAccent.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(8.r),
-                        border: Border.all(
-                          color: AppColors.primaryAccent.withValues(alpha: 0.2),
-                          width: 1.0,
-                        ),
-                      ),
-                      child: Text(
-                        "DTS API",
-                        style: TextStyle(
-                          color: AppColors.primaryAccent,
-                          fontSize: 10.sp,
-                          fontWeight: FontWeight.w700,
-                          fontFamily: 'Poppins',
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                SizedBox(height: 14.h),
-                const Divider(
-                  color: AppColors.divider,
-                  thickness: 0.5,
-                  height: 1,
-                ),
-                SizedBox(height: 14.h),
-                _buildInfoRow(
-                  label: "Grouped Stations",
-                  value: totalStops > 0 ? "$totalStops Stations" : "Loading...",
-                  isHighlight: true,
-                ),
-                SizedBox(height: 10.h),
-                _buildInfoRow(
-                  label: "Last Updated",
-                  value: _lastFetchTime,
-                ),
-              ],
-            ),
-          ),
-          SizedBox(height: 12.h),
-
-          // Card 2: App Information & Connectivity
-          Container(
-            padding: EdgeInsets.all(16.w),
-            decoration: BoxDecoration(
-              color: AppColors.surface,
-              borderRadius: BorderRadius.circular(16.r),
-              border: Border.all(
-                color: AppColors.divider,
-                width: 1.0,
-              ),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(
-                      CupertinoIcons.info_circle,
-                      color: AppColors.secondaryAccent,
-                      size: 18.sp,
-                    ),
-                    SizedBox(width: 8.w),
-                    Text(
-                      "System Status",
-                      style: TextStyle(
-                        color: AppColors.primaryText,
-                        fontSize: 14.sp,
-                        fontWeight: FontWeight.w600,
-                        fontFamily: 'Poppins',
-                      ),
-                    ),
-                  ],
-                ),
-                SizedBox(height: 14.h),
-                const Divider(
-                  color: AppColors.divider,
-                  thickness: 0.5,
-                  height: 1,
-                ),
-                SizedBox(height: 14.h),
-                _buildInfoRow(
-                  label: "Update Interval",
-                  value: "Every 14 Days",
-                ),
-                SizedBox(height: 10.h),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      "API Server Status",
-                      style: TextStyle(
-                        color: AppColors.secondaryText,
-                        fontSize: 13.sp,
-                        fontFamily: 'Poppins',
-                      ),
-                    ),
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const PulsingDot(),
-                        SizedBox(width: 8.w),
+                        SizedBox(height: 4.h),
                         Text(
-                          "Online",
+                          "Report map or schedule inaccuracies",
                           style: TextStyle(
-                            color: AppColors.secondaryAccent,
-                            fontSize: 13.sp,
-                            fontWeight: FontWeight.w600,
+                            color: AppColors.secondaryText,
+                            fontSize: 11.sp,
+                            fontWeight: FontWeight.w400,
                             fontFamily: 'Poppins',
                           ),
                         ),
                       ],
                     ),
-                  ],
-                ),
-              ],
+                  ),
+                  Icon(
+                    CupertinoIcons.chevron_forward,
+                    color: AppColors.secondaryText,
+                    size: 14.sp,
+                  ),
+                ],
+              ),
             ),
           ),
-          SizedBox(height: 24.h),
+          const Divider(
+            color: AppColors.divider,
+            thickness: 1.0,
+            height: 1,
+          ),
 
-          // Force Update Button (styled as a rounded pill)
+          // Action 3: View on Play Store
           GestureDetector(
-            onTap: _isUpdating ? null : _triggerForceUpdate,
+            onTap: () async {
+              final url = Uri.parse("https://play.google.com/store");
+              try {
+                if (await canLaunchUrl(url)) {
+                  await launchUrl(url, mode: LaunchMode.externalApplication);
+                }
+              } catch (e) {
+                debugPrint("Error launching Play Store URL: $e");
+              }
+            },
+            behavior: HitTestBehavior.opaque,
             child: Container(
-              height: 52.h,
-              decoration: BoxDecoration(
-                color: _isUpdating
-                    ? AppColors.primaryAccent.withValues(alpha: 0.6)
-                    : AppColors.primaryAccent,
-                borderRadius: BorderRadius.circular(80.r),
-              ),
-              child: Center(
-                child: _isUpdating
-                    ? Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          RotationTransition(
-                            turns: _buttonAnimController,
-                            child: Icon(
-                              CupertinoIcons.refresh_thick,
-                              color: Colors.white,
-                              size: 18.sp,
-                            ),
+              color: Colors.transparent,
+              padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 18.h),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.storefront_outlined,
+                    color: AppColors.secondaryAccent,
+                    size: 20.sp,
+                  ),
+                  SizedBox(width: 14.w),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          "View on Play Store",
+                          style: TextStyle(
+                            color: AppColors.primaryText,
+                            fontSize: 14.sp,
+                            fontWeight: FontWeight.w600,
+                            fontFamily: 'Poppins',
                           ),
-                          SizedBox(width: 10.w),
-                          Text(
-                            "Updating Dataset...",
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 14.sp,
-                              fontWeight: FontWeight.w600,
-                              fontFamily: 'Poppins',
-                            ),
+                        ),
+                        SizedBox(height: 4.h),
+                        Text(
+                          "Rate the app or leave feedback",
+                          style: TextStyle(
+                            color: AppColors.secondaryText,
+                            fontSize: 11.sp,
+                            fontWeight: FontWeight.w400,
+                            fontFamily: 'Poppins',
                           ),
-                        ],
-                      )
-                    : Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            CupertinoIcons.refresh,
-                            color: Colors.white,
-                            size: 18.sp,
-                          ),
-                          SizedBox(width: 8.w),
-                          Text(
-                            "Force Update Stops",
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 14.sp,
-                              fontWeight: FontWeight.w600,
-                              fontFamily: 'Poppins',
-                            ),
-                          ),
-                        ],
-                      ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Icon(
+                    CupertinoIcons.chevron_forward,
+                    color: AppColors.secondaryText,
+                    size: 14.sp,
+                  ),
+                ],
               ),
             ),
+          ),
+          const Divider(
+            color: AppColors.divider,
+            thickness: 1.0,
+            height: 1,
+          ),
+
+          // Action 4: View Website
+          GestureDetector(
+            onTap: () async {
+              final url = Uri.parse("https://github.com");
+              try {
+                if (await canLaunchUrl(url)) {
+                  await launchUrl(url, mode: LaunchMode.externalApplication);
+                }
+              } catch (e) {
+                debugPrint("Error launching Website URL: $e");
+              }
+            },
+            behavior: HitTestBehavior.opaque,
+            child: Container(
+              color: Colors.transparent,
+              padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 18.h),
+              child: Row(
+                children: [
+                  Icon(
+                    CupertinoIcons.globe,
+                    color: AppColors.info,
+                    size: 20.sp,
+                  ),
+                  SizedBox(width: 14.w),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          "Official Website",
+                          style: TextStyle(
+                            color: AppColors.primaryText,
+                            fontSize: 14.sp,
+                            fontWeight: FontWeight.w600,
+                            fontFamily: 'Poppins',
+                          ),
+                        ),
+                        SizedBox(height: 4.h),
+                        Text(
+                          "Visit our official homepage",
+                          style: TextStyle(
+                            color: AppColors.secondaryText,
+                            fontSize: 11.sp,
+                            fontWeight: FontWeight.w400,
+                            fontFamily: 'Poppins',
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Icon(
+                    CupertinoIcons.chevron_forward,
+                    color: AppColors.secondaryText,
+                    size: 14.sp,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const Divider(
+            color: AppColors.divider,
+            thickness: 1.0,
+            height: 1,
+          ),
+
+          // Action 5: Legal Info
+          GestureDetector(
+            onTap: () async {
+              final url = Uri.parse("https://google.com");
+              try {
+                if (await canLaunchUrl(url)) {
+                  await launchUrl(url, mode: LaunchMode.externalApplication);
+                }
+              } catch (e) {
+                debugPrint("Error launching Legal URL: $e");
+              }
+            },
+            behavior: HitTestBehavior.opaque,
+            child: Container(
+              color: Colors.transparent,
+              padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 18.h),
+              child: Row(
+                children: [
+                  Icon(
+                    CupertinoIcons.doc_text,
+                    color: AppColors.tertiaryText,
+                    size: 20.sp,
+                  ),
+                  SizedBox(width: 14.w),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          "Legal Info",
+                          style: TextStyle(
+                            color: AppColors.primaryText,
+                            fontSize: 14.sp,
+                            fontWeight: FontWeight.w600,
+                            fontFamily: 'Poppins',
+                          ),
+                        ),
+                        SizedBox(height: 4.h),
+                        Text(
+                          "Terms, privacy and licenses",
+                          style: TextStyle(
+                            color: AppColors.secondaryText,
+                            fontSize: 11.sp,
+                            fontWeight: FontWeight.w400,
+                            fontFamily: 'Poppins',
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Icon(
+                    CupertinoIcons.chevron_forward,
+                    color: AppColors.secondaryText,
+                    size: 14.sp,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const Divider(
+            color: AppColors.divider,
+            thickness: 1.0,
+            height: 1,
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildInfoRow({
-    required String label,
-    required String value,
-    bool isHighlight = false,
-  }) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(
-          label,
-          style: TextStyle(
-            color: AppColors.secondaryText,
-            fontSize: 13.sp,
-            fontFamily: 'Poppins',
-          ),
-        ),
-        Text(
-          value,
-          style: TextStyle(
-            color: isHighlight ? AppColors.primaryText : AppColors.secondaryText,
-            fontSize: 13.sp,
-            fontWeight: isHighlight ? FontWeight.w600 : FontWeight.w500,
-            fontFamily: 'Poppins',
-          ),
-        ),
-      ],
     );
   }
 }

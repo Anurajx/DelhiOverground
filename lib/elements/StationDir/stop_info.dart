@@ -4,7 +4,6 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:metroapp/elements/ServicesDir/station_element.dart';
 import 'package:metroapp/elements/ServicesDir/new_schedule_service.dart';
-import 'package:metroapp/elements/ServicesDir/report_error_service.dart';
 import 'package:metroapp/elements/journey_planner.dart';
 import 'package:metroapp/main.dart';
 
@@ -64,8 +63,6 @@ class _StopInfoScreenState extends State<StopInfoScreen> {
                       stationCode: stationCode,
                       refreshTrigger: _refreshTrigger,
                     ),
-                    SizedBox(height: 15.h),
-                    _buildReportError(),
                     SizedBox(height: 15.h),
                     _buildCompanyFooter(),
                   ],
@@ -234,43 +231,6 @@ class _StopInfoScreenState extends State<StopInfoScreen> {
     );
   }
 
-  Widget _buildReportError() {
-    return Row(
-      children: [
-        Container(
-          height: 40.h,
-          width: 150.w,
-          decoration: BoxDecoration(
-            color: Colors.transparent,
-            borderRadius: BorderRadius.zero,
-            border: Border.all(color: AppColors.inputBorder, width: 1.5),
-          ),
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: () {
-              try {
-                sendToGoogleForm();
-              } catch (e) {
-                debugPrint("Error sending email: $e");
-              }
-            },
-            child: Align(
-              alignment: Alignment.center,
-              child: Text(
-                "Report Error",
-                style: TextStyle(
-                  color: AppColors.secondaryText,
-                  fontSize: 12.sp,
-                  fontFamily: 'Poppins',
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
 
   Widget _buildCompanyFooter() {
     return SizedBox(

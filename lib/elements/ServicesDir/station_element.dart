@@ -104,7 +104,7 @@ class StationNearby extends StatelessWidget {
       child: Row(
         children: [
           Icon(
-            CupertinoIcons.location,
+            Icons.location_on_outlined,
             color: AppColors.tertiaryText,
             size: 20.sp,
           ),

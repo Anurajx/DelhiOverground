@@ -261,7 +261,15 @@ class StopsManager {
         return "Never";
       }
       final date = DateTime.fromMillisecondsSinceEpoch(lastFetch);
-      return "${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}";
+      const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+      final monthStr = months[date.month - 1];
+      final dayStr = date.day.toString();
+      final yearStr = date.year.toString();
+      final isPm = date.hour >= 12;
+      final hour12 = date.hour % 12 == 0 ? 12 : date.hour % 12;
+      final minuteStr = date.minute.toString().padLeft(2, '0');
+      final periodStr = isPm ? "PM" : "AM";
+      return "$dayStr $monthStr $yearStr, $hour12:$minuteStr $periodStr";
     } catch (e) {
       return "Unknown";
     }

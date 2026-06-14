@@ -2,6 +2,8 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:metroapp/elements/ServicesDir/journey_planner_service.dart';
+import 'package:metroapp/elements/ServicesDir/stops_manager.dart';
+import 'package:metroapp/elements/StationDir/stop_info.dart';
 import 'package:metroapp/main.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -41,10 +43,13 @@ class JourneyDetailsScreen extends StatelessWidget {
                 physics: const AlwaysScrollableScrollPhysics(
                   parent: BouncingScrollPhysics(),
                 ),
-                padding: EdgeInsets.only(left: 14.w, right: 14.w, bottom: 30.h),
-                children: [
-                  _buildTimelineSection(),
-                ],
+                padding: EdgeInsets.only(
+                  left: 14.w,
+                  right: 14.w,
+                  top: 16.h,
+                  bottom: 30.h,
+                ),
+                children: [_buildTimelineSection()],
               ),
             ),
           ],
@@ -123,10 +128,7 @@ class JourneyDetailsScreen extends StatelessWidget {
                       height: 7.w,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        border: Border.all(
-                          color: Colors.white,
-                          width: 1.2.w,
-                        ),
+                        border: Border.all(color: Colors.white, width: 1.2.w),
                       ),
                     ),
                     SizedBox(width: 10.w),
@@ -167,10 +169,7 @@ class JourneyDetailsScreen extends StatelessWidget {
                       height: 7.w,
                       decoration: BoxDecoration(
                         shape: BoxShape.rectangle,
-                        border: Border.all(
-                          color: Colors.white,
-                          width: 1.2.w,
-                        ),
+                        border: Border.all(color: Colors.white, width: 1.2.w),
                       ),
                     ),
                     SizedBox(width: 10.w),
@@ -222,7 +221,11 @@ class JourneyDetailsScreen extends StatelessWidget {
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(CupertinoIcons.clock, color: AppColors.secondaryText, size: 12.sp),
+                  Icon(
+                    CupertinoIcons.clock,
+                    color: AppColors.secondaryText,
+                    size: 12.sp,
+                  ),
                   SizedBox(width: 4.w),
                   Text(
                     "Reach: ${route.reachBy}",
@@ -358,12 +361,7 @@ class JourneyDetailsScreen extends StatelessWidget {
         final colorStr = leg.color.replaceAll('#', '0xFF');
         final legColor = Color(int.tryParse(colorStr) ?? 0xFFF8CA35);
 
-        timelineItems.add(
-          TransitLegBoardingTile(
-            leg: leg,
-            legColor: legColor,
-          ),
-        );
+        timelineItems.add(TransitLegBoardingTile(leg: leg, legColor: legColor));
 
         timelineItems.add(
           TransitLegDepaboardingTile(
@@ -430,19 +428,7 @@ class JourneyDetailsScreen extends StatelessWidget {
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          "Journey Timeline",
-          style: TextStyle(
-            color: AppColors.secondaryText,
-            fontFamily: 'Poppins',
-            fontWeight: FontWeight.w600,
-            fontSize: 14.sp,
-          ),
-        ),
-        SizedBox(height: 16.h),
-        ...timelineItems,
-      ],
+      children: timelineItems,
     );
   }
 }
@@ -517,9 +503,14 @@ class WalkLegTimelineTile extends StatelessWidget {
                                 alignment: PlaceholderAlignment.middle,
                                 child: Container(
                                   margin: EdgeInsets.only(left: 8.w),
-                                  padding: EdgeInsets.symmetric(horizontal: 6.w, vertical: 2.h),
+                                  padding: EdgeInsets.symmetric(
+                                    horizontal: 6.w,
+                                    vertical: 2.h,
+                                  ),
                                   decoration: BoxDecoration(
-                                    color: AppColors.divider.withValues(alpha: 0.2),
+                                    color: AppColors.divider.withValues(
+                                      alpha: 0.2,
+                                    ),
                                     border: Border.all(
                                       color: AppColors.divider,
                                       width: 0.6,
@@ -556,15 +547,16 @@ class WalkLegTimelineTile extends StatelessWidget {
                         const TextSpan(text: "Walk from "),
                         TextSpan(
                           text: leg.stops.first.name,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w600,
-                          ),
+                          style: const TextStyle(fontWeight: FontWeight.w600),
                         ),
                         WidgetSpan(
                           alignment: PlaceholderAlignment.middle,
                           child: Container(
                             margin: EdgeInsets.symmetric(horizontal: 6.w),
-                            padding: EdgeInsets.symmetric(horizontal: 5.w, vertical: 1.5.h),
+                            padding: EdgeInsets.symmetric(
+                              horizontal: 5.w,
+                              vertical: 1.5.h,
+                            ),
                             decoration: BoxDecoration(
                               color: AppColors.divider.withValues(alpha: 0.2),
                               border: Border.all(
@@ -586,9 +578,7 @@ class WalkLegTimelineTile extends StatelessWidget {
                         ),
                         TextSpan(
                           text: leg.stops.last.name,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w600,
-                          ),
+                          style: const TextStyle(fontWeight: FontWeight.w600),
                         ),
                       ],
                     ),
@@ -619,7 +609,10 @@ class WalkLegTimelineTile extends StatelessWidget {
                       }
                     },
                     child: Container(
-                      padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 8.w,
+                        vertical: 4.h,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.transparent,
                         border: Border.all(
@@ -676,23 +669,60 @@ class TransitLegBoardingTile extends StatefulWidget {
 class _TransitLegBoardingTileState extends State<TransitLegBoardingTile> {
   bool _showStops = false;
 
+  dynamic _resolveStationDict() {
+    final stop = widget.leg.stops.first;
+    final stations = StopsManager.getStations();
+
+    // 1. Try to find by matching ID
+    dynamic matched = stations.firstWhere((s) {
+      final codes = s["StationCode"]?.toString().split(',') ?? [];
+      return codes.contains(stop.id.toString()) ||
+          (stop.code.isNotEmpty && codes.contains(stop.code));
+    }, orElse: () => null);
+
+    // 2. Try to find by matching name
+    if (matched == null) {
+      final cleanName = stop.name.trim().toLowerCase();
+      matched = stations.firstWhere((s) {
+        final sName = s["Name"]?.toString().trim().toLowerCase() ?? "";
+        return sName == cleanName;
+      }, orElse: () => null);
+    }
+
+    // 3. Fallback to constructing a valid station map
+    final sourceMap =
+        matched ??
+        {
+          "StationCode": stop.id.toString(),
+          "Name": stop.name,
+          "Hindi": stop.name,
+          "Line": "",
+          "Latitude": stop.lat.toString(),
+          "Longitude": stop.lon.toString(),
+        };
+
+    return {"Source": sourceMap};
+  }
+
   @override
   Widget build(BuildContext context) {
-    final intermediateStops = widget.leg.stops.length > 2
-        ? widget.leg.stops.sublist(1, widget.leg.stops.length - 1)
-        : <JourneyStop>[];
+    final intermediateStops =
+        widget.leg.stops.length > 2
+            ? widget.leg.stops.sublist(1, widget.leg.stops.length - 1)
+            : <JourneyStop>[];
 
     final hasStops = intermediateStops.isNotEmpty;
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTap: hasStops
-          ? () {
-              setState(() {
-                _showStops = !_showStops;
-              });
-            }
-          : null,
+      onTap:
+          hasStops
+              ? () {
+                setState(() {
+                  _showStops = !_showStops;
+                });
+              }
+              : null,
       child: IntrinsicHeight(
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -748,7 +778,10 @@ class _TransitLegBoardingTileState extends State<TransitLegBoardingTile> {
                           clipBehavior: Clip.antiAlias,
                           decoration: BoxDecoration(
                             color: Colors.black,
-                            border: Border.all(color: AppColors.divider, width: 0.8),
+                            border: Border.all(
+                              color: AppColors.divider,
+                              width: 0.8,
+                            ),
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
@@ -766,7 +799,9 @@ class _TransitLegBoardingTileState extends State<TransitLegBoardingTile> {
                               ),
                               SizedBox(width: 4.w),
                               Text(
-                                widget.leg.routes.isNotEmpty ? widget.leg.routes.first : 'Transit',
+                                widget.leg.routes.isNotEmpty
+                                    ? widget.leg.routes.first
+                                    : 'Transit',
                                 style: TextStyle(
                                   color: Colors.white,
                                   fontFamily: 'Poppins',
@@ -798,7 +833,9 @@ class _TransitLegBoardingTileState extends State<TransitLegBoardingTile> {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(
-                            _showStops ? CupertinoIcons.chevron_up : CupertinoIcons.chevron_down,
+                            _showStops
+                                ? CupertinoIcons.chevron_up
+                                : CupertinoIcons.chevron_down,
                             color: AppColors.primaryAccent,
                             size: 14.sp,
                           ),
@@ -815,57 +852,103 @@ class _TransitLegBoardingTileState extends State<TransitLegBoardingTile> {
                         ],
                       ),
                       AnimatedCrossFade(
-                        firstChild: const SizedBox(width: double.infinity, height: 0),
+                        firstChild: const SizedBox(
+                          width: double.infinity,
+                          height: 0,
+                        ),
                         secondChild: Container(
                           margin: EdgeInsets.only(top: 8.h),
                           width: double.infinity,
                           decoration: BoxDecoration(
                             color: Colors.black,
-                            border: Border.all(color: AppColors.divider, width: 0.5),
+                            border: Border.all(
+                              color: AppColors.divider,
+                              width: 0.5,
+                            ),
                           ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
-                            children: intermediateStops.map((stop) {
-                              return Container(
-                                padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 8.h),
-                                decoration: const BoxDecoration(
-                                  border: Border(
-                                    bottom: BorderSide(color: AppColors.divider, width: 0.3),
-                                  ),
-                                ),
-                                child: Row(
-                                  children: [
-                                    Container(
-                                      width: 4.w,
-                                      height: 4.w,
-                                      decoration: const BoxDecoration(
-                                        color: AppColors.tertiaryText,
-                                        shape: BoxShape.circle,
-                                      ),
+                            children:
+                                intermediateStops.map((stop) {
+                                  return Container(
+                                    padding: EdgeInsets.symmetric(
+                                      horizontal: 10.w,
+                                      vertical: 8.h,
                                     ),
-                                    SizedBox(width: 8.w),
-                                    Expanded(
-                                      child: Text(
-                                        stop.name,
-                                        style: TextStyle(
-                                          color: AppColors.secondaryText,
-                                          fontFamily: 'Poppins',
-                                          fontSize: 12.sp,
+                                    decoration: const BoxDecoration(
+                                      border: Border(
+                                        bottom: BorderSide(
+                                          color: AppColors.divider,
+                                          width: 0.3,
                                         ),
                                       ),
                                     ),
-                                  ],
-                                ),
-                              );
-                            }).toList(),
+                                    child: Row(
+                                      children: [
+                                        Container(
+                                          width: 4.w,
+                                          height: 4.w,
+                                          decoration: const BoxDecoration(
+                                            color: AppColors.tertiaryText,
+                                            shape: BoxShape.circle,
+                                          ),
+                                        ),
+                                        SizedBox(width: 8.w),
+                                        Expanded(
+                                          child: Text(
+                                            stop.name,
+                                            style: TextStyle(
+                                              color: AppColors.secondaryText,
+                                              fontFamily: 'Poppins',
+                                              fontSize: 12.sp,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                }).toList(),
                           ),
                         ),
-                        crossFadeState: _showStops ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+                        crossFadeState:
+                            _showStops
+                                ? CrossFadeState.showSecond
+                                : CrossFadeState.showFirst,
                         duration: const Duration(milliseconds: 200),
                         sizeCurve: Curves.easeInOut,
                       ),
                     ],
                   ],
+                ),
+              ),
+            ),
+            Align(
+              alignment: Alignment.topCenter,
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder:
+                          (context) => StopInfoScreen(
+                            stationDict: _resolveStationDict(),
+                          ),
+                    ),
+                  );
+                },
+                child: Padding(
+                  padding: EdgeInsets.only(
+                    top: 2.h,
+                    left: 10.w,
+                    right: 6.w,
+                    bottom: 10.h,
+                  ),
+                  child: Icon(
+                    CupertinoIcons.info_circle_fill,
+                    color: AppColors.secondaryText,
+                    size: 20.sp,
+                  ),
                 ),
               ),
             ),
@@ -972,10 +1055,11 @@ class LinePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..strokeWidth = 2.w
-      ..style = PaintingStyle.stroke;
+    final paint =
+        Paint()
+          ..color = color
+          ..strokeWidth = 2.w
+          ..style = PaintingStyle.stroke;
 
     final double startY = 0;
     final double endY = size.height;

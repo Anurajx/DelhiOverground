@@ -110,15 +110,29 @@ List<ScheduleInfo> parseRealtimeHtml(String html) {
     final terminal = terminalMatch?.group(1)?.trim() ?? "Terminal";
 
     // 3. Extract all ETAs
-    final etaMatches = RegExp(
-      r'class="eta"[\s\S]*?<span>\s*:?(\d+)\s*<\/span>',
+    final etaDivMatches = RegExp(
+      r'<div\s+class="eta">([\s\S]*?)<\/div>',
       caseSensitive: false,
     ).allMatches(colcardHtml);
 
-    for (final etaMatch in etaMatches) {
-      final etaStr = etaMatch.group(1);
-      if (etaStr != null) {
-        final minutesLeft = int.tryParse(etaStr) ?? 0;
+    for (final etaDivMatch in etaDivMatches) {
+      final etaInnerHtml = etaDivMatch.group(1) ?? "";
+      // Strip comments to avoid matching commented-out spans
+      final cleanEtaHtml = etaInnerHtml.replaceAll(RegExp(r'<!--[\s\S]*?-->'), '');
+
+      final spanMatch = RegExp(
+        r'<span[^>]*>\s*:?(\w+)\s*<\/span>',
+        caseSensitive: false,
+      ).firstMatch(cleanEtaHtml);
+
+      if (spanMatch != null) {
+        final val = spanMatch.group(1)?.trim() ?? "";
+        final int minutesLeft;
+        if (val.toLowerCase() == "coming") {
+          minutesLeft = 0;
+        } else {
+          minutesLeft = int.tryParse(val) ?? 0;
+        }
 
         // Calculate absolute time
         final arrivalTime = now.add(Duration(minutes: minutesLeft));
@@ -706,75 +720,28 @@ class _ScheduleWidgetState extends State<ScheduleWidget> {
     }
 
     if (schedules.isEmpty) {
-      final themeColor = isRealtime ? AppColors.primaryAccent : AppColors.warning;
-
-
+      final String message = isRealtime ? "no bus approaching for this direction" : "no buses scheduled";
       return Container(
-        width: double.infinity,
-        margin: EdgeInsets.symmetric(vertical: 8.h),
-        padding: EdgeInsets.symmetric(horizontal: 24.w, vertical: 32.h),
-        decoration: const BoxDecoration(
-          color: Colors.black,
-        ),
+        padding: EdgeInsets.symmetric(vertical: 40.h, horizontal: 24.w),
+        alignment: Alignment.center,
         child: Column(
           mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Container(
-              padding: EdgeInsets.all(12.h),
-              decoration: BoxDecoration(
-                color: themeColor.withValues(alpha: 0.08),
-                border: Border.all(
-                  color: themeColor.withValues(alpha: 0.25),
-                  width: 0.8,
-                ),
-              ),
-              child: Icon(
-                Icons.directions_bus_outlined,
-                color: themeColor,
-                size: 26.sp,
-              ),
-            ),
-            SizedBox(height: 20.h),
-            Text(
-              isRealtime ? "NO BUS APPROACHING" : "NO BUSES SCHEDULED",
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w700,
-                fontSize: 13.sp,
-                fontFamily: 'Poppins',
-                letterSpacing: 1.5,
-              ),
+            Icon(
+              CupertinoIcons.exclamationmark_circle_fill,
+              color: AppColors.destructive,
+              size: 28.sp,
             ),
             SizedBox(height: 10.h),
-            RichText(
+            Text(
+              message,
               textAlign: TextAlign.center,
-              text: TextSpan(
-                style: TextStyle(
-                  color: AppColors.secondaryText,
-                  fontWeight: FontWeight.w400,
-                  fontSize: 12.sp,
-                  fontFamily: 'Poppins',
-                  height: 1.5,
-                ),
-                children: [
-                  TextSpan(
-                    text: isRealtime
-                        ? "No buses are approaching "
-                        : "No upcoming departures scheduled for ",
-                  ),
-                  TextSpan(
-                    text: stationName,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  TextSpan(
-                    text: isRealtime
-                        ? " right now. Pull down to refresh."
-                        : " today.",
-                  ),
-                ],
+              style: TextStyle(
+                color: AppColors.destructive,
+                fontSize: 16.sp,
+                fontWeight: FontWeight.w500,
+                fontFamily: 'Poppins',
               ),
             ),
           ],
@@ -875,7 +842,7 @@ class _ScheduleWidgetState extends State<ScheduleWidget> {
                               color: isSelected ? AppColors.primaryAccent : AppColors.secondaryText,
                               width: 1.5,
                             ),
-                            color: isSelected ? AppColors.primaryAccent.withValues(alpha: 0.1) : Colors.transparent,
+                            color: isSelected ? AppColors.primaryAccent : Colors.transparent,
                             borderRadius: BorderRadius.zero,
                           ),
                           child: Center(
@@ -884,7 +851,7 @@ class _ScheduleWidgetState extends State<ScheduleWidget> {
                               child: isSelected
                                   ? Icon(
                                       Icons.check,
-                                      color: AppColors.primaryAccent,
+                                      color: Colors.white,
                                       size: 11.sp,
                                     )
                                   : const SizedBox.shrink(),
