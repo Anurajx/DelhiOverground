@@ -273,29 +273,94 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
   }
 
   Future<void> _selectTime() async {
-    final TimeOfDay? picked = await showTimePicker(
+    final now = DateTime.now();
+    DateTime tempDateTime = DateTime(
+      now.year,
+      now.month,
+      now.day,
+      _selectedTime.hour,
+      _selectedTime.minute,
+    );
+
+    await showCupertinoModalPopup<void>(
       context: context,
-      initialTime: _selectedTime,
-      builder: (BuildContext context, Widget? child) {
-        return Theme(
-          data: ThemeData.dark().copyWith(
-            colorScheme: const ColorScheme.dark(
-              primary: AppColors.primaryAccent,
-              onPrimary: Colors.white,
-              surface: AppColors.background,
-              onSurface: AppColors.primaryText,
+      builder: (BuildContext context) {
+        return Material(
+          color: AppColors.background,
+          child: SizedBox(
+            height: 280.h,
+            child: SafeArea(
+              top: false,
+              child: Column(
+                children: [
+                  Container(
+                    color: AppColors.surface,
+                    height: 44.h,
+                    padding: EdgeInsets.symmetric(horizontal: 16.w),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        GestureDetector(
+                          onTap: () => Navigator.pop(context),
+                          child: Text(
+                            'Cancel',
+                            style: TextStyle(
+                              color: AppColors.secondaryText,
+                              fontSize: 16.sp,
+                              fontWeight: FontWeight.normal,
+                            ),
+                          ),
+                        ),
+                        GestureDetector(
+                          onTap: () {
+                            setState(() {
+                              _selectedTime = TimeOfDay(
+                                hour: tempDateTime.hour,
+                                minute: tempDateTime.minute,
+                              );
+                            });
+                            _checkAndAutoSearch();
+                            Navigator.pop(context);
+                          },
+                          child: Text(
+                            'Done',
+                            style: TextStyle(
+                              color: AppColors.primaryAccent,
+                              fontSize: 16.sp,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Expanded(
+                    child: CupertinoTheme(
+                      data: const CupertinoThemeData(
+                        brightness: Brightness.dark,
+                        textTheme: CupertinoTextThemeData(
+                          dateTimePickerTextStyle: TextStyle(
+                            color: AppColors.primaryText,
+                            fontSize: 20,
+                          ),
+                        ),
+                      ),
+                      child: CupertinoDatePicker(
+                        mode: CupertinoDatePickerMode.time,
+                        initialDateTime: tempDateTime,
+                        onDateTimeChanged: (DateTime newDateTime) {
+                          tempDateTime = newDateTime;
+                        },
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
-          child: child!,
         );
       },
     );
-    if (picked != null) {
-      setState(() {
-        _selectedTime = picked;
-      });
-      _checkAndAutoSearch();
-    }
   }
 
   String _formatTimeOfDay(TimeOfDay tod) {

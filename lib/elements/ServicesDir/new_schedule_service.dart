@@ -149,11 +149,37 @@ List<ScheduleInfo> parseRealtimeHtml(String html) {
           relativeText = "In $minutesLeft mins";
         }
 
+        // Extract bus color from image tag
+        final imgMatch = RegExp(
+          r'src="[^"]*?/images/([^"]+)_bus\.png"',
+          caseSensitive: false,
+        ).firstMatch(etaInnerHtml);
+        final colorName = imgMatch?.group(1)?.toLowerCase() ?? "";
+        
+        Color parsedColor;
+        switch (colorName) {
+          case 'red':
+            parsedColor = const Color(0xFFEF5350);
+            break;
+          case 'green':
+            parsedColor = const Color(0xFF4CAF50);
+            break;
+          case 'orange':
+            parsedColor = const Color(0xFFFF9800);
+            break;
+          case 'blue':
+          case 'light_blue':
+            parsedColor = const Color(0xFF00B0FF);
+            break;
+          default:
+            parsedColor = AppColors.primaryAccent;
+        }
+
         results.add(
           ScheduleInfo(
             destination: terminal,
             lineId: "Route $routeName",
-            lineColor: AppColors.primaryAccent,
+            lineColor: parsedColor,
             frequencyText: frequencyText,
             minutesLeft: minutesLeft,
             relativeText: relativeText,
@@ -526,30 +552,76 @@ class _ScheduleWidgetState extends State<ScheduleWidget> {
           Stack(
             children: [
               Container(
-                padding: const EdgeInsets.fromLTRB(10.0, 10.0, 10.0, 10.0),
+                padding: EdgeInsets.zero,
                 decoration: const BoxDecoration(color: Colors.transparent),
                 width: double.infinity,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(
-                      schedule.lineId,
-                      style: TextStyle(
-                        color: AppColors.primaryText,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 14.sp,
-                        fontFamily: 'Poppins',
+                    Padding(
+                      padding: const EdgeInsets.only(left: 10.0),
+                      child: Container(
+                        clipBehavior: Clip.antiAlias,
+                        decoration: const BoxDecoration(
+                          color: Colors.black,
+                          border: Border(
+                            left: BorderSide(
+                              color: AppColors.divider,
+                              width: 0.8,
+                            ),
+                            bottom: BorderSide(
+                              color: AppColors.divider,
+                              width: 0.8,
+                            ),
+                            right: BorderSide(
+                              color: AppColors.divider,
+                              width: 0.8,
+                            ),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              width: 6.w,
+                              height: 24.h,
+                              color: schedule.lineColor,
+                            ),
+                            SizedBox(width: 8.w),
+                            Icon(
+                              CupertinoIcons.bus,
+                              color: Colors.white,
+                              size: 13.sp,
+                            ),
+                            SizedBox(width: 6.w),
+                            Text(
+                              schedule.routeLongName.isNotEmpty
+                                  ? schedule.routeLongName
+                                  : schedule.lineId,
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontFamily: 'Poppins',
+                                fontSize: 12.sp,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            SizedBox(width: 8.w),
+                          ],
+                        ),
                       ),
                     ),
-                    const SizedBox(height: 4.0),
-                    _buildDestinationText(
-                      "To ${schedule.destination}",
-                      style: TextStyle(
-                        color: AppColors.secondaryText,
-                        fontWeight: FontWeight.w400,
-                        fontSize: 12.sp,
-                        fontFamily: 'Poppins',
+                    const SizedBox(height: 10.0),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(10.0, 0, 10.0, 10.0),
+                      child: _buildDestinationText(
+                        "To ${schedule.destination}",
+                        style: TextStyle(
+                          color: AppColors.secondaryText,
+                          fontWeight: FontWeight.w400,
+                          fontSize: 12.sp,
+                          fontFamily: 'Poppins',
+                        ),
                       ),
                     ),
                   ],
@@ -571,18 +643,51 @@ class _ScheduleWidgetState extends State<ScheduleWidget> {
                 ),
               ),
             ),
-            padding: const EdgeInsets.symmetric(
-              horizontal: 10.0,
-              vertical: 4.0,
-            ),
+            padding: EdgeInsets.zero,
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              mainAxisAlignment: MainAxisAlignment.end,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 Container(
-                  constraints: const BoxConstraints(minHeight: 30),
+                  constraints: const BoxConstraints(minHeight: 32),
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 8.0,
-                    vertical: 2.0,
+                    horizontal: 10.0,
+                    vertical: 4.0,
+                  ),
+                  decoration: const BoxDecoration(
+                    color: Colors.black,
+                    border: Border(
+                      top: BorderSide(
+                        color: AppColors.divider,
+                        width: 0.8,
+                      ),
+                      left: BorderSide(
+                        color: AppColors.divider,
+                        width: 0.8,
+                      ),
+                      bottom: BorderSide(
+                        color: AppColors.divider,
+                        width: 0.8,
+                      ),
+                    ),
+                  ),
+                  child: Center(
+                    child: Text(
+                      schedule.frequencyText,
+                      style: TextStyle(
+                        color: AppColors.secondaryText,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 12.sp,
+                        fontFamily: 'Poppins',
+                      ),
+                    ),
+                  ),
+                ),
+                Container(
+                  constraints: const BoxConstraints(minHeight: 32),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10.0,
+                    vertical: 4.0,
                   ),
                   decoration: BoxDecoration(
                     color:
@@ -606,15 +711,6 @@ class _ScheduleWidgetState extends State<ScheduleWidget> {
                     ),
                   ),
                 ),
-                Text(
-                  schedule.frequencyText,
-                  style: TextStyle(
-                    color: AppColors.secondaryText,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 15.sp,
-                    fontFamily: 'Poppins',
-                  ),
-                ),
               ],
             ),
           ),
@@ -626,92 +722,26 @@ class _ScheduleWidgetState extends State<ScheduleWidget> {
   Widget _buildScheduleList() {
     if (hasError) {
       return Container(
-        width: double.infinity,
-        margin: EdgeInsets.symmetric(vertical: 8.h),
-        padding: EdgeInsets.symmetric(horizontal: 24.w, vertical: 32.h),
-        decoration: BoxDecoration(
-          color: Colors.black,
-          border: Border.all(
-            color: AppColors.destructive.withValues(alpha: 0.2),
-            width: 0.8,
-          ),
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              AppColors.destructive.withValues(alpha: 0.08),
-              Colors.transparent,
-            ],
-            stops: const [0.0, 1.0],
-          ),
-        ),
+        padding: EdgeInsets.symmetric(vertical: 40.h, horizontal: 24.w),
+        alignment: Alignment.center,
         child: Column(
           mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Container(
-              padding: EdgeInsets.all(12.h),
-              decoration: BoxDecoration(
-                color: AppColors.destructive.withValues(alpha: 0.08),
-                border: Border.all(
-                  color: AppColors.destructive.withValues(alpha: 0.25),
-                  width: 0.8,
-                ),
-              ),
-              child: Icon(
-                errorMessage.toLowerCase().contains("network") ||
-                        errorMessage.toLowerCase().contains("connection") ||
-                        errorMessage.toLowerCase().contains("socket")
-                    ? Icons.wifi_off_rounded
-                    : Icons.error_outline_rounded,
-                color: AppColors.destructive,
-                size: 26.sp,
-              ),
-            ),
-            SizedBox(height: 20.h),
-            Text(
-              "ERROR OCCURRED",
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w700,
-                fontSize: 13.sp,
-                fontFamily: 'Poppins',
-                letterSpacing: 1.5,
-              ),
+            Icon(
+              CupertinoIcons.exclamationmark_circle_fill,
+              color: AppColors.destructive,
+              size: 28.sp,
             ),
             SizedBox(height: 10.h),
             Text(
-              errorMessage,
+              "please check your internet connection and try again",
               textAlign: TextAlign.center,
               style: TextStyle(
-                color: AppColors.secondaryText,
-                fontWeight: FontWeight.w400,
-                fontSize: 12.sp,
+                color: AppColors.destructive,
+                fontSize: 16.sp,
+                fontWeight: FontWeight.w500,
                 fontFamily: 'Poppins',
-                height: 1.5,
-              ),
-            ),
-            SizedBox(height: 20.h),
-            GestureDetector(
-              onTap: _loadData,
-              child: Container(
-                padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 10.h),
-                decoration: BoxDecoration(
-                  color: Colors.transparent,
-                  border: Border.all(
-                    color: AppColors.destructive.withValues(alpha: 0.6),
-                    width: 1.2,
-                  ),
-                ),
-                child: Text(
-                  "RETRY CONNECTION",
-                  style: TextStyle(
-                    color: AppColors.destructive,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 11.sp,
-                    fontFamily: 'Poppins',
-                    letterSpacing: 1.0,
-                  ),
-                ),
               ),
             ),
           ],
@@ -720,7 +750,7 @@ class _ScheduleWidgetState extends State<ScheduleWidget> {
     }
 
     if (schedules.isEmpty) {
-      final String message = isRealtime ? "no bus approaching for this direction" : "no buses scheduled";
+      final String message = isRealtime ? "no upcoming bus for this direction at stop" : "no buses scheduled";
       return Container(
         padding: EdgeInsets.symmetric(vertical: 40.h, horizontal: 24.w),
         alignment: Alignment.center,

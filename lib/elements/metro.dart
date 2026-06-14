@@ -283,7 +283,6 @@ class _HomeScreenState extends State<HomeScreen> {
                           fontSize: 16.sp,
                           fontWeight: FontWeight.w500,
                           fontFamily: 'Poppins',
-                          letterSpacing: 1.0,
                         ),
                       ),
                       GestureDetector(
@@ -374,7 +373,6 @@ class _HomeScreenState extends State<HomeScreen> {
                           fontSize: 16.sp,
                           fontWeight: FontWeight.w500,
                           fontFamily: 'Poppins',
-                          letterSpacing: 1.0,
                         ),
                       ),
                       GestureDetector(
@@ -467,7 +465,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     behavior: HitTestBehavior.opaque,
                     onTap: () async {
                       final whatsappUrl = Uri.parse(
-                        'https://wa.me/+911123456789?text=Hi',
+                        'https://wa.me/+918744073223?text=Hi',
                       );
                       await launchUrl(whatsappUrl);
                     },
@@ -1232,6 +1230,19 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> with SingleTi
             color: AppColors.divider,
             thickness: 1.0,
             height: 1,
+          ),
+          SizedBox(height: 16.h),
+          Center(
+            child: Text(
+              "Version 1.0.0 (1)",
+              style: TextStyle(
+                color: AppColors.tertiaryText,
+                fontSize: 11.sp,
+                fontWeight: FontWeight.w400,
+                fontFamily: 'Poppins',
+                letterSpacing: 0.5,
+              ),
+            ),
           ),
         ],
       ),
