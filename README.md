@@ -1,6 +1,6 @@
-# An metro app for Delhi NCR
+# An Public Bus app for Delhi NCR
 
-also known as Delhi underground it offers clean and intuitive interface for users to find routes and information about stations in addition to map of network and ticket redirection
+also known as Delhi Overground it offers clean and intuitive interface for users to find routes and information about stations through DTC DIMTS in addition to map of network and ticket redirection
 
 ## How to use
 
