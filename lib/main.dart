@@ -6,6 +6,7 @@ import 'package:skeletonizer/skeletonizer.dart';
 import 'package:metroapp/elements/ServicesDir/stops_manager.dart';
 import 'elements/metro.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:posthog_flutter/posthog_flutter.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await StopsManager.init();
@@ -43,6 +44,9 @@ class MyApp extends StatelessWidget {
       builder: (context, child) {
         // had to use builder because the mediaquery was resulting to bugging of top status bar
         return MaterialApp(
+          navigatorObservers: [
+            PosthogObserver(),
+          ],
           title: 'DTC Bus Service',
           debugShowCheckedModeBanner: false,
           theme: ThemeData(
