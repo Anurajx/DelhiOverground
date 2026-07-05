@@ -10,13 +10,11 @@ import 'package:animated_text_kit/animated_text_kit.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import './ServicesDir/station_element.dart';
-import 'search.dart';
 import 'StationDir/station_search.dart';
 import 'ServicesDir/data_provider.dart';
 import 'package:provider/provider.dart';
 import 'journey_planner.dart';
 import 'package:metroapp/elements/ServicesDir/stops_manager.dart';
-import 'package:metroapp/elements/ServicesDir/report_error_service.dart';
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -715,25 +713,14 @@ class SettingsBottomSheet extends StatefulWidget {
   State<SettingsBottomSheet> createState() => _SettingsBottomSheetState();
 }
 
-class _SettingsBottomSheetState extends State<SettingsBottomSheet> with SingleTickerProviderStateMixin {
+class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
   bool _isUpdating = false;
   String _lastFetchTime = "Loading...";
-  late AnimationController _buttonAnimController;
 
   @override
   void initState() {
     super.initState();
     _loadLastFetchTime();
-    _buttonAnimController = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 1),
-    );
-  }
-
-  @override
-  void dispose() {
-    _buttonAnimController.dispose();
-    super.dispose();
   }
 
   Future<void> _loadLastFetchTime() async {
@@ -750,12 +737,10 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> with SingleTi
     setState(() {
       _isUpdating = true;
     });
-    _buttonAnimController.repeat();
 
     await StopsManager.forceRefresh();
 
     if (mounted) {
-      _buttonAnimController.stop();
       setState(() {
         _isUpdating = false;
       });
@@ -826,97 +811,22 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> with SingleTi
             height: 1,
           ),
 
-          // Search Bus Route
-          Container(
-            padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 18.h),
-            child: Row(
-              children: [
-                Icon(
-                  CupertinoIcons.bus,
-                  color: AppColors.primaryAccent,
-                  size: 20.sp,
-                ),
-                SizedBox(width: 14.w),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        "Search Bus Route",
-                        style: TextStyle(
-                          color: AppColors.primaryText,
-                          fontSize: 14.sp,
-                          fontWeight: FontWeight.w600,
-                          fontFamily: 'Poppins',
-                        ),
-                      ),
-                      SizedBox(height: 4.h),
-                      Text(
-                        "Search route information and stops",
-                        style: TextStyle(
-                          color: AppColors.secondaryText,
-                          fontSize: 11.sp,
-                          fontWeight: FontWeight.w400,
-                          fontFamily: 'Poppins',
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                GestureDetector(
-                  onTap: () {
-                    Navigator.pop(context);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const SearchScreen(),
-                      ),
-                    );
-                  },
-                  behavior: HitTestBehavior.opaque,
-                  child: Container(
-                    padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 8.h),
-                    decoration: const BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.zero,
-                    ),
-                    child: Text(
-                      "Search",
-                      style: TextStyle(
-                        color: Colors.black,
-                        fontFamily: 'Poppins',
-                        fontSize: 12.sp,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const Divider(
-            color: AppColors.divider,
-            thickness: 1.0,
-            height: 1,
-          ),
-
           // Action 1: Update Stop Database
           Container(
             padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 18.h),
             child: Row(
               children: [
                 _isUpdating
-                    ? RotationTransition(
-                        turns: _buttonAnimController,
-                        child: Icon(
-                          CupertinoIcons.refresh_thick,
-                          color: AppColors.primaryAccent,
-                          size: 20.sp,
+                    ? SizedBox(
+                        width: 20.sp,
+                        height: 20.sp,
+                        child: const CupertinoActivityIndicator(
+                          color: Colors.white,
                         ),
                       )
                     : Icon(
                         CupertinoIcons.refresh,
-                        color: AppColors.primaryAccent,
+                        color: Colors.white,
                         size: 20.sp,
                       ),
                 SizedBox(width: 14.w),
@@ -975,68 +885,6 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> with SingleTi
             height: 1,
           ),
 
-          // Action 2: Report Error
-          GestureDetector(
-            onTap: () {
-              try {
-                sendToGoogleForm();
-              } catch (e) {
-                debugPrint("Error sending form: $e");
-              }
-            },
-            behavior: HitTestBehavior.opaque,
-            child: Container(
-              color: Colors.transparent,
-              padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 18.h),
-              child: Row(
-                children: [
-                  Icon(
-                    CupertinoIcons.mail,
-                    color: AppColors.destructive,
-                    size: 20.sp,
-                  ),
-                  SizedBox(width: 14.w),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          "Report Error",
-                          style: TextStyle(
-                            color: AppColors.primaryText,
-                            fontSize: 14.sp,
-                            fontWeight: FontWeight.w600,
-                            fontFamily: 'Poppins',
-                          ),
-                        ),
-                        SizedBox(height: 4.h),
-                        Text(
-                          "Report map or schedule inaccuracies",
-                          style: TextStyle(
-                            color: AppColors.secondaryText,
-                            fontSize: 11.sp,
-                            fontWeight: FontWeight.w400,
-                            fontFamily: 'Poppins',
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Icon(
-                    CupertinoIcons.chevron_forward,
-                    color: AppColors.secondaryText,
-                    size: 14.sp,
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const Divider(
-            color: AppColors.divider,
-            thickness: 1.0,
-            height: 1,
-          ),
-
           // Action 3: View on Play Store
           GestureDetector(
             onTap: () async {
@@ -1057,7 +905,7 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> with SingleTi
                 children: [
                   Icon(
                     Icons.storefront_outlined,
-                    color: AppColors.secondaryAccent,
+                    color: Colors.white,
                     size: 20.sp,
                   ),
                   SizedBox(width: 14.w),
@@ -1122,7 +970,7 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> with SingleTi
                 children: [
                   Icon(
                     CupertinoIcons.globe,
-                    color: AppColors.info,
+                    color: Colors.white,
                     size: 20.sp,
                   ),
                   SizedBox(width: 14.w),
@@ -1187,7 +1035,7 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> with SingleTi
                 children: [
                   Icon(
                     CupertinoIcons.doc_text,
-                    color: AppColors.tertiaryText,
+                    color: Colors.white,
                     size: 20.sp,
                   ),
                   SizedBox(width: 14.w),
