@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -49,6 +52,13 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
   bool _isFocusingSource = false;
   bool _isFocusingDestination = false;
 
+  // Nominatim state variables
+  List<dynamic> _nominatimSuggestions = [];
+  bool _isNominatimLoading = false;
+  Timer? _debounceTimer;
+  http.Client? _activeClient;
+  int _currentRequestId = 0;
+
   @override
   void initState() {
     super.initState();
@@ -61,12 +71,18 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
       setState(() {
         _isFocusingSource = _srcFocusNode.hasFocus;
       });
+      if (_srcFocusNode.hasFocus) {
+        _onSearchChanged(_srcController.text);
+      }
     });
 
     _dstFocusNode.addListener(() {
       setState(() {
         _isFocusingDestination = _dstFocusNode.hasFocus;
       });
+      if (_dstFocusNode.hasFocus) {
+        _onSearchChanged(_dstController.text);
+      }
     });
 
     _loadStops();
@@ -84,11 +100,83 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
 
   @override
   void dispose() {
+    _debounceTimer?.cancel();
+    _activeClient?.close();
     _srcController.dispose();
     _dstController.dispose();
     _srcFocusNode.dispose();
     _dstFocusNode.dispose();
     super.dispose();
+  }
+
+  void _onSearchChanged(String val) {
+    _debounceTimer?.cancel();
+
+    if (val.trim().isEmpty) {
+      _activeClient?.close();
+      setState(() {
+        _nominatimSuggestions = [];
+        _isNominatimLoading = false;
+      });
+      return;
+    }
+
+    if (val.trim().length < 3) {
+      _activeClient?.close();
+      setState(() {
+        _nominatimSuggestions = [];
+        _isNominatimLoading = false;
+      });
+      return;
+    }
+
+    _debounceTimer = Timer(const Duration(milliseconds: 400), () {
+      _fetchNominatimSuggestions(val.trim());
+    });
+  }
+
+  Future<void> _fetchNominatimSuggestions(String text) async {
+    // Cancel any pending request
+    _activeClient?.close();
+    _activeClient = http.Client();
+    final requestId = ++_currentRequestId;
+
+    setState(() {
+      _isNominatimLoading = true;
+    });
+
+    try {
+      final encodedText = Uri.encodeComponent(text);
+      final url = 'https://nominatim.openstreetmap.org/search?q=$encodedText&format=jsonv2&addressdetails=1&viewbox=76.70,29.15,77.85,28.05&bounded=1&limit=3';
+      
+      final response = await _activeClient!.get(
+        Uri.parse(url),
+        headers: {
+          'User-Agent': 'DelhiOvergroundApp/1.0',
+        },
+      );
+      
+      if (requestId != _currentRequestId) return; // Ignore outdated responses
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = jsonDecode(response.body);
+        
+        setState(() {
+          _nominatimSuggestions = data.take(3).toList();
+          _isNominatimLoading = false;
+        });
+      } else {
+        setState(() {
+          _isNominatimLoading = false;
+        });
+      }
+    } catch (e) {
+      if (requestId == _currentRequestId) {
+        setState(() {
+          _isNominatimLoading = false;
+        });
+      }
+    }
   }
 
   void _applyInitialParams(Map<String, String> params) {
@@ -369,25 +457,37 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
     return '$hr:$min:00';
   }
 
+  Future<Map<String, double>?> _geocodeAddress(String address) async {
+    try {
+      final encodedText = Uri.encodeComponent(address);
+      final url = 'https://nominatim.openstreetmap.org/search?q=$encodedText&format=jsonv2&addressdetails=1&viewbox=76.70,29.15,77.85,28.05&bounded=1&limit=3';
+      final response = await http.get(
+        Uri.parse(url),
+        headers: {
+          'User-Agent': 'DelhiOvergroundApp/1.0',
+        },
+      ).timeout(const Duration(seconds: 15));
+      if (response.statusCode == 200) {
+        final List<dynamic> data = jsonDecode(response.body);
+        if (data.isNotEmpty) {
+          final first = data[0];
+          final lat = double.tryParse(first['lat']?.toString() ?? '');
+          final lon = double.tryParse(first['lon']?.toString() ?? '');
+          if (lat != null && lon != null) {
+            return {'lat': lat, 'lon': lon};
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Geocoding error: $e');
+    }
+    return null;
+  }
+
   Future<void> _planJourney() async {
-    if (_srcLat == null || _srcLon == null || _dstLat == null || _dstLon == null) {
+    if (_srcController.text.trim().isEmpty || _dstController.text.trim().isEmpty) {
       setState(() {
         _errorMessage = 'Please select both start and end locations.';
-      });
-      return;
-    }
-
-    if (_srcLat == 0.0 || _srcLon == 0.0 || _dstLat == 0.0 || _dstLon == 0.0) {
-      setState(() {
-        _errorMessage = 'Invalid coordinates. Please select locations again.';
-      });
-      return;
-    }
-
-    if (_srcLat! < 28.0 || _srcLat! > 29.2 || _srcLon! < 76.5 || _srcLon! > 77.8 ||
-        _dstLat! < 28.0 || _dstLat! > 29.2 || _dstLon! < 76.5 || _dstLon! > 77.8) {
-      setState(() {
-        _errorMessage = 'Journey planner is only available within Delhi NCR. Please select locations within the service area.';
       });
       return;
     }
@@ -398,9 +498,62 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
       _routes = [];
     });
 
-    final timeStr = _formatTimeOfDay(_selectedTime);
-
     try {
+      if (_srcLat == null || _srcLon == null) {
+        final resolved = await _geocodeAddress(_srcController.text);
+        if (resolved != null) {
+          setState(() {
+            _srcLat = resolved['lat'];
+            _srcLon = resolved['lon'];
+            _srcName = _srcController.text;
+            _srcType = 'place';
+          });
+        } else {
+          setState(() {
+            _isLoading = false;
+            _errorMessage = 'Could not resolve starting point: ${_srcController.text}';
+          });
+          return;
+        }
+      }
+
+      if (_dstLat == null || _dstLon == null) {
+        final resolved = await _geocodeAddress(_dstController.text);
+        if (resolved != null) {
+          setState(() {
+            _dstLat = resolved['lat'];
+            _dstLon = resolved['lon'];
+            _dstName = _dstController.text;
+            _dstType = 'place';
+          });
+        } else {
+          setState(() {
+            _isLoading = false;
+            _errorMessage = 'Could not resolve destination: ${_dstController.text}';
+          });
+          return;
+        }
+      }
+
+      if (_srcLat == 0.0 || _srcLon == 0.0 || _dstLat == 0.0 || _dstLon == 0.0) {
+        setState(() {
+          _isLoading = false;
+          _errorMessage = 'Invalid coordinates. Please select locations again.';
+        });
+        return;
+      }
+
+      if (_srcLat! < 28.0 || _srcLat! > 29.2 || _srcLon! < 76.5 || _srcLon! > 77.8 ||
+          _dstLat! < 28.0 || _dstLat! > 29.2 || _dstLon! < 76.5 || _dstLon! > 77.8) {
+        setState(() {
+          _isLoading = false;
+          _errorMessage = 'Journey planner is only available within Delhi NCR. Please select locations within the service area.';
+        });
+        return;
+      }
+
+      final timeStr = _formatTimeOfDay(_selectedTime);
+
       final result = await JourneyPlannerService.planJourney(
         srcLat: _srcLat!,
         srcLon: _srcLon!,
@@ -549,6 +702,8 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
                             child: TextField(
                               controller: _srcController,
                               focusNode: _srcFocusNode,
+                              textInputAction: TextInputAction.search,
+                              onSubmitted: (_) => _planJourney(),
                               style: TextStyle(
                                 color: Colors.black,
                                 fontFamily: 'Poppins',
@@ -575,6 +730,7 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
                                     _srcLon = null;
                                   }
                                 });
+                                _onSearchChanged(val);
                               },
                             ),
                           ),
@@ -586,6 +742,8 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
                                   _srcName = '';
                                   _srcLat = null;
                                   _srcLon = null;
+                                  _nominatimSuggestions = [];
+                                  _isNominatimLoading = false;
                                 });
                               },
                               child: Padding(
@@ -643,6 +801,8 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
                       child: TextField(
                         controller: _dstController,
                         focusNode: _dstFocusNode,
+                        textInputAction: TextInputAction.search,
+                        onSubmitted: (_) => _planJourney(),
                         style: TextStyle(
                           color: Colors.black,
                           fontFamily: 'Poppins',
@@ -669,6 +829,7 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
                               _dstLon = null;
                             }
                           });
+                          _onSearchChanged(val);
                         },
                       ),
                     ),
@@ -680,6 +841,8 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
                             _dstName = '';
                             _dstLat = null;
                             _dstLon = null;
+                            _nominatimSuggestions = [];
+                            _isNominatimLoading = false;
                           });
                         },
                         child: Padding(
@@ -808,27 +971,123 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
   }
 
   Widget _buildAutocompleteList(String query) {
-    final filtered = _getFilteredStops(query);
+    final filteredStops = _getFilteredStops(query);
     final bool isSource = _isFocusingSource;
 
-    return ListView.separated(
+    final stops = filteredStops.take(2).toList();
+    final locations = _nominatimSuggestions.take(3).toList();
+
+    final List<Map<String, dynamic>> items = [];
+
+    for (final stop in stops) {
+      items.add({'type': 'stop', 'data': stop});
+    }
+
+    if (_isNominatimLoading && locations.isEmpty) {
+      items.add({'type': 'loading'});
+    }
+
+    for (final suggestion in locations) {
+      items.add({'type': 'location', 'data': suggestion});
+    }
+
+    if (items.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 20.h),
+          child: Text(
+            "No suggestions found.",
+            style: TextStyle(
+              color: AppColors.tertiaryText,
+              fontFamily: 'Poppins',
+              fontSize: 13.sp,
+            ),
+          ),
+        ),
+      );
+    }
+
+    return ListView.builder(
       physics: const AlwaysScrollableScrollPhysics(
         parent: BouncingScrollPhysics(),
       ),
       padding: EdgeInsets.only(left: 14.w, right: 14.w, bottom: 10.h),
-      itemCount: filtered.length,
-      separatorBuilder: (context, index) => const Divider(color: AppColors.divider, height: 1),
+      itemCount: items.length,
       itemBuilder: (context, index) {
-        final stop = filtered[index];
-        final name = stop['Name']?.toString() ?? 'Unknown Stop';
-        final hindi = stop['Hindi']?.toString() ?? '';
-        final lat = double.tryParse(stop['Latitude']?.toString() ?? '') ?? 0.0;
-        final lon = double.tryParse(stop['Longitude']?.toString() ?? '') ?? 0.0;
+        final item = items[index];
+        if (item['type'] == 'loading') {
+          return Padding(
+            padding: EdgeInsets.symmetric(vertical: 12.h),
+            child: Row(
+              children: [
+                const CupertinoActivityIndicator(color: Colors.white, radius: 8),
+                SizedBox(width: 8.w),
+                Text(
+                  "Searching locations...",
+                  style: TextStyle(
+                    color: AppColors.secondaryText,
+                    fontFamily: 'Poppins',
+                    fontSize: 12.sp,
+                  ),
+                ),
+              ],
+            ),
+          );
+        } else if (item['type'] == 'stop') {
+          final stop = item['data'];
+          final name = stop['Name']?.toString() ?? 'Unknown Stop';
+          final hindi = stop['Hindi']?.toString() ?? '';
+          final lat = double.tryParse(stop['Latitude']?.toString() ?? '') ?? 0.0;
+          final lon = double.tryParse(stop['Longitude']?.toString() ?? '') ?? 0.0;
 
-        return ListTile(
+          return _buildStopListTile(
+            title: name,
+            subtitle: hindi,
+            isSource: isSource,
+            lat: lat,
+            lon: lon,
+            icon: CupertinoIcons.bus,
+          );
+        } else if (item['type'] == 'location') {
+          final suggestion = item['data'];
+          final name = suggestion['name'] ?? 'Unknown Location';
+          final displayName = suggestion['display_name'] ?? '';
+          final lat = double.tryParse(suggestion['lat']?.toString() ?? '') ?? 0.0;
+          final lon = double.tryParse(suggestion['lon']?.toString() ?? '') ?? 0.0;
+
+          return _buildStopListTile(
+            title: name.toString(),
+            subtitle: displayName.toString(),
+            isSource: isSource,
+            lat: lat,
+            lon: lon,
+            icon: CupertinoIcons.location_solid,
+          );
+        }
+        return const SizedBox.shrink();
+      },
+    );
+  }
+
+  Widget _buildStopListTile({
+    required String title,
+    required String subtitle,
+    required bool isSource,
+    required double lat,
+    required double lon,
+    required IconData icon,
+  }) {
+    return Column(
+      children: [
+        ListTile(
           contentPadding: EdgeInsets.zero,
+          leading: Icon(
+            icon,
+            color: AppColors.secondaryText,
+            size: 16.sp,
+          ),
           title: Text(
-            name,
+            title,
             style: TextStyle(
               color: Colors.white,
               fontFamily: 'Poppins',
@@ -836,9 +1095,9 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
               fontSize: 13.sp,
             ),
           ),
-          subtitle: hindi.isNotEmpty
+          subtitle: subtitle.isNotEmpty
               ? Text(
-                  hindi,
+                  subtitle,
                   style: TextStyle(
                     color: AppColors.secondaryText,
                     fontFamily: 'Poppins',
@@ -849,22 +1108,26 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
           onTap: () {
             setState(() {
               if (isSource) {
-                _srcName = name;
+                _srcName = title;
                 _srcLat = lat;
                 _srcLon = lon;
                 _srcType = 'place';
-                _srcController.text = name;
+                _srcController.text = title;
+                _nominatimSuggestions = [];
+                _isNominatimLoading = false;
                 if (_dstLat == null || _dstLon == null) {
                   _dstFocusNode.requestFocus();
                 } else {
                   _srcFocusNode.unfocus();
                 }
               } else {
-                _dstName = name;
+                _dstName = title;
                 _dstLat = lat;
                 _dstLon = lon;
                 _dstType = 'place';
-                _dstController.text = name;
+                _dstController.text = title;
+                _nominatimSuggestions = [];
+                _isNominatimLoading = false;
                 if (_srcLat == null || _srcLon == null) {
                   _srcFocusNode.requestFocus();
                 } else {
@@ -875,8 +1138,9 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
 
             _checkAndAutoSearch();
           },
-        );
-      },
+        ),
+        const Divider(color: AppColors.divider, height: 1),
+      ],
     );
   }
 
@@ -947,7 +1211,7 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
 
     if (_isFocusingSource || _isFocusingDestination) {
       final query = _isFocusingSource ? _srcController.text : _dstController.text;
-      if (_srcController.text.isEmpty && _dstController.text.isEmpty) {
+      if (query.isEmpty) {
         return _buildHistoryList();
       } else {
         return _buildAutocompleteList(query);
