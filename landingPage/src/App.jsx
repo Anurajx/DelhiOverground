@@ -108,22 +108,6 @@ function HeroSection() {
         </div>
       </div>
 
-      {/* Large Backdrop Text "HOMIE" */}
-      <div
-        className="absolute bottom-0 left-0 right-0 w-full overflow-hidden pointer-events-none z-[5] flex items-end justify-center"
-        style={{
-          transform: `translateY(${translateY}px)`,
-          opacity: opacity,
-          height: "100%",
-        }}
-      >
-        <span
-          className="block text-white font-bold text-[28vw] sm:text-[25vw] md:text-[22vw] lg:text-[20vw] tracking-tighter select-none text-center leading-none"
-          style={{ marginBottom: "0" }}
-        >
-          HOMIE
-        </span>
-      </div>
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto w-full relative z-10">
@@ -137,7 +121,7 @@ function HeroSection() {
               <AnimatedText text="Find your way through Delhi NCR" delay={0.3} />
             </h1>
             <motion.p 
-              className="text-[#f5f4ef] text-lg sm:text-xl max-w-xl mx-auto font-sans mt-4 mb-2 text-balance opacity-80"
+              className="text-[#f5f4ef] text-lg sm:text-xl lg:text-2xl max-w-xl lg:max-w-2xl mx-auto font-sans mt-4 mb-2 text-balance opacity-80"
               initial={{ opacity: 0, y: 15 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.8, delay: 1.2, ease: "easeOut" }}

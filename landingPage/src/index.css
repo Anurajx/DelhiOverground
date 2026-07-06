@@ -297,6 +297,26 @@ body {
   line-height: 1.25rem;
 }
 
+.text-lg {
+  font-size: 1.125rem;
+}
+
+@media (min-width: 640px) {
+  .sm\:text-xl {
+    font-size: 1.25rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .lg\:text-2xl {
+    font-size: 1.75rem; /* Larger font size for desktop */
+    line-height: 2.25rem;
+  }
+  .lg\:max-w-2xl {
+    max-width: 42rem;
+  }
+}
+
 .tracking-tighter {
   letter-spacing: -0.05em;
 }
@@ -363,6 +383,10 @@ body {
 
 .duration-300 {
   transition-duration: 300ms;
+}
+
+.duration-\[1500ms\] {
+  transition-duration: 1500ms;
 }
 
 .delay-\[800ms\] {
