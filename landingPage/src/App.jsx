@@ -4,43 +4,19 @@ import { ArrowRight, ArrowUpRight } from "lucide-react";
 import "./App.css";
 
 function AnimatedText({ text, delay = 0 }) {
-  const words = text.split(" ");
-  let charIndexCounter = 0;
-
   return (
     <motion.span
       className="font-bold text-center text-6xl leading-[0.75] tracking-tighter font-serif text-[#f5f4ef] lg:text-9xl"
-      initial="hidden"
-      animate="visible"
-      style={{ perspective: 400, display: "inline-block" }}
+      style={{ display: "inline-block" }}
+      initial={{ opacity: 0, y: 15 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{
+        duration: 0.8,
+        delay: delay,
+        ease: [0.16, 1, 0.3, 1], // premium easeOutExpo curve
+      }}
     >
-      {words.map((word, wordIndex) => (
-        <span key={wordIndex} style={{ display: "inline-block", whiteSpace: "nowrap" }}>
-          {word.split("").map((char, charIndex) => {
-            const index = charIndexCounter++;
-            return (
-              <motion.span
-                key={charIndex}
-                initial={{ opacity: 0, y: 30, filter: "blur(12px)", rotateX: -45 }}
-                animate={{ opacity: 1, y: 0, filter: "blur(0px)", rotateX: 0 }}
-                transition={{
-                  duration: 0.6,
-                  delay: delay + 0.04 * index,
-                  ease: [0.25, 0.46, 0.45, 0.94],
-                }}
-                style={{
-                  display: "inline-block",
-                  transformStyle: "preserve-3d",
-                  transformOrigin: "center bottom",
-                }}
-              >
-                {char}
-              </motion.span>
-            );
-          })}
-          {wordIndex < words.length - 1 && "\u00a0"}
-        </span>
-      ))}
+      {text}
     </motion.span>
   );
 }
@@ -101,16 +77,15 @@ function HeroSection() {
           }}
         >
           <img
-            src="/images/delhi-street-hero.jpg"
-            alt="Busy Delhi street at night with cycle rickshaws in motion"
+            src="/images/ravi-sharma-3gFoYxnX2Hc-unsplash.jpg"
+            alt="Delhi street scene"
             className="w-full h-full object-cover"
           />
         </div>
       </div>
 
-
       {/* Main Content */}
-      <div className="max-w-7xl mx-auto w-full relative z-10">
+      <div className="max-w-7xl mx-auto w-full relative z-10 shift-up">
         <div className="text-center mb-12">
           <div
             className={`transition-all duration-1000 delay-[800ms] ${
@@ -118,15 +93,18 @@ function HeroSection() {
             }`}
           >
             <h1 className="font-serif text-[3.5rem] sm:text-[4.5rem] md:text-[5.5rem] lg:text-[6.5rem] xl:text-[7.5rem] 2xl:text-[8.5rem] font-normal leading-tight mb-6 w-full px-4 max-w-6xl mx-auto text-balance">
-              <AnimatedText text="Find your way through Delhi NCR" delay={0.3} />
+              <AnimatedText
+                text="Find your way through Delhi NCR"
+                delay={0.3}
+              />
             </h1>
-            <motion.p 
+            <motion.p
               className="text-[#f5f4ef] text-lg sm:text-xl lg:text-2xl max-w-xl lg:max-w-2xl mx-auto font-sans mt-4 mb-2 text-balance opacity-80"
               initial={{ opacity: 0, y: 15 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.8, delay: 1.2, ease: "easeOut" }}
             >
-              DTC buses & Delhi Metro, simplified.
+              Adding accessibility to public transit.
             </motion.p>
           </div>
         </div>
@@ -134,7 +112,9 @@ function HeroSection() {
           <div className="relative">
             <div
               className={`relative w-[234px] md:w-[281px] lg:w-[351px] will-change-transform transition-all duration-[1500ms] ease-out delay-500 ${
-                loaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-[400px]"
+                loaded
+                  ? "opacity-100 translate-y-0"
+                  : "opacity-0 translate-y-[400px]"
               }`}
             >
               <img
@@ -155,7 +135,7 @@ function App() {
     <main className="min-h-screen bg-background">
       <HeroSection />
 
-      <section className="py-32 px-6 relative overflow-hidden">
+      <section className="pt-16 pb-32 px-6 relative overflow-hidden">
         <div className="max-w-7xl mx-auto relative z-10">
           <div className="text-center mb-16">
             <h2 className="text-4xl md:text-5xl font-normal leading-tight max-w-4xl mx-auto mb-6 font-serif">

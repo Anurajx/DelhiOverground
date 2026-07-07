@@ -183,6 +183,14 @@ body {
   padding-bottom: 3rem;
 }
 
+.pt-16 {
+  padding-top: 3.5rem;
+}
+
+.pb-32 {
+  padding-bottom: 8rem;
+}
+
 .py-32 {
   padding-top: 8rem;
   padding-bottom: 8rem;
@@ -211,7 +219,7 @@ body {
 }
 
 .mb-12 {
-  margin-bottom: 6rem;
+  margin-bottom: 9rem;
 }
 
 .mb-16 {
@@ -474,4 +482,18 @@ body {
 
 .text-\[\#f5f4ef\] {
   color: #fff8e7 !important; /* Premium warm cream color */
+}
+
+.shift-up {
+  transform: translateY(30px);
+}
+@media (min-width: 768px) {
+  .shift-up {
+    transform: translateY(-40px);
+  }
+}
+@media (min-width: 1024px) {
+  .shift-up {
+    transform: translateY(-110px);
+  }
 }
