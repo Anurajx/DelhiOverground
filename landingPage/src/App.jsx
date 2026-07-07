@@ -126,12 +126,17 @@ function App() {
               Download app below, assets in metro app may be outdated
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <button className="relative flex items-center justify-center gap-0 bg-foreground text-background rounded-full pl-6 pr-1.5 py-1.5 transition-all duration-300 group overflow-hidden">
+              <a
+                href="https://github.com/Anurajx/DelhiOverground/releases/download/v1.0.0/DelhiOverground.apk"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="no-underline relative flex items-center justify-center gap-0 bg-foreground text-background rounded-full pl-6 pr-1.5 py-1.5 transition-all duration-300 group overflow-hidden"
+              >
                 <span className="text-sm pr-4">DelhiOverground (DTC)</span>
                 <span className="w-10 h-10 bg-background rounded-full flex items-center justify-center">
                   <ArrowUpRight className="w-4 h-4 text-foreground" />
                 </span>
-              </button>
+              </a>
               <a
                 href="https://github.com/Anurajx/DelhiUnderground/releases/download/v1.0.0/app-release.apk"
                 target="_blank"
