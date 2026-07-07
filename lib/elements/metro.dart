@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:ui' show ImageFilter;
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:metroapp/elements/ServicesDir/geolocator_service.dart';
 import 'package:metroapp/elements/StationDir/stop_info.dart';
 import 'package:metroapp/main.dart';
@@ -40,6 +41,7 @@ class _HomeScreenState extends State<HomeScreen> {
       _isRefreshing = true;
     });
     dataProvider.updateCoreNearestStationsDict({});
+    dataProvider.setLocationEnabled(null);
     try {
       await initialize(context);
     } catch (e) {
@@ -63,10 +65,134 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  Future<void> _checkLocationPermissionOnStartup() async {
+    final permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.always || permission == LocationPermission.whileInUse) {
+      if (mounted) {
+        await initialize(context);
+      }
+    } else {
+      if (mounted) {
+        _showLocationPermissionDialog();
+      }
+    }
+  }
+
+  void _showLocationPermissionDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => Dialog(
+        backgroundColor: AppColors.secondaryAccent,
+        insetPadding: EdgeInsets.symmetric(horizontal: 40.w),
+        shape: const Border(),
+        child: Container(
+          decoration: BoxDecoration(
+            color: AppColors.secondaryAccent,
+            border: Border.all(
+              color: Colors.black,
+              width: 0.8,
+            ),
+          ),
+          padding: EdgeInsets.symmetric(horizontal: 24.w, vertical: 24.h),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                "LOCATION ACCESS",
+                style: TextStyle(
+                  color: Colors.black,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13.sp,
+                  fontFamily: 'Poppins',
+                  letterSpacing: 1.5,
+                ),
+              ),
+              SizedBox(height: 12.h),
+              Text(
+                "Delhi Overground requires your location to find nearby bus and metro stops.",
+                style: TextStyle(
+                  color: Colors.black,
+                  fontWeight: FontWeight.w400,
+                  fontSize: 12.sp,
+                  fontFamily: 'Poppins',
+                  height: 1.5,
+                ),
+              ),
+              SizedBox(height: 24.h),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      Provider.of<DataProvider>(context, listen: false)
+                          .setLocationEnabled(false);
+                    },
+                    child: Container(
+                      padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 8.h),
+                      decoration: BoxDecoration(
+                        color: Colors.transparent,
+                        border: Border.all(
+                          color: Colors.black.withValues(alpha: 0.4),
+                          width: 1.2,
+                        ),
+                      ),
+                      child: Text(
+                        "CANCEL",
+                        style: TextStyle(
+                          color: Colors.black,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 11.sp,
+                          fontFamily: 'Poppins',
+                          letterSpacing: 1.0,
+                        ),
+                      ),
+                    ),
+                  ),
+                  SizedBox(width: 12.w),
+                  GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      initialize(context);
+                    },
+                    child: Container(
+                      padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 8.h),
+                      decoration: BoxDecoration(
+                        color: Colors.transparent,
+                        border: Border.all(
+                          color: Colors.black,
+                          width: 1.2,
+                        ),
+                      ),
+                      child: Text(
+                        "ALLOW",
+                        style: TextStyle(
+                          color: Colors.black,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 11.sp,
+                          fontFamily: 'Poppins',
+                          letterSpacing: 1.0,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => initialize(context));
+    WidgetsBinding.instance.addPostFrameCallback((_) => _checkLocationPermissionOnStartup());
     _connectivitySubscription = Connectivity().onConnectivityChanged.listen((List<ConnectivityResult> results) {
       final isOffline = results.isEmpty || results.contains(ConnectivityResult.none);
       if (mounted && _isOffline != isOffline) {
@@ -148,7 +274,7 @@ class _HomeScreenState extends State<HomeScreen> {
       builder: (context, dataProvider, child) {
         final history = dataProvider.journeySearchHistory;
         if (history.isEmpty) {
-          return const SizedBox.shrink();
+          return _buildHistoryPlaceholder();
         }
 
         final items = history.take(2).toList();
@@ -247,6 +373,90 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  Widget _buildHistoryPlaceholder() {
+    return Container(
+      margin: const EdgeInsets.only(left: 2, right: 2, top: 1, bottom: 2),
+      width: double.infinity,
+      padding: EdgeInsets.symmetric(vertical: 14.h, horizontal: 8.w),
+      child: Row(
+        children: [
+          Icon(CupertinoIcons.time, color: AppColors.tertiaryText, size: 20.sp),
+          SizedBox(width: 14.w),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  "Make your first search",
+                  style: TextStyle(
+                    fontFamily: 'Poppins',
+                    color: AppColors.primaryText,
+                    fontSize: 14.sp,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                SizedBox(height: 2.h),
+                Text(
+                  "Your search history will appear here",
+                  style: TextStyle(
+                    fontFamily: 'Poppins',
+                    color: AppColors.secondaryText,
+                    fontSize: 12.sp,
+                    fontWeight: FontWeight.w400,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLocationPlaceholder() {
+    return Container(
+      padding: EdgeInsets.symmetric(vertical: 10.h, horizontal: 8.w),
+      child: Row(
+        children: [
+          Icon(
+            Icons.location_off_outlined,
+            color: AppColors.tertiaryText,
+            size: 20.sp,
+          ),
+          SizedBox(width: 14.w),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  "Enable Location",
+                  style: TextStyle(
+                    fontFamily: 'Poppins',
+                    color: AppColors.primaryText,
+                    fontSize: 14.sp,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                SizedBox(height: 2.h),
+                Text(
+                  "Turn on location and find nearby stops",
+                  style: TextStyle(
+                    fontFamily: 'Poppins',
+                    color: AppColors.secondaryText,
+                    fontSize: 11.sp,
+                    fontWeight: FontWeight.w400,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
 
   Widget _buildNearYou(BuildContext context) {
     return Container(
@@ -255,6 +465,60 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Consumer<DataProvider>(
         builder: (context, dataProvider, child) {
           final data = dataProvider.coreNearestStationsDict;
+          final isLocationEnabled = dataProvider.isLocationEnabled;
+
+          if (isLocationEnabled == false) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Padding(
+                  padding: EdgeInsets.symmetric(vertical: 4.h),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        "Nearby",
+                        style: TextStyle(
+                          color: AppColors.tertiaryText,
+                          fontSize: 16.sp,
+                          fontWeight: FontWeight.w500,
+                          fontFamily: 'Poppins',
+                        ),
+                      ),
+                      GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () => _refreshNearbyStations(dataProvider),
+                        child: Container(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: 8.w,
+                            vertical: 4.h,
+                          ),
+                          child:
+                              _isRefreshing
+                                  ? SizedBox(
+                                    width: 16.sp,
+                                    height: 16.sp,
+                                    child: const CupertinoActivityIndicator(
+                                      radius: 8,
+                                      color: AppColors.tertiaryText,
+                                    ),
+                                  )
+                                  : Icon(
+                                    CupertinoIcons.refresh,
+                                    color: AppColors.tertiaryText,
+                                    size: 16.sp,
+                                  ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                _buildLocationPlaceholder(),
+              ],
+            );
+          }
+
           if (data["Near"] != null && data["NearEnough"] != null) {
             _coreTransferStationsDictNE['Source'] = data["NearEnough"]![0];
             String lineNE = data["NearEnough"]![0]["Line"].toString();

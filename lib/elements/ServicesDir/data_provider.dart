@@ -13,6 +13,14 @@ class DataProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  bool? _isLocationEnabled;
+  bool? get isLocationEnabled => _isLocationEnabled;
+
+  void setLocationEnabled(bool? enabled) {
+    _isLocationEnabled = enabled;
+    notifyListeners();
+  }
+
 
 
   List<Map<String, String>> _busSearchHistory = [];

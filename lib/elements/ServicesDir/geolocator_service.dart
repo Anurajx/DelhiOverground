@@ -48,11 +48,15 @@ Future<void> initialize(BuildContext context) async {
         'Near': [nearest],
         'NearEnough': [nextNearest],
       });
+      context.read<DataProvider>().setLocationEnabled(true);
     }
 
     print('🚀 Provider updated with nearest stations');
   } catch (e, st) {
     print('⚠️ initialize() failed: $e\n$st');
+    if (context.mounted) {
+      context.read<DataProvider>().setLocationEnabled(false);
+    }
   }
 }
 
