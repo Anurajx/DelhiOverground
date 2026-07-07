@@ -6,6 +6,7 @@ import 'package:metroapp/elements/ServicesDir/station_element.dart';
 import 'package:metroapp/elements/ServicesDir/new_schedule_service.dart';
 import 'package:metroapp/elements/journey_planner.dart';
 import 'package:metroapp/main.dart';
+import 'package:metroapp/elements/ServicesDir/analytics_service.dart';
 
 class StopInfoScreen extends StatefulWidget {
   final dynamic stationDict;
@@ -18,6 +19,12 @@ class StopInfoScreen extends StatefulWidget {
 class _StopInfoScreenState extends State<StopInfoScreen> {
   DateTime _refreshTrigger = DateTime.now();
   bool _hasTriggeredRefresh = false;
+
+  @override
+  void initState() {
+    super.initState();
+    PostHogService.trackScreenViewed('Stop Info');
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -84,6 +91,7 @@ class _StopInfoScreenState extends State<StopInfoScreen> {
           child: BackButton(
             color: AppColors.primaryAccent,
             onPressed: () {
+              PostHogService.trackButtonClicked('back_button');
               Navigator.pop(context);
             },
           ),

@@ -11,6 +11,7 @@ import 'dart:developer' as dev;
 import 'package:http/http.dart' as http;
 import 'package:metroapp/main.dart';
 import 'package:metroapp/elements/ServicesDir/geolocator_service.dart';
+import 'package:metroapp/elements/ServicesDir/analytics_service.dart';
 
 class LiveBusMarker {
   final String vehicleId;
@@ -54,6 +55,7 @@ class _MapMetroScreenState extends State<MapMetroScreen> {
   @override
   void initState() {
     super.initState();
+    PostHogService.trackScreenViewed('Map Metro');
     _loadMapStyle();
     _determinePosition();
   }
@@ -155,9 +157,10 @@ class _MapMetroScreenState extends State<MapMetroScreen> {
 
 
   Future<void> _fetchNearbyBuses() async {
+    String url = '';
     try {
       final backendUrl = await _getBackendUrl();
-      final url = '$backendUrl/nearby?lat=${_center.latitude}&lng=${_center.longitude}&radius=1000';
+      url = '$backendUrl/nearby?lat=${_center.latitude}&lng=${_center.longitude}&radius=1000';
       debugPrint("Live PIS request: $url");
       final response = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 5));
 
@@ -198,8 +201,11 @@ class _MapMetroScreenState extends State<MapMetroScreen> {
         // Clean up inactive buses
         _activeBuses.removeWhere((key, value) => !updatedVehicleIds.contains(key));
         _updateMarkers();
+      } else {
+        PostHogService.trackApiError(url, 'Failed to fetch nearby buses', response.statusCode);
       }
     } catch (e) {
+      PostHogService.trackApiError(url.isNotEmpty ? url : 'get_nearby_buses', e.toString());
       debugPrint("Error fetching nearby buses: $e");
     }
   }
@@ -381,7 +387,10 @@ class _MapMetroScreenState extends State<MapMetroScreen> {
             offset: Offset(-8.w, 0),
             child: BackButton(
               color: AppColors.primaryAccent,
-              onPressed: () => Navigator.pop(context),
+              onPressed: () {
+                PostHogService.trackButtonClicked('back_button');
+                Navigator.pop(context);
+              },
             ),
           ),
           Text(

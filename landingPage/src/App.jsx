@@ -123,7 +123,8 @@ function App() {
               Ready to go your way around?
             </h2>
             <p className="text-muted-foreground max-w-2xl mx-auto mb-10">
-              Download app below, assets in metro app may be outdated
+              Download app below, let google do its thing and install. Simple as
+              that
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <a
@@ -145,7 +146,7 @@ function App() {
               >
                 <span className="absolute inset-0 bg-foreground rounded-full scale-x-0 origin-right group-hover:scale-x-100 transition-transform duration-300"></span>
                 <span className="text-sm text-foreground group-hover:text-background pr-4 relative z-10 transition-colors duration-300">
-                  DelhiUnderground (Metro)
+                  DelhiUnderground (Metro *Outdated)
                 </span>
                 <span className="w-10 h-10 rounded-full flex items-center justify-center relative z-10">
                   <ArrowRight className="w-4 h-4 text-foreground group-hover:opacity-0 absolute transition-opacity duration-300" />

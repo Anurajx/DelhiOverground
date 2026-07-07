@@ -17,6 +17,7 @@ import 'ServicesDir/data_provider.dart';
 import 'package:provider/provider.dart';
 import 'journey_planner.dart';
 import 'package:metroapp/elements/ServicesDir/stops_manager.dart';
+import 'package:metroapp/elements/ServicesDir/analytics_service.dart';
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -127,6 +128,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   GestureDetector(
                     behavior: HitTestBehavior.opaque,
                     onTap: () {
+                      PostHogService.trackButtonClicked('location_permission_cancel');
                       Navigator.pop(ctx);
                       Provider.of<DataProvider>(context, listen: false)
                           .setLocationEnabled(false);
@@ -156,6 +158,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   GestureDetector(
                     behavior: HitTestBehavior.opaque,
                     onTap: () {
+                      PostHogService.trackButtonClicked('location_permission_allow');
                       Navigator.pop(ctx);
                       initialize(context);
                     },
@@ -192,6 +195,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    PostHogService.trackScreenViewed('Home');
     WidgetsBinding.instance.addPostFrameCallback((_) => _checkLocationPermissionOnStartup());
     _connectivitySubscription = Connectivity().onConnectivityChanged.listen((List<ConnectivityResult> results) {
       final isOffline = results.isEmpty || results.contains(ConnectivityResult.none);
@@ -232,6 +236,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildSearchBar(BuildContext context) {
     return GestureDetector(
       onTap: () {
+        PostHogService.trackMenuItemClicked('plan_journey');
         Navigator.push(
           context,
           MaterialPageRoute(builder: (context) => const JourneyPlannerScreen()),
@@ -709,6 +714,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: GestureDetector(
                     behavior: HitTestBehavior.opaque,
                     onTap: () async {
+                      PostHogService.trackButtonClicked('whatsapp_tickets');
                       final whatsappUrl = Uri.parse(
                         'https://wa.me/+918744073223?text=Hi',
                       );
@@ -733,6 +739,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: GestureDetector(
                     behavior: HitTestBehavior.opaque,
                     onTap: () {
+                      PostHogService.trackMenuItemClicked('settings');
                       _showSettingsBottomSheet(context);
                     },
                     child: Container(
@@ -759,6 +766,7 @@ class _HomeScreenState extends State<HomeScreen> {
               child: GestureDetector(
                 behavior: HitTestBehavior.opaque,
                 onTap: () {
+                  PostHogService.trackMenuItemClicked('stop_search');
                   Navigator.push(
                     context,
                     MaterialPageRoute(
@@ -797,6 +805,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             RotateAnimatedText('Route'),
                           ],
                           onTap: () {
+                            PostHogService.trackMenuItemClicked('stop_search');
                             Navigator.push(
                               context,
                               MaterialPageRoute(
@@ -985,6 +994,7 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
   @override
   void initState() {
     super.initState();
+    PostHogService.trackScreenViewed('Settings');
     _loadLastFetchTime();
   }
 
@@ -999,6 +1009,7 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
 
   Future<void> _triggerForceUpdate() async {
     if (_isUpdating) return;
+    PostHogService.trackButtonClicked('force_update_assets');
     setState(() {
       _isUpdating = true;
     });
@@ -1054,7 +1065,10 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
                 ),
               ),
               GestureDetector(
-                onTap: () => Navigator.pop(context),
+                onTap: () {
+                  PostHogService.trackButtonClicked('close_settings');
+                  Navigator.pop(context);
+                },
                 behavior: HitTestBehavior.opaque,
                 child: Container(
                   padding: EdgeInsets.all(6.w),
@@ -1147,6 +1161,7 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
 
           GestureDetector(
             onTap: () async {
+              PostHogService.trackMenuItemClicked('official_website');
               final url = Uri.parse("https://delhioverground.vercel.app/");
               try {
                 await launchUrl(url, mode: LaunchMode.externalApplication);

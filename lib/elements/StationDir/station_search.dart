@@ -9,6 +9,7 @@ import 'package:provider/provider.dart';
 import 'package:metroapp/elements/ServicesDir/data_provider.dart';
 import 'package:metroapp/main.dart';
 import 'package:metroapp/elements/ServicesDir/stops_manager.dart';
+import 'package:metroapp/elements/ServicesDir/analytics_service.dart';
 
 
 class StationSearchScreen extends StatefulWidget {
@@ -53,6 +54,7 @@ class _SearchScreenState extends State<StationSearchScreen> {
   @override
   void initState() {
     super.initState();
+    PostHogService.trackScreenViewed('Station Search');
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _focusNode1.requestFocus();
@@ -385,6 +387,7 @@ class _SearchScreenState extends State<StationSearchScreen> {
           child: BackButton(
             color: AppColors.primaryAccent,
             onPressed: () {
+              PostHogService.trackButtonClicked('back_button');
               if (MediaQuery.of(context).viewInsets.bottom != 0) {
                 FocusScope.of(context).unfocus();
               }
@@ -476,6 +479,10 @@ class _SearchScreenState extends State<StationSearchScreen> {
             focusColor: const Color.fromARGB(0, 255, 255, 255),
             splashColor: const Color.fromARGB(86, 76, 76, 76),
             onTap: () {
+              if (_controller1.text.isNotEmpty) {
+                PostHogService.trackSearchPerformed('stop_search', _controller1.text);
+              }
+              PostHogService.trackButtonClicked('select_station', {'station_name': name});
               if (_focusNode1.hasFocus) {
                 _controller1.text = name;
                 _coreTransferStationsDict['Source'] = station;

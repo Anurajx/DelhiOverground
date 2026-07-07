@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:metroapp/elements/ServicesDir/env_service.dart';
+import 'package:metroapp/elements/ServicesDir/analytics_service.dart';
 
 class StopsManager {
   static List<dynamic> _stations = [];
@@ -190,28 +191,37 @@ class StopsManager {
       // 14 days in milliseconds
       const refreshThreshold = 14 * 24 * 60 * 60 * 1000;
       
-      if (now - lastFetch >= refreshThreshold) {
-        debugPrint("[StopsManager] Refreshing stops from API...");
-        final response = await http.get(
-          Uri.parse('https://dts-backend.transportstack.in/api/serviceset/journey-planner/get_stops?mode=bus'),
-          headers: {
-            'x-api-key': Env.get('DTS_API_KEY', defaultValue: 'hsrNV2fU3I9O774q02X1BgGOf8T3f7vlbzdFjXSRB6Y='),
-          },
-        ).timeout(const Duration(seconds: 45));
+      if (now - lastFetch > 1000 * 60 * 60 * 24 * 7) {
+        debugPrint("[StopsManager] Cache expired. Auto refreshing stops from API...");
+        final requestUrl = 'https://dts-backend.transportstack.in/api/serviceset/journey-planner/get_stops?mode=bus';
+        try {
+          final response = await http.get(
+            Uri.parse(requestUrl),
+            headers: {
+              'x-api-key': Env.get('DTS_API_KEY', defaultValue: 'hsrNV2fU3I9O774q02X1BgGOf8T3f7vlbzdFjXSRB6Y='),
+            },
+          ).timeout(const Duration(seconds: 45));
 
-        if (response.statusCode == 200) {
-          final decoded = jsonDecode(response.body);
-          if (decoded is Map<String, dynamic> && decoded['data'] != null) {
-            final docDir = await getApplicationDocumentsDirectory();
-            final localFile = File('${docDir.path}/stops_data.json');
-            await localFile.writeAsString(response.body);
-            await prefs.setInt('last_stops_fetch_timestamp', now);
-            
-            _parseAndSetup(decoded['data'] as List<dynamic>);
-            debugPrint("[StopsManager] Successfully updated stops cache. Total stops: ${_stopNames.length}");
+          if (response.statusCode == 200) {
+            final decoded = jsonDecode(response.body);
+            if (decoded is Map<String, dynamic> && decoded['data'] != null) {
+              final docDir = await getApplicationDocumentsDirectory();
+              final localFile = File('${docDir.path}/stops_data.json');
+              await localFile.writeAsString(response.body);
+              await prefs.setInt('last_stops_fetch_timestamp', now);
+              
+              _parseAndSetup(decoded['data'] as List<dynamic>);
+              debugPrint("[StopsManager] Successfully updated stops cache. Total stops: ${_stopNames.length}");
+            } else {
+              PostHogService.trackApiError(requestUrl, 'Invalid response body format');
+            }
+          } else {
+            PostHogService.trackApiError(requestUrl, 'Failed to fetch stops', response.statusCode);
+            debugPrint("[StopsManager] Failed to fetch stops. HTTP status: ${response.statusCode}");
           }
-        } else {
-          debugPrint("[StopsManager] Failed to fetch stops. HTTP status: ${response.statusCode}");
+        } catch (e) {
+          PostHogService.trackApiError(requestUrl, e.toString());
+          debugPrint("[StopsManager] Error during auto refresh http call: $e");
         }
       } else {
         debugPrint("[StopsManager] Cache is fresh (last updated ${(now - lastFetch) / (1000 * 60 * 60 * 24)} days ago).");
@@ -222,10 +232,11 @@ class StopsManager {
   }
 
   static Future<bool> forceRefresh() async {
+    final requestUrl = 'https://dts-backend.transportstack.in/api/serviceset/journey-planner/get_stops?mode=bus';
     try {
       debugPrint("[StopsManager] Manually refreshing stops from API...");
       final response = await http.get(
-        Uri.parse('https://dts-backend.transportstack.in/api/serviceset/journey-planner/get_stops?mode=bus'),
+        Uri.parse(requestUrl),
         headers: {
           'x-api-key': Env.get('DTS_API_KEY', defaultValue: 'hsrNV2fU3I9O774q02X1BgGOf8T3f7vlbzdFjXSRB6Y='),
         },
@@ -245,10 +256,15 @@ class StopsManager {
           _parseAndSetup(decoded['data'] as List<dynamic>);
           debugPrint("[StopsManager] Manually updated stops cache. Total stops: ${_stopNames.length}");
           return true;
+        } else {
+          PostHogService.trackApiError(requestUrl, 'Invalid response body format');
         }
+      } else {
+        PostHogService.trackApiError(requestUrl, 'Manual refresh failed', response.statusCode);
       }
       return false;
     } catch (e) {
+      PostHogService.trackApiError(requestUrl, e.toString());
       debugPrint("[StopsManager] Error during manual force refresh: $e");
       return false;
     }

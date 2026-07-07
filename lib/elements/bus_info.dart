@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:metroapp/main.dart';
+import 'package:metroapp/elements/ServicesDir/analytics_service.dart';
 
 import 'search.dart'; // To reuse BusDatabaseHelper
 
@@ -31,6 +32,7 @@ class _BusInfoScreenState extends State<BusInfoScreen> {
   @override
   void initState() {
     super.initState();
+    PostHogService.trackScreenViewed('Bus Info');
     _loadDirections();
   }
 
@@ -206,6 +208,7 @@ class _BusInfoScreenState extends State<BusInfoScreen> {
                 child: BackButton(
                   color: AppColors.primaryAccent,
                   onPressed: () {
+                    PostHogService.trackButtonClicked('back_button');
                     Navigator.pop(context);
                   },
                 ),

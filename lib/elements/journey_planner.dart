@@ -11,6 +11,7 @@ import 'package:metroapp/elements/ServicesDir/geolocator_service.dart' as geo_se
 import 'package:metroapp/main.dart';
 import 'package:metroapp/elements/journey_details.dart';
 import 'package:metroapp/elements/ServicesDir/stops_manager.dart';
+import 'package:metroapp/elements/ServicesDir/analytics_service.dart';
 
 
 class JourneyPlannerScreen extends StatefulWidget {
@@ -62,6 +63,7 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
   @override
   void initState() {
     super.initState();
+    PostHogService.trackScreenViewed('Journey Planner');
     _srcController = TextEditingController(text: _srcName);
     _dstController = TextEditingController(text: _dstName);
     _srcFocusNode = FocusNode();
@@ -328,6 +330,7 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
   }
 
   void _swapLocations() {
+    PostHogService.trackButtonClicked('swap_endpoints');
     setState(() {
       _turns += 0.5;
       final tempName = _srcName;
@@ -486,6 +489,7 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
 
   Future<void> _planJourney() async {
     if (_srcController.text.trim().isEmpty || _dstController.text.trim().isEmpty) {
+      PostHogService.trackValidationError('journey_input', 'Please select both start and end locations.');
       setState(() {
         _errorMessage = 'Please select both start and end locations.';
       });
@@ -509,6 +513,7 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
             _srcType = 'place';
           });
         } else {
+          PostHogService.trackValidationError('src_location', 'Could not resolve starting point: ${_srcController.text}');
           setState(() {
             _isLoading = false;
             _errorMessage = 'Could not resolve starting point: ${_srcController.text}';
@@ -527,6 +532,7 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
             _dstType = 'place';
           });
         } else {
+          PostHogService.trackValidationError('dst_location', 'Could not resolve destination: ${_dstController.text}');
           setState(() {
             _isLoading = false;
             _errorMessage = 'Could not resolve destination: ${_dstController.text}';
@@ -536,6 +542,7 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
       }
 
       if (_srcLat == 0.0 || _srcLon == 0.0 || _dstLat == 0.0 || _dstLon == 0.0) {
+        PostHogService.trackValidationError('coordinates', 'Invalid coordinates. Please select locations again.');
         setState(() {
           _isLoading = false;
           _errorMessage = 'Invalid coordinates. Please select locations again.';
@@ -545,6 +552,7 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
 
       if (_srcLat! < 28.0 || _srcLat! > 29.2 || _srcLon! < 76.5 || _srcLon! > 77.8 ||
           _dstLat! < 28.0 || _dstLat! > 29.2 || _dstLon! < 76.5 || _dstLon! > 77.8) {
+        PostHogService.trackValidationError('bounds', 'Journey planner is only available within Delhi NCR. Please select locations within the service area.');
         setState(() {
           _isLoading = false;
           _errorMessage = 'Journey planner is only available within Delhi NCR. Please select locations within the service area.';
@@ -554,6 +562,7 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
 
       final timeStr = _formatTimeOfDay(_selectedTime);
 
+      PostHogService.trackSearchPerformed('journey_search', '${_srcController.text} to ${_dstController.text}');
       final result = await JourneyPlannerService.planJourney(
         srcLat: _srcLat!,
         srcLon: _srcLon!,
@@ -571,6 +580,7 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
           _isLoading = false;
           if (result.isEmpty) {
             _errorMessage = 'could not find viable route';
+            PostHogService.trackValidationError('journey_results', 'could not find viable route');
           } else {
             _errorMessage = null;
           }
@@ -644,6 +654,7 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
           child: BackButton(
             color: AppColors.primaryAccent,
             onPressed: () {
+              PostHogService.trackButtonClicked('back_button');
               Navigator.pop(context);
             },
           ),
@@ -1348,6 +1359,10 @@ class RouteCard extends StatelessWidget {
       ),
       child: InkWell(
         onTap: () {
+          PostHogService.trackButtonClicked('select_route_card', {
+            'fare': route.totalFare,
+            'duration_min': route.tripTime,
+          });
           Navigator.push(
             context,
             MaterialPageRoute(

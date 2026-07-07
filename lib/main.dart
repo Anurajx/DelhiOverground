@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:metroapp/elements/ServicesDir/data_provider.dart';
@@ -6,10 +7,22 @@ import 'package:skeletonizer/skeletonizer.dart';
 import 'package:metroapp/elements/ServicesDir/stops_manager.dart';
 import 'elements/metro.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:posthog_flutter/posthog_flutter.dart';
 import 'package:metroapp/elements/ServicesDir/env_service.dart';
+import 'package:metroapp/elements/ServicesDir/analytics_service.dart';
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Setup global error tracking
+  FlutterError.onError = (details) {
+    FlutterError.presentError(details);
+    PostHogService.trackAppException(details.exception, details.stack);
+  };
+  PlatformDispatcher.instance.onError = (error, stack) {
+    PostHogService.trackAppException(error, stack);
+    return true;
+  };
+
   await Env.load();
   await StopsManager.init();
   final dataProvider = DataProvider();
@@ -33,8 +46,44 @@ void main() async {
   );
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    PostHogService.trackAppOpened();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    switch (state) {
+      case AppLifecycleState.paused:
+        PostHogService.trackAppBackgrounded();
+        break;
+      case AppLifecycleState.resumed:
+        PostHogService.trackAppForegrounded();
+        break;
+      case AppLifecycleState.detached:
+        PostHogService.trackAppClosed();
+        break;
+      default:
+        break;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -46,9 +95,7 @@ class MyApp extends StatelessWidget {
       builder: (context, child) {
         // had to use builder because the mediaquery was resulting to bugging of top status bar
         return MaterialApp(
-          navigatorObservers: [
-            PosthogObserver(),
-          ],
+          navigatorObservers: const [],
           title: 'DTC Bus Service',
           debugShowCheckedModeBanner: false,
           theme: ThemeData(

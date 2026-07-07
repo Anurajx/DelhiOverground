@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:metroapp/elements/ServicesDir/env_service.dart';
+import 'package:metroapp/elements/ServicesDir/analytics_service.dart';
 
 // -------------------- MODELS --------------------
 
@@ -203,18 +204,24 @@ class JourneyPlannerService {
           final errorMsg = decoded is Map<String, dynamic> 
               ? (decoded['description'] ?? decoded['message'] ?? 'Failed to plan route') 
               : 'Invalid response format';
+          PostHogService.trackApiError(requestUrl, errorMsg, response.statusCode);
           throw Exception(errorMsg);
         }
       } else if (response.statusCode == 504) {
+        PostHogService.trackApiError(requestUrl, 'Gateway Timeout (504)', 504);
         throw Exception('Server Gateway Timeout (504). The route calculation took too long. Try selecting "Multi-modal" or different stops.');
       } else {
+        PostHogService.trackApiError(requestUrl, 'Server returned status code: ${response.statusCode}', response.statusCode);
         throw Exception('Server returned status code: ${response.statusCode}');
       }
-    } on TimeoutException {
+    } on TimeoutException catch (e) {
+      PostHogService.trackApiError(requestUrl, 'Connection timed out: $e');
       throw Exception('Connection timed out. The server is taking too long to respond. Please try again or select "Multi-modal" mode.');
-    } on SocketException {
+    } on SocketException catch (e) {
+      PostHogService.trackApiError(requestUrl, 'Network error (SocketException): $e');
       throw Exception('Network error. Please check your internet connection.');
     } catch (e) {
+      PostHogService.trackApiError(requestUrl, e.toString());
       if (e.toString().contains('504')) {
         throw Exception('Server Gateway Timeout. The route calculation took too long. Try selecting "Multi-modal" or different stops.');
       }
@@ -244,12 +251,18 @@ class JourneyPlannerService {
         }
         return [];
       } else {
+        PostHogService.trackApiError(requestUrl, 'Failed to get stops: ${response.statusCode}', response.statusCode);
         throw Exception('Failed to get stops: ${response.statusCode}');
       }
-    } on TimeoutException {
+    } on TimeoutException catch (e) {
+      PostHogService.trackApiError(requestUrl, 'Connection timed out: $e');
       throw Exception('Connection timed out while fetching transit stops. Please try again.');
-    } on SocketException {
+    } on SocketException catch (e) {
+      PostHogService.trackApiError(requestUrl, 'Network error: $e');
       throw Exception('Network error. Please check your internet connection.');
+    } catch (e) {
+      PostHogService.trackApiError(requestUrl, e.toString());
+      rethrow;
     }
   }
 }

@@ -5,6 +5,7 @@ import '../search.dart';
 import 'package:metroapp/main.dart';
 import 'package:http/http.dart' as http;
 import 'package:metroapp/elements/ServicesDir/stops_manager.dart';
+import 'package:metroapp/elements/ServicesDir/analytics_service.dart';
 
 // -------------------- MODEL --------------------
 class ScheduleInfo {
@@ -219,13 +220,19 @@ Future<List<ScheduleInfo>> getRealtimeScheduleForStation(String stationCode) asy
   // 2. Fetch and parse for each realtime stop ID
   for (final rtId in realtimeStopIds) {
     final url = 'https://pis.delhitransport.in/get_buses_arriving_at_stop?stopid=$rtId';
-    final response = await http.get(Uri.parse(url));
-    if (response.statusCode == 200) {
-      final html = response.body;
-      final schedules = parseRealtimeHtml(html);
-      allSchedules.addAll(schedules);
-    } else {
-      throw Exception("Failed to fetch real-time data from server (Status: ${response.statusCode})");
+    try {
+      final response = await http.get(Uri.parse(url));
+      if (response.statusCode == 200) {
+        final html = response.body;
+        final schedules = parseRealtimeHtml(html);
+        allSchedules.addAll(schedules);
+      } else {
+        PostHogService.trackApiError(url, 'Failed to fetch real-time data from server', response.statusCode);
+        throw Exception("Failed to fetch real-time data from server (Status: ${response.statusCode})");
+      }
+    } catch (e) {
+      PostHogService.trackApiError(url, e.toString());
+      rethrow;
     }
   }
 
@@ -255,10 +262,12 @@ Future<List<ScheduleInfo>> getRealtimeScheduleForStation(String stationCode) asy
 
 Future<List<ScheduleInfo>> getRealtimeScheduleForStopId(int rtId) async {
   final url = 'https://pis.delhitransport.in/get_buses_arriving_at_stop?stopid=$rtId';
-  final response = await http.get(Uri.parse(url));
-  if (response.statusCode != 200) {
-    throw Exception("Failed to fetch real-time data from server (Status: ${response.statusCode})");
-  }
+  try {
+    final response = await http.get(Uri.parse(url));
+    if (response.statusCode != 200) {
+      PostHogService.trackApiError(url, 'Failed to fetch real-time data from server', response.statusCode);
+      throw Exception("Failed to fetch real-time data from server (Status: ${response.statusCode})");
+    }
 
   final html = response.body;
   final schedules = parseRealtimeHtml(html);
@@ -283,6 +292,10 @@ Future<List<ScheduleInfo>> getRealtimeScheduleForStopId(int rtId) async {
 
   schedules.sort((a, b) => a.minutesLeft.compareTo(b.minutesLeft));
   return schedules;
+  } catch (e) {
+    PostHogService.trackApiError(url, e.toString());
+    rethrow;
+  }
 }
 
 // -------------------- UI WIDGET --------------------

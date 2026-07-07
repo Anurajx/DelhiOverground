@@ -6,6 +6,7 @@ import 'package:metroapp/elements/ServicesDir/stops_manager.dart';
 import 'package:metroapp/elements/StationDir/stop_info.dart';
 import 'package:metroapp/main.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:metroapp/elements/ServicesDir/analytics_service.dart';
 
 class JourneyDetailsScreen extends StatelessWidget {
   final JourneyRoute route;
@@ -21,6 +22,9 @@ class JourneyDetailsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      PostHogService.trackScreenViewed('Journey Details');
+    });
     return Scaffold(
       backgroundColor: Colors.black,
       body: SafeArea(
@@ -71,6 +75,7 @@ class JourneyDetailsScreen extends StatelessWidget {
           child: BackButton(
             color: AppColors.primaryAccent,
             onPressed: () {
+              PostHogService.trackButtonClicked('back_button');
               Navigator.pop(context);
             },
           ),
@@ -242,17 +247,6 @@ class JourneyDetailsScreen extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        "TRAVEL TIME",
-                        style: TextStyle(
-                          color: const Color(0xFF064E3B),
-                          fontFamily: 'Poppins',
-                          fontSize: 8.sp,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                      SizedBox(height: 2.h),
-                      Text(
                         _formatTravelTime(route.tripTime),
                         style: TextStyle(
                           color: const Color(0xFF064E3B),
@@ -278,17 +272,6 @@ class JourneyDetailsScreen extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.end,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(
-                        "REACH BY",
-                        style: TextStyle(
-                          color: AppColors.secondaryAccent,
-                          fontFamily: 'Poppins',
-                          fontSize: 8.sp,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                      SizedBox(height: 2.h),
                       Text(
                         _formatReachTime(route.reachBy),
                         style: TextStyle(
