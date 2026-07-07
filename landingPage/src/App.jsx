@@ -3,21 +3,14 @@ import { motion } from "framer-motion";
 import { ArrowRight, ArrowUpRight } from "lucide-react";
 import "./App.css";
 
-function AnimatedText({ text, delay = 0 }) {
+function AnimatedText({ text }) {
   return (
-    <motion.span
-      className="font-bold text-center text-6xl leading-[0.75] tracking-tighter font-serif text-[#f5f4ef] lg:text-9xl"
+    <span
+      className="font-light text-center text-6xl leading-[0.75] tracking-tighter font-serif text-[#f5f4ef] lg:text-9xl"
       style={{ display: "inline-block" }}
-      initial={{ opacity: 0, y: 15 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{
-        duration: 0.8,
-        delay: delay,
-        ease: [0.16, 1, 0.3, 1], // premium easeOutExpo curve
-      }}
     >
       {text}
-    </motion.span>
+    </span>
   );
 }
 
@@ -77,35 +70,23 @@ function HeroSection() {
           }}
         >
           <img
-            src="/images/ravi-sharma-3gFoYxnX2Hc-unsplash.jpg"
-            alt="Delhi street scene"
+            src="/images/image.webp"
+            alt="Scenic view of Delhi landscape"
             className="w-full h-full object-cover"
           />
         </div>
       </div>
 
       {/* Main Content */}
-      <div className="max-w-7xl mx-auto w-full relative z-10 shift-up">
+      <div className="max-w-7xl mx-auto w-full relative z-10">
         <div className="text-center mb-12">
-          <div
-            className={`transition-all duration-1000 delay-[800ms] ${
-              loaded ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-4"
-            }`}
-          >
+          <div>
             <h1 className="font-serif text-[3.5rem] sm:text-[4.5rem] md:text-[5.5rem] lg:text-[6.5rem] xl:text-[7.5rem] 2xl:text-[8.5rem] font-normal leading-tight mb-6 w-full px-4 max-w-6xl mx-auto text-balance">
-              <AnimatedText
-                text="Find your way through Delhi NCR"
-                delay={0.3}
-              />
+              <AnimatedText text="Find your way through Delhi NCR" />
             </h1>
-            <motion.p
-              className="text-[#f5f4ef] text-lg sm:text-xl lg:text-2xl max-w-xl lg:max-w-2xl mx-auto font-sans mt-4 mb-2 text-balance opacity-80"
-              initial={{ opacity: 0, y: 15 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8, delay: 1.2, ease: "easeOut" }}
-            >
+            <p className="text-[#f5f4ef] text-lg sm:text-xl lg:text-2xl max-w-xl lg:max-w-2xl mx-auto font-sans mt-4 mb-2 text-balance opacity-80">
               Adding accessibility to public transit.
-            </motion.p>
+            </p>
           </div>
         </div>
         <div className="flex flex-col items-center justify-center gap-8">
@@ -135,14 +116,14 @@ function App() {
     <main className="min-h-screen bg-background">
       <HeroSection />
 
-      <section className="pt-16 pb-32 px-6 relative overflow-hidden">
+      <section className="py-32 px-6 relative overflow-hidden">
         <div className="max-w-7xl mx-auto relative z-10">
           <div className="text-center mb-16">
             <h2 className="text-4xl md:text-5xl font-normal leading-tight max-w-4xl mx-auto mb-6 font-serif">
               Ready to go your way around?
             </h2>
             <p className="text-muted-foreground max-w-2xl mx-auto mb-10">
-              Download app below, Enjoy
+              Download app below, assets in metro app may be outdated
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <button className="relative flex items-center justify-center gap-0 bg-foreground text-background rounded-full pl-6 pr-1.5 py-1.5 transition-all duration-300 group overflow-hidden">
