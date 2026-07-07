@@ -115,6 +115,7 @@ flutter:
     - assets/Image/rainhero.jpg
     - assets/Image/connoughthero.jpg
     - assets/Image/qutubhero.jpg
+    - assets/Image/dtcaccident.png
 
   fonts:
     - family: Poppins

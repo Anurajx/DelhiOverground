@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' show ImageFilter;
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:metroapp/elements/ServicesDir/geolocator_service.dart';
 import 'package:metroapp/elements/StationDir/stop_info.dart';
@@ -443,24 +444,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 Expanded(
                   child: GestureDetector(
                     behavior: HitTestBehavior.opaque,
-                    onTap: () {
-                      _showSettingsBottomSheet(context);
-                    },
-                    child: Container(
-                      decoration: const BoxDecoration(
-                        color: AppColors.inputBackground,
-                        borderRadius: BorderRadius.all(Radius.circular(80)),
-                      ),
-                      child: const Center(
-                        child: Icon(CupertinoIcons.settings, color: Colors.white),
-                      ),
-                    ),
-                  ),
-                ),
-                SizedBox(width: 5.w),
-                Expanded(
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.opaque,
                     onTap: () async {
                       final whatsappUrl = Uri.parse(
                         'https://wa.me/+918744073223?text=Hi',
@@ -477,6 +460,24 @@ class _HomeScreenState extends State<HomeScreen> {
                           CupertinoIcons.tickets,
                           color: Colors.white,
                         ),
+                      ),
+                    ),
+                  ),
+                ),
+                SizedBox(width: 5.w),
+                Expanded(
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () {
+                      _showSettingsBottomSheet(context);
+                    },
+                    child: Container(
+                      decoration: const BoxDecoration(
+                        color: AppColors.inputBackground,
+                        borderRadius: BorderRadius.all(Radius.circular(80)),
+                      ),
+                      child: const Center(
+                        child: Icon(CupertinoIcons.settings, color: Colors.white),
                       ),
                     ),
                   ),
@@ -750,23 +751,26 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.only(
-        left: 20.w,
-        right: 20.w,
-        top: 20.h,
-        bottom: MediaQuery.of(context).padding.bottom + 24.h,
-      ),
-      decoration: const BoxDecoration(
-        color: Colors.black, // Solid black background
-        borderRadius: BorderRadius.zero, // Sharp corners
-        border: Border(
-          top: BorderSide(
-            color: AppColors.divider,
-            width: 1.0,
+    return ClipRect(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+        child: Container(
+          padding: EdgeInsets.only(
+            left: 20.w,
+            right: 20.w,
+            top: 20.h,
+            bottom: MediaQuery.of(context).padding.bottom + 24.h,
           ),
-        ),
-      ),
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.65), // Neutral transparent background
+            borderRadius: BorderRadius.zero, // Sharp corners
+            border: const Border(
+              top: BorderSide(
+                color: AppColors.divider,
+                width: 1.0,
+              ),
+            ),
+          ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -805,11 +809,7 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
           ),
           SizedBox(height: 24.h),
 
-          const Divider(
-            color: AppColors.divider,
-            thickness: 1.0,
-            height: 1,
-          ),
+
 
           // Action 1: Update Stop Database
           Container(
@@ -879,85 +879,13 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
               ],
             ),
           ),
-          const Divider(
-            color: AppColors.divider,
-            thickness: 1.0,
-            height: 1,
-          ),
 
-          // Action 3: View on Play Store
+
           GestureDetector(
             onTap: () async {
-              final url = Uri.parse("https://play.google.com/store");
+              final url = Uri.parse("https://delhioverground.vercel.app/");
               try {
-                if (await canLaunchUrl(url)) {
-                  await launchUrl(url, mode: LaunchMode.externalApplication);
-                }
-              } catch (e) {
-                debugPrint("Error launching Play Store URL: $e");
-              }
-            },
-            behavior: HitTestBehavior.opaque,
-            child: Container(
-              color: Colors.transparent,
-              padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 18.h),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.storefront_outlined,
-                    color: Colors.white,
-                    size: 20.sp,
-                  ),
-                  SizedBox(width: 14.w),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          "View on Play Store",
-                          style: TextStyle(
-                            color: AppColors.primaryText,
-                            fontSize: 14.sp,
-                            fontWeight: FontWeight.w600,
-                            fontFamily: 'Poppins',
-                          ),
-                        ),
-                        SizedBox(height: 4.h),
-                        Text(
-                          "Rate the app or leave feedback",
-                          style: TextStyle(
-                            color: AppColors.secondaryText,
-                            fontSize: 11.sp,
-                            fontWeight: FontWeight.w400,
-                            fontFamily: 'Poppins',
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Icon(
-                    CupertinoIcons.chevron_forward,
-                    color: AppColors.secondaryText,
-                    size: 14.sp,
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const Divider(
-            color: AppColors.divider,
-            thickness: 1.0,
-            height: 1,
-          ),
-
-          // Action 4: View Website
-          GestureDetector(
-            onTap: () async {
-              final url = Uri.parse("https://github.com");
-              try {
-                if (await canLaunchUrl(url)) {
-                  await launchUrl(url, mode: LaunchMode.externalApplication);
-                }
+                await launchUrl(url, mode: LaunchMode.externalApplication);
               } catch (e) {
                 debugPrint("Error launching Website URL: $e");
               }
@@ -1009,76 +937,7 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
               ),
             ),
           ),
-          const Divider(
-            color: AppColors.divider,
-            thickness: 1.0,
-            height: 1,
-          ),
 
-          // Action 5: Legal Info
-          GestureDetector(
-            onTap: () async {
-              final url = Uri.parse("https://google.com");
-              try {
-                if (await canLaunchUrl(url)) {
-                  await launchUrl(url, mode: LaunchMode.externalApplication);
-                }
-              } catch (e) {
-                debugPrint("Error launching Legal URL: $e");
-              }
-            },
-            behavior: HitTestBehavior.opaque,
-            child: Container(
-              color: Colors.transparent,
-              padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 18.h),
-              child: Row(
-                children: [
-                  Icon(
-                    CupertinoIcons.doc_text,
-                    color: Colors.white,
-                    size: 20.sp,
-                  ),
-                  SizedBox(width: 14.w),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          "Legal Info",
-                          style: TextStyle(
-                            color: AppColors.primaryText,
-                            fontSize: 14.sp,
-                            fontWeight: FontWeight.w600,
-                            fontFamily: 'Poppins',
-                          ),
-                        ),
-                        SizedBox(height: 4.h),
-                        Text(
-                          "Terms, privacy and licenses",
-                          style: TextStyle(
-                            color: AppColors.secondaryText,
-                            fontSize: 11.sp,
-                            fontWeight: FontWeight.w400,
-                            fontFamily: 'Poppins',
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Icon(
-                    CupertinoIcons.chevron_forward,
-                    color: AppColors.secondaryText,
-                    size: 14.sp,
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const Divider(
-            color: AppColors.divider,
-            thickness: 1.0,
-            height: 1,
-          ),
           SizedBox(height: 16.h),
           Center(
             child: Text(
@@ -1094,6 +953,6 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
           ),
         ],
       ),
-    );
+    )));
   }
 }

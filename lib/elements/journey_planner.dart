@@ -711,12 +711,12 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
                                 fontWeight: FontWeight.w600,
                               ),
                               decoration: InputDecoration(
-                                hintText: 'Choose starting point...',
+                                hintText: 'From',
                                 hintStyle: TextStyle(
-                                  color: AppColors.tertiaryText,
+                                  color: AppColors.secondaryText,
                                   fontFamily: 'Poppins',
                                   fontSize: 13.sp,
-                                  fontWeight: FontWeight.w400,
+                                  fontWeight: FontWeight.w600,
                                 ),
                                 border: InputBorder.none,
                                 isDense: true,
@@ -810,12 +810,12 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
                           fontWeight: FontWeight.w600,
                         ),
                         decoration: InputDecoration(
-                          hintText: 'Choose destination...',
+                          hintText: 'To',
                           hintStyle: TextStyle(
-                            color: AppColors.tertiaryText,
+                            color: AppColors.secondaryText,
                             fontFamily: 'Poppins',
                             fontSize: 13.sp,
-                            fontWeight: FontWeight.w400,
+                            fontWeight: FontWeight.w600,
                           ),
                           border: InputBorder.none,
                           isDense: true,
@@ -1145,7 +1145,28 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
   }
 
   Widget _buildHistoryList() {
-    final history = Provider.of<DataProvider>(context).journeySearchHistory;
+    var history = Provider.of<DataProvider>(context).journeySearchHistory;
+
+    if (_isFocusingDestination && _dstController.text.isEmpty && _srcController.text.isNotEmpty) {
+      final srcVal = _srcController.text.toLowerCase().trim();
+      history = history.where((item) {
+        final itemSrc = (item['src_name'] ?? '').toLowerCase().trim();
+        return itemSrc == srcVal;
+      }).toList();
+      if (history.isEmpty) {
+        return const SizedBox.shrink();
+      }
+    } else if (_isFocusingSource && _srcController.text.isEmpty && _dstController.text.isNotEmpty) {
+      final dstVal = _dstController.text.toLowerCase().trim();
+      history = history.where((item) {
+        final itemDst = (item['dst_name'] ?? '').toLowerCase().trim();
+        return itemDst == dstVal;
+      }).toList();
+      if (history.isEmpty) {
+        return const SizedBox.shrink();
+      }
+    }
+
     if (history.isEmpty) {
       return Center(
         child: Padding(
@@ -1219,23 +1240,36 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
     }
 
     if (_errorMessage != null) {
+      final isNoRouteError = _errorMessage == 'could not find viable route';
       return Container(
         padding: EdgeInsets.only(top: 80.h, left: 24.w, right: 24.w),
         alignment: Alignment.topCenter,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              CupertinoIcons.exclamationmark_circle_fill,
-              color: AppColors.destructive,
-              size: 28.sp,
-            ),
-            SizedBox(height: 10.h),
+            if (isNoRouteError) ...[
+              ClipRRect(
+                borderRadius: BorderRadius.circular(3.r),
+                child: Image.asset(
+                  'assets/Image/dtcaccident.png',
+                  height: 100.h,
+                  fit: BoxFit.contain,
+                ),
+              ),
+              SizedBox(height: 16.h),
+            ] else ...[
+              Icon(
+                CupertinoIcons.exclamationmark_circle_fill,
+                color: AppColors.destructive,
+                size: 28.sp,
+              ),
+              SizedBox(height: 10.h),
+            ],
             Text(
-              _errorMessage!,
+              isNoRouteError ? '${_errorMessage!} :(' : _errorMessage!,
               textAlign: TextAlign.center,
               style: TextStyle(
-                color: AppColors.destructive,
+                color: isNoRouteError ? AppColors.primaryAccent : AppColors.destructive,
                 fontSize: 16.sp,
                 fontWeight: FontWeight.w500,
                 fontFamily: 'Poppins',

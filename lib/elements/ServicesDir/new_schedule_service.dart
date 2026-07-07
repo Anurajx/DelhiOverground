@@ -728,17 +728,20 @@ class _ScheduleWidgetState extends State<ScheduleWidget> {
           mainAxisSize: MainAxisSize.min,
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              CupertinoIcons.exclamationmark_circle_fill,
-              color: AppColors.destructive,
-              size: 28.sp,
+            ClipRRect(
+              borderRadius: BorderRadius.circular(3.r),
+              child: Image.asset(
+                'assets/Image/dtcaccident.png',
+                height: 100.h,
+                fit: BoxFit.contain,
+              ),
             ),
-            SizedBox(height: 10.h),
+            SizedBox(height: 16.h),
             Text(
-              "please check your internet connection and try again",
+              "please check your internet connection and try again :(",
               textAlign: TextAlign.center,
               style: TextStyle(
-                color: AppColors.destructive,
+                color: AppColors.primaryAccent,
                 fontSize: 16.sp,
                 fontWeight: FontWeight.w500,
                 fontFamily: 'Poppins',
@@ -758,17 +761,20 @@ class _ScheduleWidgetState extends State<ScheduleWidget> {
           mainAxisSize: MainAxisSize.min,
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              CupertinoIcons.exclamationmark_circle_fill,
-              color: AppColors.destructive,
-              size: 28.sp,
+            ClipRRect(
+              borderRadius: BorderRadius.circular(3.r),
+              child: Image.asset(
+                'assets/Image/dtcaccident.png',
+                height: 100.h,
+                fit: BoxFit.contain,
+              ),
             ),
-            SizedBox(height: 10.h),
+            SizedBox(height: 16.h),
             Text(
-              message,
+              "$message :(",
               textAlign: TextAlign.center,
               style: TextStyle(
-                color: AppColors.destructive,
+                color: AppColors.primaryAccent,
                 fontSize: 16.sp,
                 fontWeight: FontWeight.w500,
                 fontFamily: 'Poppins',

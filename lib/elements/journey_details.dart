@@ -46,10 +46,14 @@ class JourneyDetailsScreen extends StatelessWidget {
                 padding: EdgeInsets.only(
                   left: 14.w,
                   right: 14.w,
-                  top: 16.h,
+                  top: 28.h,
                   bottom: 30.h,
                 ),
-                children: [_buildTimelineSection()],
+                children: [
+                  _buildTimelineSection(),
+                  SizedBox(height: 15.h),
+                  _buildCompanyFooter(),
+                ],
               ),
             ),
           ],
@@ -75,6 +79,48 @@ class JourneyDetailsScreen extends StatelessWidget {
     );
   }
 
+  String _formatTravelTime(double timeInMinutes) {
+    final int totalMinutes = timeInMinutes.toInt();
+    if (totalMinutes <= 0) return '0 Mins';
+
+    final int hours = totalMinutes ~/ 60;
+    final int minutes = totalMinutes % 60;
+
+    if (hours > 0) {
+      if (minutes > 0) {
+        return '$hours Hr $minutes Mins';
+      } else {
+        return '$hours Hr';
+      }
+    } else {
+      return '$minutes Mins';
+    }
+  }
+
+  String _formatReachTime(String reachTime) {
+    if (reachTime.isEmpty) return '';
+    if (reachTime.toUpperCase().contains('AM') || reachTime.toUpperCase().contains('PM')) {
+      return reachTime;
+    }
+    try {
+      final parts = reachTime.split(':');
+      if (parts.isNotEmpty) {
+        int hour = int.parse(parts[0]);
+        int minute = parts.length > 1 ? int.parse(parts[1]) : 0;
+
+        final period = hour >= 12 ? 'PM' : 'AM';
+        hour = hour % 12;
+        if (hour == 0) hour = 12;
+
+        final minuteStr = minute.toString().padLeft(2, '0');
+        return '$hour:$minuteStr $period';
+      }
+    } catch (e) {
+      // ignore
+    }
+    return reachTime;
+  }
+
   Widget _buildScreenTitle() {
     return Container(
       margin: EdgeInsets.only(bottom: 12.h),
@@ -92,11 +138,11 @@ class JourneyDetailsScreen extends StatelessWidget {
 
   Widget _buildSummaryCard() {
     return Container(
-      padding: EdgeInsets.all(16.w),
+      padding: EdgeInsets.only(left: 12.w, right: 0, top: 0, bottom: 0),
       decoration: BoxDecoration(
         color: Colors.black,
         border: Border.all(
-          color: const Color.fromARGB(58, 58, 58, 58),
+          color: AppColors.secondaryAccent,
           width: 0.8,
         ),
         gradient: const LinearGradient(
@@ -123,22 +169,22 @@ class JourneyDetailsScreen extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    Container(
-                      width: 7.w,
-                      height: 7.w,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 1.2.w),
+                    Text(
+                      "From ",
+                      style: TextStyle(
+                        color: AppColors.tertiaryText,
+                        fontFamily: 'Poppins',
+                        fontSize: 13.sp,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
-                    SizedBox(width: 10.w),
                     Expanded(
                       child: Text(
                         srcName,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          color: Colors.white,
+                          color: AppColors.secondaryText,
                           fontFamily: 'Poppins',
                           fontSize: 13.sp,
                           fontWeight: FontWeight.w600,
@@ -147,39 +193,25 @@ class JourneyDetailsScreen extends StatelessWidget {
                     ),
                   ],
                 ),
+                SizedBox(height: 12.h),
                 Row(
                   children: [
-                    SizedBox(
-                      width: 7.w,
-                      height: 14.h,
-                      child: Center(
-                        child: Container(
-                          width: 1.2.w,
-                          color: Colors.white.withValues(alpha: 0.35),
-                        ),
+                    Text(
+                      "To ",
+                      style: TextStyle(
+                        color: AppColors.tertiaryText,
+                        fontFamily: 'Poppins',
+                        fontSize: 13.sp,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
-                    SizedBox(width: 10.w),
-                  ],
-                ),
-                Row(
-                  children: [
-                    Container(
-                      width: 7.w,
-                      height: 7.w,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.rectangle,
-                        border: Border.all(color: Colors.white, width: 1.2.w),
-                      ),
-                    ),
-                    SizedBox(width: 10.w),
                     Expanded(
                       child: Text(
                         dstName,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          color: Colors.white,
+                          color: AppColors.secondaryText,
                           fontFamily: 'Poppins',
                           fontSize: 13.sp,
                           fontWeight: FontWeight.w600,
@@ -191,54 +223,86 @@ class JourneyDetailsScreen extends StatelessWidget {
               ],
             ),
           ),
-          SizedBox(width: 16.w),
-          // Right: Travel Time details
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                "TRAVEL TIME",
-                style: TextStyle(
-                  color: AppColors.tertiaryText,
-                  fontFamily: 'Poppins',
-                  fontSize: 9.sp,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.5,
-                ),
-              ),
-              SizedBox(height: 2.h),
-              Text(
-                "${route.tripTime.toInt()} min",
-                style: TextStyle(
-                  color: Colors.white,
-                  fontFamily: 'Poppins',
-                  fontSize: 22.sp,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              SizedBox(height: 10.h),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    CupertinoIcons.clock,
-                    color: AppColors.secondaryText,
-                    size: 12.sp,
+          SizedBox(width: 14.w),
+          // Right: Travel Time & Reach Time stacked vertically with same width
+          IntrinsicWidth(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Section 2: Travel Time
+                Container(
+                  padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 6.h),
+                  decoration: BoxDecoration(
+                    color: AppColors.secondaryAccent,
+                    borderRadius: BorderRadius.zero,
                   ),
-                  SizedBox(width: 4.w),
-                  Text(
-                    "Reach: ${route.reachBy}",
-                    style: TextStyle(
-                      color: AppColors.secondaryText,
-                      fontFamily: 'Poppins',
-                      fontSize: 12.sp,
-                      fontWeight: FontWeight.w500,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        "TRAVEL TIME",
+                        style: TextStyle(
+                          color: const Color(0xFF064E3B),
+                          fontFamily: 'Poppins',
+                          fontSize: 8.sp,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                      SizedBox(height: 2.h),
+                      Text(
+                        _formatTravelTime(route.tripTime),
+                        style: TextStyle(
+                          color: const Color(0xFF064E3B),
+                          fontFamily: 'Poppins',
+                          fontSize: 14.sp,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                // Section 3: Reach Time
+                Container(
+                  padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 6.h),
+                  decoration: BoxDecoration(
+                    border: Border.all(
+                      color: AppColors.secondaryAccent,
+                      width: 0.8,
                     ),
+                    borderRadius: BorderRadius.zero,
                   ),
-                ],
-              ),
-            ],
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        "REACH BY",
+                        style: TextStyle(
+                          color: AppColors.secondaryAccent,
+                          fontFamily: 'Poppins',
+                          fontSize: 8.sp,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                      SizedBox(height: 2.h),
+                      Text(
+                        _formatReachTime(route.reachBy),
+                        style: TextStyle(
+                          color: AppColors.secondaryAccent,
+                          fontFamily: 'Poppins',
+                          fontSize: 14.sp,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -429,6 +493,30 @@ class JourneyDetailsScreen extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: timelineItems,
+    );
+  }
+
+  Widget _buildCompanyFooter() {
+    return SizedBox(
+      width: double.infinity,
+      height: 50.h,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Text(
+            "DELHI\nOVERGROUND",
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              height: 1.h,
+              color: AppColors.tertiaryText,
+              fontWeight: FontWeight.w800,
+              fontSize: 12.sp,
+              fontFamily: 'Poppins',
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -667,7 +755,7 @@ class TransitLegBoardingTile extends StatefulWidget {
 }
 
 class _TransitLegBoardingTileState extends State<TransitLegBoardingTile> {
-  bool _showStops = false;
+  bool _showStops = true;
 
   dynamic _resolveStationDict() {
     final stop = widget.leg.stops.first;
@@ -945,7 +1033,7 @@ class _TransitLegBoardingTileState extends State<TransitLegBoardingTile> {
                     bottom: 10.h,
                   ),
                   child: Icon(
-                    CupertinoIcons.info_circle_fill,
+                    CupertinoIcons.info_circle,
                     color: AppColors.secondaryText,
                     size: 20.sp,
                   ),

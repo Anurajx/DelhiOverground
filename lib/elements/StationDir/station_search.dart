@@ -424,19 +424,24 @@ class _SearchScreenState extends State<StationSearchScreen> {
     }
 
     if (_filteredStations.isEmpty) {
-      return const Center(
+      return Center(
         child: Column(
           children: [
-            SizedBox(height: 30),
-            Icon(
-              CupertinoIcons.exclamationmark_circle_fill,
-              color: Color.fromARGB(255, 255, 145, 145),
+            const SizedBox(height: 30),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(3.r),
+              child: Image.asset(
+                'assets/Image/dtcaccident.png',
+                height: 100.h,
+                fit: BoxFit.contain,
+              ),
             ),
+            SizedBox(height: 16.h),
             Text(
-              "no matches found",
+              "no matches found :(",
               style: TextStyle(
-                color: Color.fromARGB(255, 255, 145, 145),
-                fontSize: 20,
+                color: AppColors.primaryAccent,
+                fontSize: 20.sp,
                 fontWeight: FontWeight.w500,
               ),
             ),
