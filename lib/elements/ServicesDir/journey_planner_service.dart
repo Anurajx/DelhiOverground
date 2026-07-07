@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:metroapp/elements/ServicesDir/env_service.dart';
 
 // -------------------- MODELS --------------------
 
@@ -152,7 +153,7 @@ class JourneyRoute {
 
 class JourneyPlannerService {
   static const String _baseUrl = 'https://dts-backend.transportstack.in';
-  static const String _apiKey = 'hsrNV2fU3I9O774q02X1BgGOf8T3f7vlbzdFjXSRB6Y=';
+  static String get _apiKey => Env.get('DTS_API_KEY', defaultValue: 'hsrNV2fU3I9O774q02X1BgGOf8T3f7vlbzdFjXSRB6Y=');
 
   /// Fetch multi-modal journey recommendations.
   /// Strictly construct URL query parameters by manual string building to keep

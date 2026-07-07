@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:metroapp/elements/ServicesDir/env_service.dart';
 
 class StopsManager {
   static List<dynamic> _stations = [];
@@ -194,7 +195,7 @@ class StopsManager {
         final response = await http.get(
           Uri.parse('https://dts-backend.transportstack.in/api/serviceset/journey-planner/get_stops?mode=bus'),
           headers: {
-            'x-api-key': 'hsrNV2fU3I9O774q02X1BgGOf8T3f7vlbzdFjXSRB6Y=',
+            'x-api-key': Env.get('DTS_API_KEY', defaultValue: 'hsrNV2fU3I9O774q02X1BgGOf8T3f7vlbzdFjXSRB6Y='),
           },
         ).timeout(const Duration(seconds: 45));
 
@@ -226,7 +227,7 @@ class StopsManager {
       final response = await http.get(
         Uri.parse('https://dts-backend.transportstack.in/api/serviceset/journey-planner/get_stops?mode=bus'),
         headers: {
-          'x-api-key': 'hsrNV2fU3I9O774q02X1BgGOf8T3f7vlbzdFjXSRB6Y=',
+          'x-api-key': Env.get('DTS_API_KEY', defaultValue: 'hsrNV2fU3I9O774q02X1BgGOf8T3f7vlbzdFjXSRB6Y='),
         },
       ).timeout(const Duration(seconds: 45));
 

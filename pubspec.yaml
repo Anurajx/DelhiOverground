@@ -116,6 +116,7 @@ flutter:
     - assets/Image/connoughthero.jpg
     - assets/Image/qutubhero.jpg
     - assets/Image/dtcaccident.png
+    - .env
 
   fonts:
     - family: Poppins

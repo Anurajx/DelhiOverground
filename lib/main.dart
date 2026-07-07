@@ -7,8 +7,10 @@ import 'package:metroapp/elements/ServicesDir/stops_manager.dart';
 import 'elements/metro.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:posthog_flutter/posthog_flutter.dart';
+import 'package:metroapp/elements/ServicesDir/env_service.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await Env.load();
   await StopsManager.init();
   final dataProvider = DataProvider();
   await dataProvider.loadBusSearchHistory();
