@@ -70,7 +70,7 @@ function HeroSection() {
           }}
         >
           <img
-            src="/images/ravi-sharma-3gFoYxnX2Hc-unsplash.jpg"
+            src="/images/ravi-sharma-final.webp"
             alt="Scenic view of Delhi landscape"
             className="w-full h-full object-cover"
           />
@@ -85,7 +85,7 @@ function HeroSection() {
               <AnimatedText text="Find your way through Delhi NCR" />
             </h1>
             <p className="text-white mix-blend-difference text-lg sm:text-xl lg:text-2xl max-w-xl lg:max-w-2xl mx-auto font-sans mt-4 mb-2 text-balance opacity-80">
-              Adding accessibility to public transit.
+              Accessibility to public transit.
             </p>
           </div>
         </div>
