@@ -70,7 +70,7 @@ function HeroSection() {
           }}
         >
           <img
-            src="/images/image.webp"
+            src="/images/ravi-sharma-3gFoYxnX2Hc-unsplash.jpg"
             alt="Scenic view of Delhi landscape"
             className="w-full h-full object-cover"
           />
@@ -144,7 +144,7 @@ function App() {
                 href="https://github.com/Anurajx/DelhiOverground/releases/download/v1.0.0/DelhiOverground.apk"
                 target="_blank"
                 rel="noopener noreferrer"
-                onClick={() => triggerToast("Download started: DelhiOverground (DTC)")}
+                onClick={() => triggerToast("Downloading DTC App")}
                 className="no-underline relative flex items-center justify-center gap-0 bg-foreground text-background rounded-full pl-6 pr-1.5 py-1.5 transition-all duration-300 group overflow-hidden"
               >
                 <span className="text-sm pr-4">DelhiOverground (DTC)</span>
@@ -156,7 +156,7 @@ function App() {
                 href="https://github.com/Anurajx/DelhiUnderground/releases/download/v1.0.0/app-release.apk"
                 target="_blank"
                 rel="noopener noreferrer"
-                onClick={() => triggerToast("Download started: DelhiUnderground (Metro)")}
+                onClick={() => triggerToast("Downloading Metro App")}
                 className="no-underline relative flex items-center justify-center gap-0 border border-border rounded-full pl-6 pr-1.5 py-1.5 transition-all duration-300 group overflow-hidden"
               >
                 <span className="absolute inset-0 bg-foreground rounded-full scale-x-0 origin-right group-hover:scale-x-100 transition-transform duration-300"></span>

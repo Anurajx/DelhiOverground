@@ -597,12 +597,19 @@ body {
 
 @media (max-width: 480px) {
   .toast-container {
-    border-radius: 16px; /* Smooth rounded card for mobile screens */
-    width: auto;
+    padding: 0.75rem 1.25rem;
+    gap: 0.5rem;
+    bottom: 1.5rem;
+    max-width: calc(100vw - 2rem);
+    width: max-content; /* Ensure it expands to fit the text fully */
   }
   .toast-text {
-    white-space: normal;
-    word-break: break-word;
+    font-size: 0.8125rem; /* Slightly smaller text for mobile spacing */
+    white-space: nowrap;  /* Prevent text from wrapping/cramming on phone screens */
+  }
+  .toast-icon svg {
+    width: 0.95rem;
+    height: 0.95rem;
   }
 }
 
