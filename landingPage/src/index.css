@@ -613,4 +613,29 @@ body {
   }
 }
 
+/* Pixel Heart Animation */
+@keyframes heartPop {
+  0% {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+  70% {
+    transform: scale(1.15);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.heart-spawn {
+  animation: heartPop 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+.heart-container {
+  margin-top: 4rem; /* Spacing between download buttons and the pixel heart */
+}
+
+
+
 

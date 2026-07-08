@@ -111,6 +111,7 @@ function HeroSection() {
 
 function App() {
   const [toast, setToast] = useState({ show: false, message: "" });
+  const [showHeart, setShowHeart] = useState(false);
 
   const triggerToast = (message) => {
     setToast({ show: true, message });
@@ -124,6 +125,23 @@ function App() {
       return () => clearTimeout(timer);
     }
   }, [toast.show, toast.message]);
+
+  const handleDownload = (e, url, message) => {
+    e.preventDefault();
+    triggerToast(message);
+    setShowHeart(true);
+
+    // Create an invisible iframe to trigger the background file download
+    const iframe = document.createElement("iframe");
+    iframe.style.display = "none";
+    iframe.src = url;
+    document.body.appendChild(iframe);
+
+    // Clean up the iframe after 2 seconds
+    setTimeout(() => {
+      document.body.removeChild(iframe);
+    }, 2000);
+  };
 
   return (
     <main className="min-h-screen bg-background">
@@ -142,9 +160,7 @@ function App() {
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <a
                 href="https://github.com/Anurajx/DelhiOverground/releases/download/v1.0.0/DelhiOverground.apk"
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={() => triggerToast("Downloading DTC App")}
+                onClick={(e) => handleDownload(e, "https://github.com/Anurajx/DelhiOverground/releases/download/v1.0.0/DelhiOverground.apk", "Downloading DTC App")}
                 className="no-underline relative flex items-center justify-center gap-0 bg-foreground text-background rounded-full pl-6 pr-1.5 py-1.5 transition-all duration-300 group overflow-hidden"
               >
                 <span className="text-sm pr-4">DelhiOverground (DTC)</span>
@@ -154,9 +170,7 @@ function App() {
               </a>
               <a
                 href="https://github.com/Anurajx/DelhiUnderground/releases/download/v1.0.0/app-release.apk"
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={() => triggerToast("Downloading Metro App")}
+                onClick={(e) => handleDownload(e, "https://github.com/Anurajx/DelhiUnderground/releases/download/v1.0.0/app-release.apk", "Downloading Metro App")}
                 className="no-underline relative flex items-center justify-center gap-0 border border-border rounded-full pl-6 pr-1.5 py-1.5 transition-all duration-300 group overflow-hidden"
               >
                 <span className="absolute inset-0 bg-foreground rounded-full scale-x-0 origin-right group-hover:scale-x-100 transition-transform duration-300"></span>
@@ -169,6 +183,16 @@ function App() {
                 </span>
               </a>
             </div>
+
+            {showHeart && (
+              <div className="flex justify-center heart-container">
+                <img
+                  src="/images/pixel-heart-2779422_1280.png"
+                  alt="Pixel Heart"
+                  className="w-4 h-4 object-contain heart-spawn"
+                />
+              </div>
+            )}
           </div>
         </div>
       </section>
