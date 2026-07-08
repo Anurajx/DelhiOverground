@@ -6,7 +6,7 @@ import "./App.css";
 function AnimatedText({ text }) {
   return (
     <span
-      className="font-light text-center text-6xl leading-[0.75] tracking-tighter font-serif text-[#f5f4ef] lg:text-9xl"
+      className="font-light text-center text-6xl leading-[0.75] tracking-tighter font-serif text-white mix-blend-difference lg:text-9xl"
       style={{ display: "inline-block" }}
     >
       {text}
@@ -78,13 +78,13 @@ function HeroSection() {
       </div>
 
       {/* Main Content */}
-      <div className="max-w-7xl mx-auto w-full relative z-10">
+      <div className="max-w-7xl mx-auto w-full relative">
         <div className="text-center mb-12">
           <div>
             <h1 className="font-serif text-[3.5rem] sm:text-[4.5rem] md:text-[5.5rem] lg:text-[6.5rem] xl:text-[7.5rem] 2xl:text-[8.5rem] font-normal leading-tight mb-6 w-full px-4 max-w-6xl mx-auto text-balance">
               <AnimatedText text="Find your way through Delhi NCR" />
             </h1>
-            <p className="text-[#f5f4ef] text-lg sm:text-xl lg:text-2xl max-w-xl lg:max-w-2xl mx-auto font-sans mt-4 mb-2 text-balance opacity-80">
+            <p className="text-white mix-blend-difference text-lg sm:text-xl lg:text-2xl max-w-xl lg:max-w-2xl mx-auto font-sans mt-4 mb-2 text-balance opacity-80">
               Adding accessibility to public transit.
             </p>
           </div>
