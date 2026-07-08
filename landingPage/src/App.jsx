@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { ArrowRight, ArrowUpRight } from "lucide-react";
+import { ArrowRight, ArrowUpRight, Download } from "lucide-react";
 import "./App.css";
 
 function AnimatedText({ text }) {
@@ -92,16 +92,14 @@ function HeroSection() {
         <div className="flex flex-col items-center justify-center gap-8">
           <div className="relative">
             <div
-              className={`relative w-[234px] md:w-[281px] lg:w-[351px] will-change-transform transition-all duration-[1500ms] ease-out delay-500 ${
-                loaded
-                  ? "opacity-100 translate-y-0"
-                  : "opacity-0 translate-y-[400px]"
+              className={`relative w-[234px] md:w-[281px] lg:w-[351px] mockup-aspect will-change-transform mockup-transition delay-500 ${
+                loaded ? "mockup-loaded" : "mockup-initial"
               }`}
             >
               <img
                 src="/images/delhi-overground-mockup.png"
                 alt="Delhi Overground journey planner app"
-                className="w-full h-auto relative z-10"
+                className="w-full h-full object-contain relative z-10"
               />
             </div>
           </div>
@@ -112,6 +110,21 @@ function HeroSection() {
 }
 
 function App() {
+  const [toast, setToast] = useState({ show: false, message: "" });
+
+  const triggerToast = (message) => {
+    setToast({ show: true, message });
+  };
+
+  useEffect(() => {
+    if (toast.show) {
+      const timer = setTimeout(() => {
+        setToast((prev) => ({ ...prev, show: false }));
+      }, 8000);
+      return () => clearTimeout(timer);
+    }
+  }, [toast.show, toast.message]);
+
   return (
     <main className="min-h-screen bg-background">
       <HeroSection />
@@ -131,6 +144,7 @@ function App() {
                 href="https://github.com/Anurajx/DelhiOverground/releases/download/v1.0.0/DelhiOverground.apk"
                 target="_blank"
                 rel="noopener noreferrer"
+                onClick={() => triggerToast("Download started: DelhiOverground (DTC)")}
                 className="no-underline relative flex items-center justify-center gap-0 bg-foreground text-background rounded-full pl-6 pr-1.5 py-1.5 transition-all duration-300 group overflow-hidden"
               >
                 <span className="text-sm pr-4">DelhiOverground (DTC)</span>
@@ -142,6 +156,7 @@ function App() {
                 href="https://github.com/Anurajx/DelhiUnderground/releases/download/v1.0.0/app-release.apk"
                 target="_blank"
                 rel="noopener noreferrer"
+                onClick={() => triggerToast("Download started: DelhiUnderground (Metro)")}
                 className="no-underline relative flex items-center justify-center gap-0 border border-border rounded-full pl-6 pr-1.5 py-1.5 transition-all duration-300 group overflow-hidden"
               >
                 <span className="absolute inset-0 bg-foreground rounded-full scale-x-0 origin-right group-hover:scale-x-100 transition-transform duration-300"></span>
@@ -157,8 +172,17 @@ function App() {
           </div>
         </div>
       </section>
+
+      {/* Toast Notification */}
+      <div className={`toast-container ${toast.show ? "show" : ""}`}>
+        <div className="toast-icon">
+          <Download className="w-4 h-4" />
+        </div>
+        <span className="toast-text">{toast.message}</span>
+      </div>
     </main>
   );
 }
 
 export default App;
+

@@ -4,8 +4,8 @@
   --border: #d7d7d7;
   --muted: #e4e4e4;
   --muted-foreground: #555;
-  --font-sans: 'Inter', system-ui, sans-serif;
-  --font-serif: 'Cormorant Garamond', Georgia, serif;
+  --font-sans: "Inter", system-ui, sans-serif;
+  --font-serif: "Cormorant Garamond", Georgia, serif;
 }
 
 body {
@@ -340,17 +340,53 @@ body {
   }
 }
 
-.text-\[3\.5rem\] { font-size: 3.5rem; }
-@media (min-width: 640px) { .sm\:text-\[4\.5rem\] { font-size: 4.5rem; } }
-@media (min-width: 768px) { .md\:text-\[5\.5rem\] { font-size: 5.5rem; } }
-@media (min-width: 1024px) { .lg\:text-\[6\.5rem\] { font-size: 6.5rem; } }
-@media (min-width: 1280px) { .xl\:text-\[7\.5rem\] { font-size: 7.5rem; } }
-@media (min-width: 1536px) { .xl2\:text-\[8\.5rem\] { font-size: 8.5rem; } }
+.text-\[3\.5rem\] {
+  font-size: 3.5rem;
+}
+@media (min-width: 640px) {
+  .sm\:text-\[4\.5rem\] {
+    font-size: 4.5rem;
+  }
+}
+@media (min-width: 768px) {
+  .md\:text-\[5\.5rem\] {
+    font-size: 5.5rem;
+  }
+}
+@media (min-width: 1024px) {
+  .lg\:text-\[6\.5rem\] {
+    font-size: 6.5rem;
+  }
+}
+@media (min-width: 1280px) {
+  .xl\:text-\[7\.5rem\] {
+    font-size: 7.5rem;
+  }
+}
+@media (min-width: 1536px) {
+  .xl2\:text-\[8\.5rem\] {
+    font-size: 8.5rem;
+  }
+}
 
-.text-\[28vw\] { font-size: 28vw; }
-@media (min-width: 640px) { .sm\:text-\[25vw\] { font-size: 25vw; } }
-@media (min-width: 768px) { .md\:text-\[22vw\] { font-size: 22vw; } }
-@media (min-width: 1024px) { .lg\:text-\[20vw\] { font-size: 20vw; } }
+.text-\[28vw\] {
+  font-size: 28vw;
+}
+@media (min-width: 640px) {
+  .sm\:text-\[25vw\] {
+    font-size: 25vw;
+  }
+}
+@media (min-width: 768px) {
+  .md\:text-\[22vw\] {
+    font-size: 22vw;
+  }
+}
+@media (min-width: 1024px) {
+  .lg\:text-\[20vw\] {
+    font-size: 20vw;
+  }
+}
 
 /* Section 2 headings */
 .text-4xl {
@@ -442,7 +478,8 @@ body {
 }
 
 .transition-colors {
-  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
+  transition-property:
+    color, background-color, border-color, text-decoration-color, fill, stroke;
   transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -483,4 +520,90 @@ body {
 .mix-blend-difference {
   mix-blend-mode: difference;
 }
+
+.mockup-transition {
+  transition:
+    transform 1.2s cubic-bezier(0.16, 1, 0.3, 1),
+    opacity 1.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.mockup-initial {
+  opacity: 0;
+  transform: scale(0.96) translateY(20px);
+}
+
+.mockup-loaded {
+  opacity: 1;
+  transform: scale(1) translateY(0);
+}
+
+.mockup-aspect {
+  aspect-ratio: 505 / 1024;
+}
+
+/* Slick Toast Notification */
+.toast-container {
+  position: fixed;
+  bottom: 2rem;
+  left: 50%;
+  transform: translateX(-50%) translateY(1rem);
+  z-index: 999;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.875rem 1.5rem;
+  background-color: var(--foreground);
+  color: var(--background);
+  border-radius: 9999px;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.15), 0 8px 10px -6px rgba(0, 0, 0, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  opacity: 0;
+  pointer-events: none;
+  transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+  
+  /* Prevent layout clipping and handle width */
+  max-width: calc(100vw - 2rem);
+  width: max-content;
+  box-sizing: border-box;
+}
+
+.toast-container.show {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateX(-50%) translateY(0);
+}
+
+.toast-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--background); /* Flat style: matching the text color */
+}
+
+.toast-icon svg {
+  width: 1.1rem;
+  height: 1.1rem;
+  stroke-width: 2.25;
+}
+
+.toast-text {
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+
+@media (max-width: 480px) {
+  .toast-container {
+    border-radius: 16px; /* Smooth rounded card for mobile screens */
+    width: auto;
+  }
+  .toast-text {
+    white-space: normal;
+    word-break: break-word;
+  }
+}
+
 
