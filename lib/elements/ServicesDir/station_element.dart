@@ -92,12 +92,29 @@ class StationNearby extends StatelessWidget {
   //for station list on main screen
   final dynamic name;
   final dynamic line;
-  const StationNearby({super.key, required this.name, required this.line});
+  final dynamic distance;
+
+  const StationNearby({
+    super.key,
+    required this.name,
+    required this.line,
+    this.distance,
+  });
 
   @override
   Widget build(BuildContext context) {
     String mainText = name.toString();
-    String? subText;
+    String subText = "Nearby Stop";
+
+    if (distance != null) {
+      if (distance is num) {
+        final double d = (distance as num).toDouble();
+        final String formatted = d < 1.0 ? d.toStringAsFixed(2) : d.toStringAsFixed(1);
+        subText = "$formatted km away";
+      } else {
+        subText = "$distance km away";
+      }
+    }
 
     return Container(
       padding: EdgeInsets.symmetric(vertical: 10.h, horizontal: 8.w),
@@ -125,7 +142,7 @@ class StationNearby extends StatelessWidget {
                 ),
                 SizedBox(height: 2.h),
                 Text(
-                  subText ?? "Nearby Stop",
+                  subText,
                   style: TextStyle(
                     fontFamily: 'Poppins',
                     color: AppColors.secondaryText,

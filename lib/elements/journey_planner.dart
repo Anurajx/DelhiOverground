@@ -7,12 +7,12 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
 import 'package:metroapp/elements/ServicesDir/data_provider.dart';
 import 'package:metroapp/elements/ServicesDir/journey_planner_service.dart';
-import 'package:metroapp/elements/ServicesDir/geolocator_service.dart' as geo_service;
+import 'package:metroapp/elements/ServicesDir/geolocator_service.dart'
+    as geo_service;
 import 'package:metroapp/main.dart';
 import 'package:metroapp/elements/journey_details.dart';
 import 'package:metroapp/elements/ServicesDir/stops_manager.dart';
 import 'package:metroapp/elements/ServicesDir/analytics_service.dart';
-
 
 class JourneyPlannerScreen extends StatefulWidget {
   final Map<String, String>? initialParams;
@@ -149,20 +149,19 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
 
     try {
       final encodedText = Uri.encodeComponent(text);
-      final url = 'https://nominatim.openstreetmap.org/search?q=$encodedText&format=jsonv2&addressdetails=1&viewbox=76.70,29.15,77.85,28.05&bounded=1&limit=3';
-      
+      final url =
+          'https://nominatim.openstreetmap.org/search?q=$encodedText&format=jsonv2&addressdetails=1&viewbox=76.70,29.15,77.85,28.05&bounded=1&limit=3';
+
       final response = await _activeClient!.get(
         Uri.parse(url),
-        headers: {
-          'User-Agent': 'DelhiOvergroundApp/1.0',
-        },
+        headers: {'User-Agent': 'DelhiOvergroundApp/1.0'},
       );
-      
+
       if (requestId != _currentRequestId) return; // Ignore outdated responses
 
       if (response.statusCode == 200) {
         final List<dynamic> data = jsonDecode(response.body);
-        
+
         setState(() {
           _nominatimSuggestions = data.take(3).toList();
           _isNominatimLoading = false;
@@ -182,18 +181,32 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
   }
 
   void _applyInitialParams(Map<String, String> params) {
+    List<JourneyRoute> cachedRoutes = [];
+    final routesJson = params['routes_json'];
+    if (routesJson != null && routesJson.isNotEmpty) {
+      try {
+        final List<dynamic> decodedList = jsonDecode(routesJson);
+        cachedRoutes =
+            decodedList
+                .map((e) => JourneyRoute.fromJson(e as Map<String, dynamic>))
+                .toList();
+      } catch (e) {
+        debugPrint('Error parsing cached routes from history: $e');
+      }
+    }
+
     setState(() {
       _srcName = params['src_name'] ?? '';
       _srcLat = double.tryParse(params['src_lat'] ?? '');
       _srcLon = double.tryParse(params['src_lon'] ?? '');
-      _srcType = 'place';
+      _srcType = params['src_type'] ?? 'place';
 
       _dstName = params['dst_name'] ?? '';
       _dstLat = double.tryParse(params['dst_lat'] ?? '');
       _dstLon = double.tryParse(params['dst_lon'] ?? '');
-      _dstType = 'place';
+      _dstType = params['dst_type'] ?? 'place';
 
-      _selectedMode = 'bus';
+      _selectedMode = params['mode'] ?? 'bus';
 
       final timeStr = params['time'] ?? '';
       if (timeStr.isNotEmpty) {
@@ -207,7 +220,18 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
 
       _srcController.text = _srcName;
       _dstController.text = _dstName;
+
+      if (cachedRoutes.isNotEmpty) {
+        _routes = cachedRoutes;
+        _isLoading = false;
+        _errorMessage = null;
+      }
     });
+
+    if (cachedRoutes.isNotEmpty) {
+      // Results restored directly from cached history! No network fetch needed.
+      return;
+    }
 
     if (_srcLat == null || _srcLon == null) {
       _useCurrentLocation();
@@ -356,7 +380,10 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
   }
 
   void _checkAndAutoSearch() {
-    if (_srcLat != null && _srcLon != null && _dstLat != null && _dstLon != null) {
+    if (_srcLat != null &&
+        _srcLon != null &&
+        _dstLat != null &&
+        _dstLon != null) {
       _srcFocusNode.unfocus();
       _dstFocusNode.unfocus();
       _planJourney();
@@ -463,13 +490,14 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
   Future<Map<String, double>?> _geocodeAddress(String address) async {
     try {
       final encodedText = Uri.encodeComponent(address);
-      final url = 'https://nominatim.openstreetmap.org/search?q=$encodedText&format=jsonv2&addressdetails=1&viewbox=76.70,29.15,77.85,28.05&bounded=1&limit=3';
-      final response = await http.get(
-        Uri.parse(url),
-        headers: {
-          'User-Agent': 'DelhiOvergroundApp/1.0',
-        },
-      ).timeout(const Duration(seconds: 15));
+      final url =
+          'https://nominatim.openstreetmap.org/search?q=$encodedText&format=jsonv2&addressdetails=1&viewbox=76.70,29.15,77.85,28.05&bounded=1&limit=3';
+      final response = await http
+          .get(
+            Uri.parse(url),
+            headers: {'User-Agent': 'DelhiOvergroundApp/1.0'},
+          )
+          .timeout(const Duration(seconds: 15));
       if (response.statusCode == 200) {
         final List<dynamic> data = jsonDecode(response.body);
         if (data.isNotEmpty) {
@@ -488,8 +516,12 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
   }
 
   Future<void> _planJourney() async {
-    if (_srcController.text.trim().isEmpty || _dstController.text.trim().isEmpty) {
-      PostHogService.trackValidationError('journey_input', 'Please select both start and end locations.');
+    if (_srcController.text.trim().isEmpty ||
+        _dstController.text.trim().isEmpty) {
+      PostHogService.trackValidationError(
+        'journey_input',
+        'Please select both start and end locations.',
+      );
       setState(() {
         _errorMessage = 'Please select both start and end locations.';
       });
@@ -513,10 +545,14 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
             _srcType = 'place';
           });
         } else {
-          PostHogService.trackValidationError('src_location', 'Could not resolve starting point: ${_srcController.text}');
+          PostHogService.trackValidationError(
+            'src_location',
+            'Could not resolve starting point: ${_srcController.text}',
+          );
           setState(() {
             _isLoading = false;
-            _errorMessage = 'Could not resolve starting point: ${_srcController.text}';
+            _errorMessage =
+                'Could not resolve starting point: ${_srcController.text}';
           });
           return;
         }
@@ -532,17 +568,27 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
             _dstType = 'place';
           });
         } else {
-          PostHogService.trackValidationError('dst_location', 'Could not resolve destination: ${_dstController.text}');
+          PostHogService.trackValidationError(
+            'dst_location',
+            'Could not resolve destination: ${_dstController.text}',
+          );
           setState(() {
             _isLoading = false;
-            _errorMessage = 'Could not resolve destination: ${_dstController.text}';
+            _errorMessage =
+                'Could not resolve destination: ${_dstController.text}';
           });
           return;
         }
       }
 
-      if (_srcLat == 0.0 || _srcLon == 0.0 || _dstLat == 0.0 || _dstLon == 0.0) {
-        PostHogService.trackValidationError('coordinates', 'Invalid coordinates. Please select locations again.');
+      if (_srcLat == 0.0 ||
+          _srcLon == 0.0 ||
+          _dstLat == 0.0 ||
+          _dstLon == 0.0) {
+        PostHogService.trackValidationError(
+          'coordinates',
+          'Invalid coordinates. Please select locations again.',
+        );
         setState(() {
           _isLoading = false;
           _errorMessage = 'Invalid coordinates. Please select locations again.';
@@ -550,19 +596,32 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
         return;
       }
 
-      if (_srcLat! < 28.0 || _srcLat! > 29.2 || _srcLon! < 76.5 || _srcLon! > 77.8 ||
-          _dstLat! < 28.0 || _dstLat! > 29.2 || _dstLon! < 76.5 || _dstLon! > 77.8) {
-        PostHogService.trackValidationError('bounds', 'Journey planner is only available within Delhi NCR. Please select locations within the service area.');
+      if (_srcLat! < 28.0 ||
+          _srcLat! > 29.2 ||
+          _srcLon! < 76.5 ||
+          _srcLon! > 77.8 ||
+          _dstLat! < 28.0 ||
+          _dstLat! > 29.2 ||
+          _dstLon! < 76.5 ||
+          _dstLon! > 77.8) {
+        PostHogService.trackValidationError(
+          'bounds',
+          'Journey planner is only available within Delhi NCR. Please select locations within the service area.',
+        );
         setState(() {
           _isLoading = false;
-          _errorMessage = 'Journey planner is only available within Delhi NCR. Please select locations within the service area.';
+          _errorMessage =
+              'Journey planner is only available within Delhi NCR. Please select locations within the service area.';
         });
         return;
       }
 
       final timeStr = _formatTimeOfDay(_selectedTime);
 
-      PostHogService.trackSearchPerformed('journey_search', '${_srcController.text} to ${_dstController.text}');
+      PostHogService.trackSearchPerformed(
+        'journey_search',
+        '${_srcController.text} to ${_dstController.text}',
+      );
       final result = await JourneyPlannerService.planJourney(
         srcLat: _srcLat!,
         srcLon: _srcLon!,
@@ -580,14 +639,18 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
           _isLoading = false;
           if (result.isEmpty) {
             _errorMessage = 'could not find viable route';
-            PostHogService.trackValidationError('journey_results', 'could not find viable route');
+            PostHogService.trackValidationError(
+              'journey_results',
+              'could not find viable route',
+            );
           } else {
             _errorMessage = null;
           }
         });
 
         if (result.isNotEmpty) {
-          // Save to search history provider
+          // Save to search history provider with cached routes JSON
+          final routesJson = jsonEncode(result.map((r) => r.toJson()).toList());
           Provider.of<DataProvider>(context, listen: false).addJourneyToHistory(
             srcName: _srcName,
             srcLat: _srcLat!.toString(),
@@ -599,6 +662,7 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
             dstType: _dstType,
             mode: _selectedMode,
             time: timeStr,
+            routesJson: routesJson,
           );
         }
       }
@@ -636,9 +700,7 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
                 ],
               ),
             ),
-            Expanded(
-              child: _buildResultsSection(),
-            ),
+            Expanded(child: _buildResultsSection()),
           ],
         ),
       ),
@@ -681,114 +743,89 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
   Widget _buildInputsCard() {
     return Container(
       padding: EdgeInsets.zero,
-      decoration: const BoxDecoration(
-        color: Colors.transparent,
-      ),
+      decoration: const BoxDecoration(color: Colors.transparent),
       child: Stack(
         clipBehavior: Clip.none,
         children: [
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Row 1: Source (departure) input + Clock button on the right
-              Row(
-                children: [
-                  Expanded(
-                    child: Container(
-                      height: 44.h,
-                      decoration: const BoxDecoration(
-                        color: AppColors.whiteAccent,
-                        borderRadius: BorderRadius.zero,
+              // Row 1: Source (departure) input (Full width)
+              Container(
+                height: 44.h,
+                width: double.infinity,
+                decoration: const BoxDecoration(
+                  color: AppColors.whiteAccent,
+                  borderRadius: BorderRadius.zero,
+                ),
+                child: Row(
+                  children: [
+                    SizedBox(width: 12.w),
+                    Icon(
+                      CupertinoIcons.circle,
+                      color: Colors.black,
+                      size: 16.sp,
+                    ),
+                    SizedBox(width: 8.w),
+                    Expanded(
+                      child: TextField(
+                        controller: _srcController,
+                        focusNode: _srcFocusNode,
+                        textInputAction: TextInputAction.search,
+                        onSubmitted: (_) => _planJourney(),
+                        style: TextStyle(
+                          color: Colors.black,
+                          fontFamily: 'Poppins',
+                          fontSize: 13.sp,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        decoration: InputDecoration(
+                          hintText: 'From',
+                          hintStyle: TextStyle(
+                            color: AppColors.secondaryText,
+                            fontFamily: 'Poppins',
+                            fontSize: 13.sp,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          border: InputBorder.none,
+                          isDense: true,
+                          contentPadding: EdgeInsets.symmetric(vertical: 10),
+                        ),
+                        onChanged: (val) {
+                          setState(() {
+                            _srcName = val;
+                            if (val.isEmpty) {
+                              _srcLat = null;
+                              _srcLon = null;
+                            }
+                          });
+                          _onSearchChanged(val);
+                        },
                       ),
-                      child: Row(
-                        children: [
-                          SizedBox(width: 12.w),
-                          Icon(
-                            CupertinoIcons.circle,
-                            color: Colors.black,
+                    ),
+                    if (_srcController.text.isNotEmpty)
+                      GestureDetector(
+                        onTap: () {
+                          setState(() {
+                            _srcController.clear();
+                            _srcName = '';
+                            _srcLat = null;
+                            _srcLon = null;
+                            _nominatimSuggestions = [];
+                            _isNominatimLoading = false;
+                          });
+                        },
+                        child: Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 10.w),
+                          child: Icon(
+                            CupertinoIcons.clear_thick_circled,
+                            color: AppColors.tertiaryText,
                             size: 16.sp,
                           ),
-                          SizedBox(width: 8.w),
-                          Expanded(
-                            child: TextField(
-                              controller: _srcController,
-                              focusNode: _srcFocusNode,
-                              textInputAction: TextInputAction.search,
-                              onSubmitted: (_) => _planJourney(),
-                              style: TextStyle(
-                                color: Colors.black,
-                                fontFamily: 'Poppins',
-                                fontSize: 13.sp,
-                                fontWeight: FontWeight.w600,
-                              ),
-                              decoration: InputDecoration(
-                                hintText: 'From',
-                                hintStyle: TextStyle(
-                                  color: AppColors.secondaryText,
-                                  fontFamily: 'Poppins',
-                                  fontSize: 13.sp,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                                border: InputBorder.none,
-                                isDense: true,
-                                contentPadding: EdgeInsets.symmetric(vertical: 10),
-                              ),
-                              onChanged: (val) {
-                                setState(() {
-                                  _srcName = val;
-                                  if (val.isEmpty) {
-                                    _srcLat = null;
-                                    _srcLon = null;
-                                  }
-                                });
-                                _onSearchChanged(val);
-                              },
-                            ),
-                          ),
-                          if (_srcController.text.isNotEmpty)
-                            GestureDetector(
-                              onTap: () {
-                                setState(() {
-                                  _srcController.clear();
-                                  _srcName = '';
-                                  _srcLat = null;
-                                  _srcLon = null;
-                                  _nominatimSuggestions = [];
-                                  _isNominatimLoading = false;
-                                });
-                              },
-                              child: Padding(
-                                padding: EdgeInsets.symmetric(horizontal: 10.w),
-                                child: Icon(
-                                  CupertinoIcons.clear_thick_circled,
-                                  color: AppColors.tertiaryText,
-                                  size: 16.sp,
-                                ),
-                              ),
-                            ),
-                        ],
+                        ),
                       ),
-                    ),
-                  ),
-                  SizedBox(width: 4.w),
-                  // Time Set Logo (Clock button)
-                  GestureDetector(
-                    onTap: _selectTime,
-                    child: Container(
-                      width: 44.h,
-                      height: 44.h,
-                      decoration: const BoxDecoration(
-                        color: AppColors.whiteAccent,
-                        borderRadius: BorderRadius.zero,
-                      ),
-                      child: Icon(
-                        CupertinoIcons.time,
-                        color: Colors.black,
-                        size: 20.sp,
-                      ),
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
               SizedBox(height: 4.h),
               // Row 2: Destination input (Full width)
@@ -875,7 +912,8 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
           Positioned(
             left: 0,
             right: 0,
-            top: 30.h, // Centered in the 4.h gap between Row 1 (44.h) and Row 2 (44.h)
+            top:
+                30.h, // Centered in the 4.h gap between Row 1 (44.h) and Row 2 (44.h)
             child: Center(
               child: GestureDetector(
                 onTap: _swapLocations,
@@ -916,8 +954,16 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
     );
   }
 
+  String _formatTimeOfDayDisplay(TimeOfDay tod) {
+    final hour = tod.hourOfPeriod == 0 ? 12 : tod.hourOfPeriod;
+    final minute = tod.minute.toString().padLeft(2, '0');
+    final period = tod.period == DayPeriod.am ? 'AM' : 'PM';
+    return '$hour:$minute $period';
+  }
+
   Widget _buildYourLocationPill() {
-    final bool showPill = _routes.isEmpty || _isFocusingSource || _isFocusingDestination;
+    final bool showPill =
+        _routes.isEmpty || _isFocusingSource || _isFocusingDestination;
 
     return AnimatedOpacity(
       duration: const Duration(milliseconds: 250),
@@ -933,36 +979,70 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
             minHeight: 0.0,
             maxHeight: 34.h,
             alignment: Alignment.topLeft,
-            child: GestureDetector(
-              onTap: showPill ? _useCurrentLocation : null,
-              child: Container(
-                padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 6.h),
-                decoration: BoxDecoration(
-                  color: AppColors.primaryAccent,
-                  borderRadius: BorderRadius.circular(20.r),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _buildSplitPill(
+                  icon: CupertinoIcons.location_solid,
+                  text: "your location",
+                  onTap: showPill ? _useCurrentLocation : null,
                 ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      CupertinoIcons.location_solid,
+                SizedBox(width: 8.w),
+                _buildSplitPill(
+                  icon: CupertinoIcons.time_solid,
+                  text: _formatTimeOfDayDisplay(_selectedTime),
+                  onTap: showPill ? _selectTime : null,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSplitPill({
+    required IconData icon,
+    required String text,
+    required VoidCallback? onTap,
+  }) {
+    const greenColor = AppColors.secondaryAccent;
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        clipBehavior: Clip.antiAlias,
+        decoration: BoxDecoration(
+          color: Colors.black,
+          border: Border.all(color: greenColor, width: 1.0),
+          borderRadius: BorderRadius.circular(20.r),
+        ),
+        child: IntrinsicHeight(
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Container(
+                padding: EdgeInsets.symmetric(horizontal: 10.w),
+                alignment: Alignment.center,
+                color: greenColor,
+                child: Icon(icon, color: Colors.black, size: 13.sp),
+              ),
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 5.h),
+                child: Center(
+                  child: Text(
+                    text,
+                    style: TextStyle(
                       color: Colors.white,
-                      size: 13.sp,
+                      fontFamily: 'Poppins',
+                      fontWeight: FontWeight.w600,
+                      fontSize: 12.sp,
                     ),
-                    SizedBox(width: 4.w),
-                    Text(
-                      "your location",
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontFamily: 'Poppins',
-                        fontWeight: FontWeight.w600,
-                        fontSize: 12.sp,
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
               ),
-            ),
+            ],
           ),
         ),
       ),
@@ -1031,7 +1111,10 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
             padding: EdgeInsets.symmetric(vertical: 12.h),
             child: Row(
               children: [
-                const CupertinoActivityIndicator(color: Colors.white, radius: 8),
+                const CupertinoActivityIndicator(
+                  color: Colors.white,
+                  radius: 8,
+                ),
                 SizedBox(width: 8.w),
                 Text(
                   "Searching locations...",
@@ -1048,8 +1131,10 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
           final stop = item['data'];
           final name = stop['Name']?.toString() ?? 'Unknown Stop';
           final hindi = stop['Hindi']?.toString() ?? '';
-          final lat = double.tryParse(stop['Latitude']?.toString() ?? '') ?? 0.0;
-          final lon = double.tryParse(stop['Longitude']?.toString() ?? '') ?? 0.0;
+          final lat =
+              double.tryParse(stop['Latitude']?.toString() ?? '') ?? 0.0;
+          final lon =
+              double.tryParse(stop['Longitude']?.toString() ?? '') ?? 0.0;
 
           return _buildStopListTile(
             title: name,
@@ -1063,8 +1148,10 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
           final suggestion = item['data'];
           final name = suggestion['name'] ?? 'Unknown Location';
           final displayName = suggestion['display_name'] ?? '';
-          final lat = double.tryParse(suggestion['lat']?.toString() ?? '') ?? 0.0;
-          final lon = double.tryParse(suggestion['lon']?.toString() ?? '') ?? 0.0;
+          final lat =
+              double.tryParse(suggestion['lat']?.toString() ?? '') ?? 0.0;
+          final lon =
+              double.tryParse(suggestion['lon']?.toString() ?? '') ?? 0.0;
 
           return _buildStopListTile(
             title: name.toString(),
@@ -1092,11 +1179,7 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
       children: [
         ListTile(
           contentPadding: EdgeInsets.zero,
-          leading: Icon(
-            icon,
-            color: AppColors.secondaryText,
-            size: 16.sp,
-          ),
+          leading: Icon(icon, color: AppColors.secondaryText, size: 16.sp),
           title: Text(
             title,
             style: TextStyle(
@@ -1106,16 +1189,17 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
               fontSize: 13.sp,
             ),
           ),
-          subtitle: subtitle.isNotEmpty
-              ? Text(
-                  subtitle,
-                  style: TextStyle(
-                    color: AppColors.secondaryText,
-                    fontFamily: 'Poppins',
-                    fontSize: 11.sp,
-                  ),
-                )
-              : null,
+          subtitle:
+              subtitle.isNotEmpty
+                  ? Text(
+                    subtitle,
+                    style: TextStyle(
+                      color: AppColors.secondaryText,
+                      fontFamily: 'Poppins',
+                      fontSize: 11.sp,
+                    ),
+                  )
+                  : null,
           onTap: () {
             setState(() {
               if (isSource) {
@@ -1158,21 +1242,27 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
   Widget _buildHistoryList() {
     var history = Provider.of<DataProvider>(context).journeySearchHistory;
 
-    if (_isFocusingDestination && _dstController.text.isEmpty && _srcController.text.isNotEmpty) {
+    if (_isFocusingDestination &&
+        _dstController.text.isEmpty &&
+        _srcController.text.isNotEmpty) {
       final srcVal = _srcController.text.toLowerCase().trim();
-      history = history.where((item) {
-        final itemSrc = (item['src_name'] ?? '').toLowerCase().trim();
-        return itemSrc == srcVal;
-      }).toList();
+      history =
+          history.where((item) {
+            final itemSrc = (item['src_name'] ?? '').toLowerCase().trim();
+            return itemSrc == srcVal;
+          }).toList();
       if (history.isEmpty) {
         return const SizedBox.shrink();
       }
-    } else if (_isFocusingSource && _srcController.text.isEmpty && _dstController.text.isNotEmpty) {
+    } else if (_isFocusingSource &&
+        _srcController.text.isEmpty &&
+        _dstController.text.isNotEmpty) {
       final dstVal = _dstController.text.toLowerCase().trim();
-      history = history.where((item) {
-        final itemDst = (item['dst_name'] ?? '').toLowerCase().trim();
-        return itemDst == dstVal;
-      }).toList();
+      history =
+          history.where((item) {
+            final itemDst = (item['dst_name'] ?? '').toLowerCase().trim();
+            return itemDst == dstVal;
+          }).toList();
       if (history.isEmpty) {
         return const SizedBox.shrink();
       }
@@ -1201,7 +1291,9 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
       ),
       padding: EdgeInsets.only(left: 14.w, right: 14.w, bottom: 10.h),
       itemCount: history.length,
-      separatorBuilder: (context, index) => const Divider(color: AppColors.divider, height: 1),
+      separatorBuilder:
+          (context, index) =>
+              const Divider(color: AppColors.divider, height: 1),
       itemBuilder: (context, index) {
         final item = history[index];
         final src = item['src_name'] ?? '';
@@ -1209,7 +1301,11 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
 
         return ListTile(
           contentPadding: EdgeInsets.zero,
-          leading: Icon(Icons.history, color: AppColors.secondaryText, size: 18.sp),
+          leading: Icon(
+            Icons.history,
+            color: AppColors.secondaryText,
+            size: 18.sp,
+          ),
           title: Text(
             "$src ➔ $dst",
             style: TextStyle(
@@ -1236,13 +1332,17 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
       return Center(
         child: Padding(
           padding: EdgeInsets.symmetric(vertical: 40.h),
-          child: const CupertinoActivityIndicator(color: Colors.white, radius: 14),
+          child: const CupertinoActivityIndicator(
+            color: Colors.white,
+            radius: 14,
+          ),
         ),
       );
     }
 
     if (_isFocusingSource || _isFocusingDestination) {
-      final query = _isFocusingSource ? _srcController.text : _dstController.text;
+      final query =
+          _isFocusingSource ? _srcController.text : _dstController.text;
       if (query.isEmpty) {
         return _buildHistoryList();
       } else {
@@ -1280,7 +1380,10 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
               isNoRouteError ? '${_errorMessage!} :(' : _errorMessage!,
               textAlign: TextAlign.center,
               style: TextStyle(
-                color: isNoRouteError ? AppColors.primaryAccent : AppColors.destructive,
+                color:
+                    isNoRouteError
+                        ? AppColors.primaryAccent
+                        : AppColors.destructive,
                 fontSize: 16.sp,
                 fontWeight: FontWeight.w500,
                 fontFamily: 'Poppins',
@@ -1333,9 +1436,13 @@ class RouteCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final transitLegsCount = route.legs.where((leg) => leg.type.toLowerCase() != 'walk').length;
+    final transitLegsCount =
+        route.legs.where((leg) => leg.type.toLowerCase() != 'walk').length;
     final interchangeCount = transitLegsCount > 1 ? transitLegsCount - 1 : 0;
-    final interchangeText = interchangeCount == 0 ? "Direct" : "$interchangeCount interchange${interchangeCount > 1 ? 's' : ''}";
+    final interchangeText =
+        interchangeCount == 0
+            ? "Direct"
+            : "$interchangeCount interchange${interchangeCount > 1 ? 's' : ''}";
 
     return Container(
       decoration: BoxDecoration(
@@ -1366,11 +1473,12 @@ class RouteCard extends StatelessWidget {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => JourneyDetailsScreen(
-                route: route,
-                srcName: srcName,
-                dstName: dstName,
-              ),
+              builder:
+                  (context) => JourneyDetailsScreen(
+                    route: route,
+                    srcName: srcName,
+                    dstName: dstName,
+                  ),
             ),
           );
         },
@@ -1384,7 +1492,11 @@ class RouteCard extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      Icon(CupertinoIcons.clock_solid, color: Colors.white, size: 14.sp),
+                      Icon(
+                        CupertinoIcons.clock_solid,
+                        color: Colors.white,
+                        size: 14.sp,
+                      ),
                       SizedBox(width: 4.w),
                       Text(
                         "${route.tripTime.toInt()} min",
@@ -1397,10 +1509,16 @@ class RouteCard extends StatelessWidget {
                       ),
                       SizedBox(width: 10.w),
                       Container(
-                        padding: EdgeInsets.symmetric(horizontal: 6.w, vertical: 3.h),
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 6.w,
+                          vertical: 3.h,
+                        ),
                         decoration: BoxDecoration(
                           color: AppColors.divider.withValues(alpha: 0.15),
-                          border: Border.all(color: AppColors.divider, width: 0.6),
+                          border: Border.all(
+                            color: AppColors.divider,
+                            width: 0.6,
+                          ),
                           borderRadius: BorderRadius.circular(3.r),
                         ),
                         child: Text(
@@ -1487,20 +1605,14 @@ class RouteCard extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Container(
-                  width: 4.w,
-                  height: 18.h,
-                  color: badgeColor,
-                ),
+                Container(width: 4.w, height: 18.h, color: badgeColor),
                 SizedBox(width: 6.w),
-                Icon(
-                  CupertinoIcons.bus,
-                  color: Colors.white,
-                  size: 11.sp,
-                ),
+                Icon(CupertinoIcons.bus, color: Colors.white, size: 11.sp),
                 SizedBox(width: 4.w),
                 Text(
-                  leg.routes.isNotEmpty ? leg.routes.first : leg.type.toUpperCase(),
+                  leg.routes.isNotEmpty
+                      ? leg.routes.first
+                      : leg.type.toUpperCase(),
                   style: TextStyle(
                     color: Colors.white,
                     fontFamily: 'Poppins',
@@ -1517,7 +1629,11 @@ class RouteCard extends StatelessWidget {
 
       if (i < legs.length - 1) {
         widgets.add(
-          Icon(CupertinoIcons.chevron_right, color: AppColors.tertiaryText, size: 10.sp),
+          Icon(
+            CupertinoIcons.chevron_right,
+            color: AppColors.tertiaryText,
+            size: 10.sp,
+          ),
         );
       }
     }

@@ -535,6 +535,30 @@ class _HomeScreenState extends State<HomeScreen> {
             lineN = lineN.replaceAll(RegExp(r'[\[\]]'), '');
             List<String> lineNumbersN = lineN.split('-');
 
+            Position? userPos;
+            if (data["UserLocation"] != null && data["UserLocation"]!.isNotEmpty) {
+              final loc = data["UserLocation"]![0];
+              if (loc is Position) {
+                userPos = loc;
+              }
+            }
+
+            double? distNE;
+            final latNE = double.tryParse(data["NearEnough"]?[0]["Latitude"]?.toString() ?? '');
+            final lonNE = double.tryParse(data["NearEnough"]?[0]["Longitude"]?.toString() ?? '');
+            if (userPos != null && latNE != null && lonNE != null) {
+              final meters = Geolocator.distanceBetween(userPos.latitude, userPos.longitude, latNE, lonNE);
+              distNE = meters / 1000.0;
+            }
+
+            double? distN;
+            final latN = double.tryParse(data["Near"]?[0]["Latitude"]?.toString() ?? '');
+            final lonN = double.tryParse(data["Near"]?[0]["Longitude"]?.toString() ?? '');
+            if (userPos != null && latN != null && lonN != null) {
+              final meters = Geolocator.distanceBetween(userPos.latitude, userPos.longitude, latN, lonN);
+              distN = meters / 1000.0;
+            }
+
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
@@ -597,6 +621,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: StationNearby(
                     name: data["NearEnough"]?[0]["Name"],
                     line: lineNumbersNE,
+                    distance: distNE,
                   ),
                 ),
                 const Divider(
@@ -620,6 +645,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: StationNearby(
                     name: data["Near"]?[0]["Name"],
                     line: lineNumbersN,
+                    distance: distN,
                   ),
                 ),
               ],

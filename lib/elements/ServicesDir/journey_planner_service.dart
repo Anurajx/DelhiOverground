@@ -32,6 +32,16 @@ class JourneyStop {
       code: json['code']?.toString() ?? '',
     );
   }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'lat': lat,
+      'lon': lon,
+      'name': name,
+      'code': code,
+    };
+  }
 }
 
 class JourneyLeg {
@@ -99,6 +109,29 @@ class JourneyLeg {
       distance: (json['distance'] as num?)?.toDouble() ?? 0.0,
     );
   }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'route': route,
+      'routes': routes,
+      'type': type,
+      'short_name': shortName,
+      'long_name': longName,
+      'agency': agency,
+      'vehicle_id': vehicleId,
+      'occupancy': occupancy,
+      'departure_time': departureTime,
+      'ending_time': endingTime,
+      'color': color,
+      'description': description,
+      'trip_time': tripTime,
+      'fare': fare,
+      'stops': stops.map((e) => e.toJson()).toList(),
+      'polyline': polyline,
+      'frequency': frequency,
+      'distance': distance,
+    };
+  }
 }
 
 class JourneyRoute {
@@ -147,6 +180,24 @@ class JourneyRoute {
       totalFareRange: json['total_fare_range']?.toString() ?? '',
       legs: parsedLegs,
     );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'fare_unit': fareUnit,
+      'trip_time': tripTime,
+      'total_fare': totalFare,
+      'response_type': responseType,
+      'reach_by': reachBy,
+      'time_unit': timeUnit,
+      'request_time': requestTime,
+      'created_at': createdAt,
+      'route_description': routeDescription,
+      'total_fare_range': totalFareRange,
+      'directions': {
+        'routes': legs.map((e) => e.toJson()).toList(),
+      },
+    };
   }
 }
 

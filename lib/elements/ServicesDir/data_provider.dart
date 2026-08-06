@@ -98,11 +98,12 @@ class DataProvider extends ChangeNotifier {
     required String dstType,
     required String mode,
     required String time,
+    String? routesJson,
   }) async {
     _journeySearchHistory.removeWhere(
       (item) => item['src_name'] == srcName && item['dst_name'] == dstName && item['mode'] == mode,
     );
-    _journeySearchHistory.insert(0, {
+    final newItem = {
       'src_name': srcName,
       'src_lat': srcLat,
       'src_lon': srcLon,
@@ -113,7 +114,9 @@ class DataProvider extends ChangeNotifier {
       'dst_type': dstType,
       'mode': mode,
       'time': time,
-    });
+      if (routesJson != null) 'routes_json': routesJson,
+    };
+    _journeySearchHistory.insert(0, newItem);
     if (_journeySearchHistory.length > 5) {
       _journeySearchHistory = _journeySearchHistory.sublist(0, 5);
     }
