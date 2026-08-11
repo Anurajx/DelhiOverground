@@ -94,12 +94,13 @@ class _SearchScreenState extends State<StationSearchScreen> {
   }
 
   @override
-  void deactivate() {
-    super.deactivate();
-    if (!Navigator.canPop(context)) {
-      _coreTransferStationsDict.clear();
-    }
+  void dispose() {
+    _focusNode1.dispose();
+    _controller1.dispose();
+    super.dispose();
   }
+
+
 
   void _filterStationsLogic(String query) {
     final cleanQuery = query.trim().toLowerCase();
@@ -348,12 +349,15 @@ class _SearchScreenState extends State<StationSearchScreen> {
   void _screenTransferController() {
     String source = _controller1.text;
     if (_ifSourceSelected() && source.isNotEmpty) {
+      final stationCopy = Map<String, Map<String, dynamic>>.from(
+        _coreTransferStationsDict.map((key, value) => MapEntry(key, Map<String, dynamic>.from(value))),
+      );
       Navigator.push(
         context,
         MaterialPageRoute(
           builder:
               (context) =>
-                  StopInfoScreen(stationDict: _coreTransferStationsDict),
+                  StopInfoScreen(stationDict: stationCopy),
         ),
       );
     } else {
@@ -483,12 +487,10 @@ class _SearchScreenState extends State<StationSearchScreen> {
                 PostHogService.trackSearchPerformed('stop_search', _controller1.text);
               }
               PostHogService.trackButtonClicked('select_station', {'station_name': name});
-              if (_focusNode1.hasFocus) {
-                _controller1.text = name;
-                _coreTransferStationsDict['Source'] = station;
-                if (_ifSourceSelected()) {
-                  _screenTransferController();
-                }
+              _controller1.text = name;
+              _coreTransferStationsDict['Source'] = station;
+              if (_ifSourceSelected()) {
+                _screenTransferController();
               }
             },
             child: StationUnit(

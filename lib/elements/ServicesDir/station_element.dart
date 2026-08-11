@@ -120,12 +120,6 @@ class StationNearby extends StatelessWidget {
       padding: EdgeInsets.symmetric(vertical: 10.h, horizontal: 8.w),
       child: Row(
         children: [
-          Icon(
-            Icons.location_on_outlined,
-            color: AppColors.tertiaryText,
-            size: 20.sp,
-          ),
-          SizedBox(width: 14.w),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,

@@ -327,16 +327,35 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  String _formatHistoryTime(String? timeStr) {
+    if (timeStr == null || timeStr.trim().isEmpty) return '';
+    final trimmed = timeStr.trim();
+    if (trimmed.toLowerCase().contains('am') || trimmed.toLowerCase().contains('pm')) {
+      return trimmed;
+    }
+    final parts = trimmed.split(':');
+    if (parts.length >= 2) {
+      final hourInt = int.tryParse(parts[0]);
+      final minInt = int.tryParse(parts[1]);
+      if (hourInt != null && minInt != null) {
+        final period = hourInt >= 12 ? 'PM' : 'AM';
+        final h = hourInt % 12 == 0 ? 12 : hourInt % 12;
+        final m = minInt.toString().padLeft(2, '0');
+        return '$h:$m $period';
+      }
+    }
+    return trimmed;
+  }
+
   Widget _buildBusHistoryItem(BuildContext context, Map<String, String> item) {
     final srcName = item['src_name'] ?? '';
     final dstName = item['dst_name'] ?? '';
+    final timeFormatted = _formatHistoryTime(item['time']);
 
     return Container(
       padding: EdgeInsets.symmetric(vertical: 14.h, horizontal: 8.w),
       child: Row(
         children: [
-          Icon(CupertinoIcons.time, color: AppColors.tertiaryText, size: 20.sp),
-          SizedBox(width: 14.w),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -368,6 +387,30 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
             ),
           ),
+          if (timeFormatted.isNotEmpty) ...[
+            SizedBox(width: 8.w),
+            Container(
+              padding: EdgeInsets.symmetric(horizontal: 6.w, vertical: 2.h),
+              decoration: BoxDecoration(
+                color: AppColors.inputBackground,
+                borderRadius: BorderRadius.circular(4.r),
+                border: Border.all(
+                  color: AppColors.inputBorder,
+                  width: 0.5,
+                ),
+              ),
+              child: Text(
+                timeFormatted,
+                style: TextStyle(
+                  fontFamily: 'Poppins',
+                  color: AppColors.secondaryText,
+                  fontSize: 10.sp,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ],
+          SizedBox(width: 8.w),
           Icon(
             CupertinoIcons.chevron_forward,
             color: AppColors.tertiaryText,
@@ -385,8 +428,6 @@ class _HomeScreenState extends State<HomeScreen> {
       padding: EdgeInsets.symmetric(vertical: 14.h, horizontal: 8.w),
       child: Row(
         children: [
-          Icon(CupertinoIcons.time, color: AppColors.tertiaryText, size: 20.sp),
-          SizedBox(width: 14.w),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -424,12 +465,6 @@ class _HomeScreenState extends State<HomeScreen> {
       padding: EdgeInsets.symmetric(vertical: 10.h, horizontal: 8.w),
       child: Row(
         children: [
-          Icon(
-            Icons.location_off_outlined,
-            color: AppColors.tertiaryText,
-            size: 20.sp,
-          ),
-          SizedBox(width: 14.w),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,

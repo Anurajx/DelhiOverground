@@ -1298,14 +1298,10 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
         final item = history[index];
         final src = item['src_name'] ?? '';
         final dst = item['dst_name'] ?? '';
+        final timeFormatted = _formatHistoryTime(item['time']);
 
         return ListTile(
           contentPadding: EdgeInsets.zero,
-          leading: Icon(
-            Icons.history,
-            color: AppColors.secondaryText,
-            size: 18.sp,
-          ),
           title: Text(
             "$src ➔ $dst",
             style: TextStyle(
@@ -1317,6 +1313,28 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
+          trailing: timeFormatted.isNotEmpty
+              ? Container(
+                  padding: EdgeInsets.symmetric(horizontal: 6.w, vertical: 2.h),
+                  decoration: BoxDecoration(
+                    color: AppColors.inputBackground,
+                    borderRadius: BorderRadius.circular(4.r),
+                    border: Border.all(
+                      color: AppColors.inputBorder,
+                      width: 0.5,
+                    ),
+                  ),
+                  child: Text(
+                    timeFormatted,
+                    style: TextStyle(
+                      fontFamily: 'Poppins',
+                      color: AppColors.secondaryText,
+                      fontSize: 10.sp,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                )
+              : null,
           onTap: () {
             _srcFocusNode.unfocus();
             _dstFocusNode.unfocus();
@@ -1325,6 +1343,26 @@ class _JourneyPlannerScreenState extends State<JourneyPlannerScreen> {
         );
       },
     );
+  }
+
+  String _formatHistoryTime(String? timeStr) {
+    if (timeStr == null || timeStr.trim().isEmpty) return '';
+    final trimmed = timeStr.trim();
+    if (trimmed.toLowerCase().contains('am') || trimmed.toLowerCase().contains('pm')) {
+      return trimmed;
+    }
+    final parts = trimmed.split(':');
+    if (parts.length >= 2) {
+      final hourInt = int.tryParse(parts[0]);
+      final minInt = int.tryParse(parts[1]);
+      if (hourInt != null && minInt != null) {
+        final period = hourInt >= 12 ? 'PM' : 'AM';
+        final h = hourInt % 12 == 0 ? 12 : hourInt % 12;
+        final m = minInt.toString().padLeft(2, '0');
+        return '$h:$m $period';
+      }
+    }
+    return trimmed;
   }
 
   Widget _buildResultsSection() {

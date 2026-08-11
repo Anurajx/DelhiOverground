@@ -35,7 +35,23 @@ class _StopInfoScreenState extends State<StopInfoScreen> {
   }
 
   Widget _buildStationCluster(BuildContext context) {
-    final stationCode = widget.stationDict["Source"]["StationCode"];
+    final source = (widget.stationDict != null && widget.stationDict is Map)
+        ? widget.stationDict["Source"]
+        : null;
+    if (source == null) {
+      return SafeArea(
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _buildTopNavBar(context),
+            ],
+          ),
+        ),
+      );
+    }
+    final stationCode = source["StationCode"]?.toString() ?? "";
     return SafeArea(
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10),
@@ -101,12 +117,15 @@ class _StopInfoScreenState extends State<StopInfoScreen> {
   }
 
   Widget _buildStationLineMarker() {
-    dynamic station = widget.stationDict["Source"];
-    String stationName = station["Name"].toString();
-    String stationNameHindiCommon = station["Hindi"].toString();
-    String line = station["Line"];
+    dynamic station = (widget.stationDict != null && widget.stationDict is Map)
+        ? widget.stationDict["Source"]
+        : null;
+    if (station == null) return const SizedBox();
+    String stationName = station["Name"]?.toString() ?? "";
+    String stationNameHindiCommon = station["Hindi"]?.toString() ?? "";
+    String line = station["Line"]?.toString() ?? "";
     line = line.replaceAll(RegExp(r'[\[\]]'), '');
-    List<String> parts = line.split('-');
+    List<String> parts = line.isNotEmpty ? line.split('-') : [];
     return BigNameInfo(
       stationName: stationName,
       stationNameHindiCommon: stationNameHindiCommon,
@@ -115,7 +134,10 @@ class _StopInfoScreenState extends State<StopInfoScreen> {
   }
 
   Widget _buildBusStopDetailsCard(BuildContext context) {
-    final source = widget.stationDict["Source"];
+    final source = (widget.stationDict != null && widget.stationDict is Map)
+        ? widget.stationDict["Source"]
+        : null;
+    if (source == null) return const SizedBox();
     final lat = source["Latitude"]?.toString() ?? "";
     final lon = source["Longitude"]?.toString() ?? "";
 
