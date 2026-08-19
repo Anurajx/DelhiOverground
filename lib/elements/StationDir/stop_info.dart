@@ -7,6 +7,7 @@ import 'package:metroapp/elements/ServicesDir/new_schedule_service.dart';
 import 'package:metroapp/elements/journey_planner.dart';
 import 'package:metroapp/main.dart';
 import 'package:metroapp/elements/ServicesDir/analytics_service.dart';
+import 'package:metroapp/elements/ServicesDir/ad_service.dart';
 
 class StopInfoScreen extends StatefulWidget {
   final dynamic stationDict;
@@ -92,6 +93,7 @@ class _StopInfoScreenState extends State<StopInfoScreen> {
                 ),
               ),
             ),
+            const StopInfoBannerAd(),
           ],
         ),
       ),

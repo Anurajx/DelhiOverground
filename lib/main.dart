@@ -9,6 +9,7 @@ import 'elements/metro.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:metroapp/elements/ServicesDir/env_service.dart';
 import 'package:metroapp/elements/ServicesDir/analytics_service.dart';
+import 'package:metroapp/elements/ServicesDir/ad_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -25,6 +26,7 @@ void main() async {
 
   await Env.load();
   await StopsManager.init();
+  await AdService.initialize();
   final dataProvider = DataProvider();
   await dataProvider.loadBusSearchHistory();
   await dataProvider.loadJourneySearchHistory();

@@ -68,6 +68,7 @@ dependencies:
   intl: ^0.20.2
   http: ^1.2.0
   posthog_flutter: ^5.24.0
+  google_mobile_ads: ^9.1.0
 
 dev_dependencies:
   flutter_test:
@@ -104,7 +105,7 @@ flutter:
     - assets/Image/Vector2.png
     - assets/Image/carfooter.jpg
     - assets/Map/stationsjson.json
-    - assets/routes.db
+    # - assets/routes.db
     - assets/reconciled_stops.json
     - assets/stops_backup.json
     - assets/stop_directions_map.json
