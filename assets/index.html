@@ -1,0 +1,1057 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Delhi Live Transit</title>
+
+    <!-- Leaflet CSS -->
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    />
+
+    <style>
+      :root {
+        --bg-glass: rgba(255, 255, 255, 0.88);
+        --border-glass: rgba(0, 0, 0, 0.08);
+        --text-primary: #09090b;
+        --text-secondary: #71717a;
+        --accent: #0284c7;
+        --accent-hover: #0369a1;
+        --radius-pill: 999px;
+        --radius-card: 16px;
+        --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.06);
+        --shadow-md: 0 10px 30px rgba(0, 0, 0, 0.1);
+        --shadow-lg: 0 20px 40px rgba(0, 0, 0, 0.14);
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+        -webkit-tap-highlight-color: transparent;
+      }
+
+      body,
+      html {
+        height: 100%;
+        width: 100%;
+        font-family:
+          -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        overflow: hidden;
+        background: #f4f4f5;
+        color: var(--text-primary);
+        -webkit-font-smoothing: antialiased;
+      }
+
+      #map {
+        height: 100vh;
+        width: 100vw;
+        background: #f8fafc;
+      }
+
+      /* -------------------------------------------------------------
+         MINIMALIST PERMISSION OVERLAY
+         ------------------------------------------------------------- */
+      .permission-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(9, 9, 11, 0.45);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 2000;
+        transition:
+          opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+          visibility 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      }
+
+      .permission-card {
+        background: #ffffff;
+        padding: 32px 28px;
+        border-radius: var(--radius-card);
+        box-shadow: var(--shadow-lg);
+        text-align: center;
+        max-width: 330px;
+        width: 88%;
+        border: 1px solid var(--border-glass);
+        animation: cardEnter 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      }
+
+      @keyframes cardEnter {
+        from {
+          opacity: 0;
+          transform: translateY(8px) scale(0.96);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0) scale(1);
+        }
+      }
+
+      .permission-icon {
+        width: 48px;
+        height: 48px;
+        background: #f0f9ff;
+        border-radius: 12px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 16px;
+        color: var(--accent);
+      }
+
+      .permission-card h2 {
+        font-size: 1.15rem;
+        font-weight: 600;
+        letter-spacing: -0.02em;
+        color: var(--text-primary);
+        margin-bottom: 6px;
+      }
+
+      .permission-card p {
+        font-size: 0.84rem;
+        color: var(--text-secondary);
+        margin-bottom: 22px;
+        line-height: 1.45;
+      }
+
+      .btn-primary {
+        background: var(--text-primary);
+        color: #ffffff;
+        border: none;
+        padding: 12px 20px;
+        border-radius: 10px;
+        font-size: 0.88rem;
+        font-weight: 500;
+        cursor: pointer;
+        width: 100%;
+        transition: background 0.15s ease, transform 0.15s ease;
+      }
+
+      .btn-primary:hover {
+        background: #27272a;
+        transform: translateY(-1px);
+      }
+
+      .btn-primary:active {
+        transform: translateY(0);
+      }
+
+      /* -------------------------------------------------------------
+         TOP STATUS BAR
+         ------------------------------------------------------------- */
+      .status-pill {
+        position: fixed;
+        top: 18px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 1000;
+        background: var(--bg-glass);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        border: 1px solid var(--border-glass);
+        border-radius: var(--radius-pill);
+        padding: 6px 14px;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        box-shadow: var(--shadow-sm);
+        font-size: 0.78rem;
+        font-weight: 500;
+        letter-spacing: -0.01em;
+        color: var(--text-primary);
+        transition: all 0.25s ease;
+      }
+
+      .status-dot {
+        width: 7px;
+        height: 7px;
+        background-color: #10b981;
+        border-radius: 50%;
+        box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+        animation: pulseDot 2s infinite;
+      }
+
+      @keyframes pulseDot {
+        0% {
+          transform: scale(0.95);
+          box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+        }
+        70% {
+          transform: scale(1);
+          box-shadow: 0 0 0 5px rgba(16, 185, 129, 0);
+        }
+        100% {
+          transform: scale(0.95);
+          box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+        }
+      }
+
+      .status-dot.loading {
+        background-color: #f59e0b;
+        animation: none;
+      }
+
+      .status-dot.offline {
+        background-color: #ef4444;
+        animation: none;
+      }
+
+      /* -------------------------------------------------------------
+         FLOATING ACTION BUTTONS
+         ------------------------------------------------------------- */
+      .fab-stack {
+        position: fixed;
+        bottom: 24px;
+        right: 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        z-index: 1000;
+      }
+
+      .fab-btn {
+        width: 38px;
+        height: 38px;
+        border-radius: 10px;
+        background: var(--bg-glass);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        border: 1px solid var(--border-glass);
+        box-shadow: var(--shadow-sm);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--text-primary);
+        cursor: pointer;
+        transition: all 0.15s ease;
+      }
+
+      .fab-btn:hover {
+        background: #ffffff;
+        color: var(--accent);
+        transform: translateY(-1px);
+        box-shadow: var(--shadow-md);
+      }
+
+      .fab-btn:active {
+        transform: translateY(0);
+      }
+
+      /* -------------------------------------------------------------
+         USER LOCATION MARKER
+         ------------------------------------------------------------- */
+      .user-locator {
+        width: 14px;
+        height: 14px;
+        background: var(--accent);
+        border-radius: 50%;
+        border: 2.5px solid #ffffff;
+        box-shadow: 0 0 0 4px rgba(2, 132, 199, 0.25);
+      }
+
+      /* -------------------------------------------------------------
+         SLEEK MINIMALIST BUS MARKER (Illustration + Route Text Above)
+         ------------------------------------------------------------- */
+      .bus-marker-node {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        cursor: pointer;
+        user-select: none;
+        pointer-events: auto;
+        transform: translate(-50%, -64%);
+      }
+
+      /* Route Short Name Pill (Text Above) */
+      .bus-label-wrap {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        margin-bottom: 2px;
+        pointer-events: none;
+        z-index: 10;
+        filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.18));
+      }
+
+      .bus-route-pill {
+        background: #09090b;
+        color: #fafafa;
+        font-family:
+          ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace, sans-serif;
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.3px;
+        padding: 2px 6px;
+        border-radius: 5px;
+        border: 1px solid rgba(255, 255, 255, 0.95);
+        white-space: nowrap;
+        text-transform: uppercase;
+        transition: transform 0.15s ease, background 0.15s ease;
+      }
+
+      .bus-marker-node:hover .bus-route-pill {
+        background: var(--accent);
+        transform: scale(1.08);
+      }
+
+      /* Sleek Bus Illustration (rotates smoothly with bearing) */
+      .bus-vector-wrap {
+        width: 24px;
+        height: 34px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transform-origin: 50% 50%;
+        transition: transform 0.2s cubic-bezier(0.2, 0, 0.2, 1);
+        z-index: 5;
+      }
+
+      .bus-marker-node:hover .bus-vector-wrap {
+        transform: scale(1.15) !important;
+      }
+
+      .bus-svg-icon {
+        width: 100%;
+        height: 100%;
+        display: block;
+      }
+
+      .leaflet-clean-icon {
+        background: transparent !important;
+        border: none !important;
+      }
+
+      /* -------------------------------------------------------------
+         MINIMALIST POPUP CARD
+         ------------------------------------------------------------- */
+      .leaflet-popup-content-wrapper {
+        background: #ffffff;
+        border-radius: var(--radius-card);
+        box-shadow: var(--shadow-md);
+        padding: 0;
+        overflow: hidden;
+        border: 1px solid var(--border-glass);
+      }
+
+      .leaflet-popup-content {
+        margin: 0;
+        min-width: 210px;
+        max-width: 260px;
+      }
+
+      .popup-box {
+        padding: 14px 16px;
+      }
+
+      .popup-header-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 8px;
+      }
+
+      .popup-pill {
+        background: #09090b;
+        color: #ffffff;
+        font-size: 10.5px;
+        font-weight: 700;
+        padding: 2px 7px;
+        border-radius: 5px;
+        letter-spacing: 0.3px;
+      }
+
+      .popup-agency {
+        font-size: 9px;
+        font-weight: 600;
+        color: var(--text-secondary);
+        background: #f4f4f5;
+        padding: 2px 5px;
+        border-radius: 4px;
+      }
+
+      .popup-title {
+        font-size: 0.82rem;
+        font-weight: 600;
+        color: var(--text-primary);
+        line-height: 1.35;
+        margin-bottom: 10px;
+      }
+
+      .popup-grid {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 5px 10px;
+        font-size: 0.76rem;
+        background: #fafafa;
+        padding: 8px 10px;
+        border-radius: 8px;
+        border: 1px solid #f4f4f5;
+      }
+
+      .popup-grid dt {
+        color: var(--text-secondary);
+        font-weight: 400;
+      }
+
+      .popup-grid dd {
+        color: var(--text-primary);
+        font-weight: 600;
+        text-align: right;
+      }
+
+      .popup-focus-btn {
+        margin-top: 10px;
+        width: 100%;
+        background: #f0f9ff;
+        color: var(--accent);
+        border: 1px solid #e0f2fe;
+        border-radius: 8px;
+        padding: 6px 10px;
+        font-size: 0.76rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.15s ease;
+      }
+
+      .popup-focus-btn:hover {
+        background: var(--accent);
+        color: #ffffff;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="map"></div>
+
+    <!-- Top Minimalist Status Pill -->
+    <div id="statusPill" class="status-pill" style="display: none;">
+      <span id="statusDot" class="status-dot"></span>
+      <span id="statusLabel">Locating transit…</span>
+    </div>
+
+    <!-- Minimalist Floating Action Controls -->
+    <div class="fab-stack">
+      <button id="recenterBtn" class="fab-btn" title="Center on Me">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"></circle>
+          <circle cx="12" cy="12" r="3"></circle>
+          <line x1="12" y1="2" x2="12" y2="5"></line>
+          <line x1="12" y1="19" x2="12" y2="22"></line>
+          <line x1="2" y1="12" x2="5" y2="12"></line>
+          <line x1="19" y1="12" x2="22" y2="12"></line>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Clean Permission Prompt -->
+    <div id="overlay" class="permission-overlay">
+      <div class="permission-card">
+        <div class="permission-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2a8 8 0 0 0-8 8c0 5.25 8 12 8 12s8-6.75 8-12a8 8 0 0 0-8-8z"></path>
+            <circle cx="12" cy="10" r="3"></circle>
+          </svg>
+        </div>
+        <h2>Live Transit Map</h2>
+        <p>
+          View live buses operating within 1 km of your location with smooth real-time tracking.
+        </p>
+        <button id="locateBtn" class="btn-primary">Enable Location</button>
+      </div>
+    </div>
+
+    <!-- Leaflet Library -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <script>
+      const RADIUS_METERS = 1000;
+      const ANIM_DURATION_MS = 8500; // Smooth 8.5s continuous movement between 10s updates
+
+      const localRouteCache = new Map();
+
+      // Setup Minimal Carto Positron Base Map
+      const map = L.map("map", {
+        zoomControl: false,
+        maxBoundsViscosity: 1.0,
+      }).setView([28.6139, 77.2090], 15);
+
+      L.tileLayer(
+        "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
+        {
+          maxZoom: 19,
+          attribution:
+            '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
+        },
+      ).addTo(map);
+
+      L.control.zoom({ position: "bottomleft" }).addTo(map);
+
+      const locateBtn = document.getElementById("locateBtn");
+      const overlay = document.getElementById("overlay");
+      const statusPill = document.getElementById("statusPill");
+      const statusLabel = document.getElementById("statusLabel");
+      const statusDot = document.getElementById("statusDot");
+      const recenterBtn = document.getElementById("recenterBtn");
+
+      const transitLayer = L.layerGroup().addTo(map);
+
+      let userCoords = null;
+      let userMarker = null;
+      let radiusBoundary = null;
+      let realtimeSocket = null;
+      let pollTimer = null;
+
+      // Active vehicle animation pool
+      const vehiclePool = new Map();
+      let animFrameId = null;
+
+      function getApiBase() {
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get("api")) return urlParams.get("api");
+        if (window.FLUTTER_API_BASE) return window.FLUTTER_API_BASE;
+        if (window.location.protocol === "file:") return "http://localhost:5000";
+        if (window.location.port === "5000" || window.location.port === "3000" || window.location.port === "") {
+          return window.location.origin || "http://localhost:5000";
+        }
+        return "http://localhost:5000";
+      }
+
+      function getWsUrl() {
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get("ws")) return urlParams.get("ws");
+        if (window.FLUTTER_WS_URL) return window.FLUTTER_WS_URL;
+        const base = getApiBase() || window.location.origin;
+        const url = new URL(base, window.location.href);
+        url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+        url.pathname = "/realtime";
+        url.search = "";
+        url.hash = "";
+        return url.toString();
+      }
+
+      function haversineMeters(lat1, lon1, lat2, lon2) {
+        const R = 6371e3;
+        const toRad = (d) => (d * Math.PI) / 180;
+        const dLat = toRad(lat2 - lat1);
+        const dLon = toRad(lon2 - lon1);
+        const a =
+          Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+          Math.cos(toRad(lat1)) *
+            Math.cos(toRad(lat2)) *
+            Math.sin(dLon / 2) *
+            Math.sin(dLon / 2);
+        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      }
+
+      function calcBearing(lat1, lon1, lat2, lon2) {
+        const toRad = (d) => (d * Math.PI) / 180;
+        const toDeg = (r) => (r * 180) / Math.PI;
+        const dLon = toRad(lon2 - lon1);
+        const y = Math.sin(dLon) * Math.cos(toRad(lat2));
+        const x =
+          Math.cos(toRad(lat1)) * Math.sin(toRad(lat2)) -
+          Math.sin(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.cos(dLon);
+        return (toDeg(Math.atan2(y, x)) + 360) % 360;
+      }
+
+      function compassDir(bearing) {
+        if (bearing == null) return "—";
+        const dirs = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
+        const idx = Math.round(((bearing %= 360) < 0 ? bearing + 360 : bearing) / 45) % 8;
+        return `${Math.round(bearing)}° ${dirs[idx]}`;
+      }
+
+      function formatTimestamp(unixSeconds) {
+        if (!unixSeconds) return "—";
+        const d = new Date(Number(unixSeconds) * 1000);
+        return Number.isNaN(d.getTime()) ? "—" : d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+      }
+
+      // Preload route cache if available
+      async function preloadRouteCache() {
+        try {
+          const res = await fetch(`${getApiBase()}/routes`);
+          if (res.ok) {
+            const data = await res.json();
+            if (Array.isArray(data.routes)) {
+              for (const r of data.routes) {
+                if (r.routeId) localRouteCache.set(String(r.routeId), r);
+                if (r.routeShortName) localRouteCache.set(String(r.routeShortName).toLowerCase(), r);
+              }
+            }
+          }
+        } catch (_) {}
+      }
+      preloadRouteCache();
+
+      function resolveRouteLabel(bus) {
+        if (bus.routeShortName && bus.routeShortName !== "unknown") return bus.routeShortName;
+        if (bus.routeId && localRouteCache.has(String(bus.routeId))) {
+          return localRouteCache.get(String(bus.routeId)).routeShortName;
+        }
+        if (bus.routeId && bus.routeId !== "unknown") return bus.routeId;
+        return "BUS";
+      }
+
+      // -------------------------------------------------------------
+      // Sleek Bus Marker HTML (Route Pill Above + Minimalist Bus SVG Below)
+      // -------------------------------------------------------------
+      function renderBusMarkerHtml(routeLabel, bearing) {
+        const rot = bearing || 0;
+        return `
+          <div class="bus-marker-node">
+            <!-- Text Above: Sleek Route Pill -->
+            <div class="bus-label-wrap">
+              <span class="bus-route-pill">${routeLabel}</span>
+            </div>
+
+            <!-- Illustration: Precision Minimalist Top-Down Bus SVG -->
+            <div class="bus-vector-wrap" style="transform: rotate(${rot}deg);">
+              <svg class="bus-svg-icon" viewBox="0 0 28 40" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                  <filter id="busGlow" x="-20%" y="-20%" width="140%" height="140%">
+                    <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="#0f172a" flood-opacity="0.22" />
+                  </filter>
+                </defs>
+
+                <!-- Chassis -->
+                <rect x="2.5" y="3" width="23" height="34" rx="5.5" ry="5.5" fill="#1e293b" stroke="#ffffff" stroke-width="1.4" filter="url(#busGlow)" />
+
+                <!-- Directional Front Pointer -->
+                <path d="M 14 0.5 L 18 3.5 L 10 3.5 Z" fill="#0284c7" stroke="#ffffff" stroke-width="0.75" />
+
+                <!-- Windshield -->
+                <path d="M 5 6.5 Q 14 4 23 6.5 L 23 11 Q 14 9.5 5 11 Z" fill="#0284c7" />
+                <path d="M 7 7.5 Q 14 5.5 21 7.5" stroke="rgba(255,255,255,0.65)" stroke-width="0.8" fill="none" stroke-linecap="round" />
+
+                <!-- Headlights -->
+                <circle cx="5.5" cy="4.5" r="1.2" fill="#fef08a" />
+                <circle cx="22.5" cy="4.5" r="1.2" fill="#fef08a" />
+
+                <!-- Roof -->
+                <rect x="5" y="12.5" width="18" height="18" rx="2.5" fill="#334155" />
+
+                <!-- AC Unit / Vents -->
+                <rect x="7.5" y="15" width="13" height="7" rx="1.5" fill="#475569" />
+                <line x1="9.5" y1="17.5" x2="18.5" y2="17.5" stroke="#94a3b8" stroke-width="0.75" stroke-linecap="round" />
+                <line x1="9.5" y1="19.5" x2="18.5" y2="19.5" stroke="#94a3b8" stroke-width="0.75" stroke-linecap="round" />
+
+                <!-- Rear Window -->
+                <rect x="5" y="32" width="18" height="2.5" rx="1" fill="#0284c7" opacity="0.85" />
+
+                <!-- Taillights -->
+                <rect x="4.5" y="34.5" width="2" height="1.5" rx="0.5" fill="#ef4444" />
+                <rect x="21.5" y="34.5" width="2" height="1.5" rx="0.5" fill="#ef4444" />
+              </svg>
+            </div>
+          </div>
+        `;
+      }
+
+      function createBusDivIcon(routeLabel, bearing) {
+        return L.divIcon({
+          className: "leaflet-clean-icon",
+          html: renderBusMarkerHtml(routeLabel, bearing),
+          iconSize: [0, 0],
+          iconAnchor: [0, 0],
+        });
+      }
+
+      function buildPopupContent(bus) {
+        const routeLabel = resolveRouteLabel(bus);
+        const distanceText =
+          bus.distanceMeters != null
+            ? `${bus.distanceMeters} m away`
+            : userCoords
+              ? `${Math.round(haversineMeters(userCoords.lat, userCoords.lng, bus.lat, bus.lng))} m away`
+              : "—";
+
+        const routeTitle = bus.routeDesc || bus.routeLongName || "Transit Route";
+        const speedText = bus.speed != null ? `${Math.round(bus.speed * 3.6)} km/h` : "Active";
+
+        return `
+          <div class="popup-box">
+            <div class="popup-header-row">
+              <span class="popup-pill">${routeLabel}</span>
+              ${bus.agencyId ? `<span class="popup-agency">${bus.agencyId}</span>` : ""}
+            </div>
+            <div class="popup-title">${routeTitle}</div>
+            <dl class="popup-grid">
+              <dt>Distance</dt><dd>${distanceText}</dd>
+              <dt>Heading</dt><dd>${compassDir(bus.bearing)}</dd>
+              <dt>Speed</dt><dd>${speedText}</dd>
+              <dt>Vehicle</dt><dd>${bus.vehicleId || "—"}</dd>
+              <dt>Updated</dt><dd>${formatTimestamp(bus.timestamp)}</dd>
+            </dl>
+            <button class="popup-focus-btn" onclick="focusOnBus(${bus.lat}, ${bus.lng})">Focus Bus</button>
+          </div>
+        `;
+      }
+
+      window.focusOnBus = function (lat, lng) {
+        map.setView([lat, lng], 17, { animate: true, duration: 0.6 });
+      };
+
+      // -------------------------------------------------------------
+      // Smooth 60 FPS Interpolation Animation Engine
+      // -------------------------------------------------------------
+      function easeInOutQuad(t) {
+        return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+      }
+
+      function runAnimationTicker(now) {
+        let hasInFlight = false;
+
+        for (const [id, item] of vehiclePool) {
+          if (!item.animating) continue;
+
+          const progress = Math.min(1, (now - item.startTime) / item.duration);
+          const ease = easeInOutQuad(progress);
+
+          // Interpolate GPS Coordinates
+          item.currentLat = item.startLat + (item.targetLat - item.startLat) * ease;
+          item.currentLng = item.startLng + (item.targetLng - item.startLng) * ease;
+
+          // Interpolate Rotational Bearing
+          item.currentBearing = item.startBearing + (item.targetBearing - item.startBearing) * ease;
+
+          // Update Leaflet marker position
+          item.marker.setLatLng([item.currentLat, item.currentLng]);
+
+          // Update SVG rotation
+          const elem = item.marker.getElement();
+          if (elem) {
+            const vectorWrap = elem.querySelector(".bus-vector-wrap");
+            if (vectorWrap) {
+              vectorWrap.style.transform = `rotate(${item.currentBearing}deg)`;
+            }
+          }
+
+          if (progress < 1) {
+            hasInFlight = true;
+          } else {
+            item.animating = false;
+            item.currentLat = item.targetLat;
+            item.currentLng = item.targetLng;
+            item.currentBearing = item.targetBearing;
+          }
+        }
+
+        if (hasInFlight) {
+          animFrameId = requestAnimationFrame(runAnimationTicker);
+        } else {
+          animFrameId = null;
+        }
+      }
+
+      function triggerAnimationTicker() {
+        if (!animFrameId) {
+          animFrameId = requestAnimationFrame(runAnimationTicker);
+        }
+      }
+
+      // -------------------------------------------------------------
+      // Render Active Transit
+      // -------------------------------------------------------------
+      function updateVehicles(buses) {
+        if (!userCoords) return;
+
+        const inRange = [];
+        for (const b of buses) {
+          if (!b.lat || !b.lng) continue;
+          const dist = haversineMeters(userCoords.lat, userCoords.lng, b.lat, b.lng);
+          if (dist <= RADIUS_METERS) {
+            inRange.push({ ...b, distanceMeters: Math.round(dist) });
+          }
+        }
+
+        inRange.sort((a, b) => a.distanceMeters - b.distanceMeters);
+
+        const seenIds = new Set();
+        const now = performance.now();
+
+        for (const b of inRange) {
+          const id = b.vehicleId || `${b.lat},${b.lng}`;
+          seenIds.add(id);
+
+          const routeLabel = resolveRouteLabel(b);
+          const targetHeading = b.bearing != null && b.bearing > 0 ? b.bearing : 0;
+
+          let item = vehiclePool.get(id);
+
+          if (!item) {
+            // New bus marker
+            const marker = L.marker([b.lat, b.lng], {
+              icon: createBusDivIcon(routeLabel, targetHeading),
+            }).addTo(transitLayer);
+
+            marker.bindPopup(buildPopupContent(b));
+
+            item = {
+              marker,
+              currentLat: b.lat,
+              currentLng: b.lng,
+              currentBearing: targetHeading,
+              startLat: b.lat,
+              startLng: b.lng,
+              startBearing: targetHeading,
+              targetLat: b.lat,
+              targetLng: b.lng,
+              targetBearing: targetHeading,
+              startTime: now,
+              duration: ANIM_DURATION_MS,
+              animating: false,
+              routeLabel,
+              data: b,
+            };
+
+            vehiclePool.set(id, item);
+          } else {
+            // Existing bus marker update
+            item.data = b;
+            item.marker.setPopupContent(buildPopupContent(b));
+
+            if (item.routeLabel !== routeLabel) {
+              item.routeLabel = routeLabel;
+              item.marker.setIcon(createBusDivIcon(routeLabel, item.currentBearing));
+            }
+
+            const distMoved = haversineMeters(
+              item.currentLat,
+              item.currentLng,
+              b.lat,
+              b.lng,
+            );
+
+            let computedHeading = targetHeading;
+            if ((!computedHeading || computedHeading === 0) && distMoved > 1) {
+              computedHeading = calcBearing(
+                item.currentLat,
+                item.currentLng,
+                b.lat,
+                b.lng,
+              );
+            }
+
+            // Shortest angle wrap-around
+            let angleDiff = ((computedHeading - item.currentBearing + 540) % 360) - 180;
+            const newTargetBearing = item.currentBearing + angleDiff;
+
+            if (distMoved > 0.2 && distMoved < 4000) {
+              item.startLat = item.currentLat;
+              item.startLng = item.currentLng;
+              item.startBearing = item.currentBearing;
+              item.targetLat = b.lat;
+              item.targetLng = b.lng;
+              item.targetBearing = newTargetBearing;
+              item.startTime = now;
+              item.duration = ANIM_DURATION_MS;
+              item.animating = true;
+            } else if (distMoved >= 4000) {
+              item.currentLat = b.lat;
+              item.currentLng = b.lng;
+              item.currentBearing = computedHeading;
+              item.marker.setLatLng([b.lat, b.lng]);
+              item.animating = false;
+            }
+          }
+        }
+
+        // Remove out-of-range vehicles
+        for (const [id, item] of vehiclePool) {
+          if (!seenIds.has(id)) {
+            transitLayer.removeLayer(item.marker);
+            vehiclePool.delete(id);
+          }
+        }
+
+        triggerAnimationTicker();
+
+        // Update status bar
+        setStatusBar(
+          inRange.length
+            ? `${inRange.length} bus${inRange.length === 1 ? "" : "es"} in 1 km`
+            : "No active buses in 1 km",
+          "live",
+        );
+      }
+
+      function setStatusBar(text, state = "live") {
+        statusPill.style.display = "inline-flex";
+        statusLabel.textContent = text;
+        statusDot.className = "status-dot";
+        if (state === "offline") statusDot.classList.add("offline");
+        else if (state === "loading") statusDot.classList.add("loading");
+      }
+
+      // -------------------------------------------------------------
+      // Data Fetching & WebSockets
+      // -------------------------------------------------------------
+      async function queryNearby() {
+        if (!userCoords) return;
+        const base = getApiBase();
+        const url = `${base}/nearby?lat=${userCoords.lat}&lng=${userCoords.lng}&radius=${RADIUS_METERS}`;
+        const resp = await fetch(url);
+        if (!resp.ok) throw new Error(`Fetch failed (${resp.status})`);
+        const data = await resp.json();
+        updateVehicles(data.buses || []);
+      }
+
+      function initWebSocket() {
+        if (realtimeSocket) {
+          try { realtimeSocket.close(); } catch (_) {}
+        }
+
+        try {
+          const socket = new WebSocket(getWsUrl());
+          realtimeSocket = socket;
+
+          socket.addEventListener("open", () => {
+            setStatusBar("Live stream connected", "live");
+          });
+
+          socket.addEventListener("message", (ev) => {
+            try {
+              const payload = JSON.parse(ev.data);
+              if (Array.isArray(payload.buses)) {
+                updateVehicles(payload.buses);
+              }
+            } catch (err) {
+              console.error("Payload error:", err);
+            }
+          });
+
+          socket.addEventListener("close", () => {
+            if (realtimeSocket === socket) {
+              realtimeSocket = null;
+              setTimeout(() => {
+                if (userCoords) initWebSocket();
+              }, 4000);
+            }
+          });
+
+          socket.addEventListener("error", () => {
+            socket.close();
+          });
+        } catch (e) {
+          console.warn("WebSocket error:", e);
+        }
+      }
+
+      function startTracking() {
+        setStatusBar("Locating buses…", "loading");
+        queryNearby().catch(() => {
+          setStatusBar("Connecting to feed…", "loading");
+        });
+
+        initWebSocket();
+
+        if (pollTimer) clearInterval(pollTimer);
+        pollTimer = setInterval(() => {
+          queryNearby().catch(() => {});
+        }, 10000);
+      }
+
+      // -------------------------------------------------------------
+      // User Location (Supports Native Flutter Bridge & Browser Geolocation)
+      // -------------------------------------------------------------
+      function setUserPosition(lat, lng) {
+        userCoords = { lat, lng };
+        const pos = [lat, lng];
+
+        map.setView(pos, 16, { animate: true });
+
+        const userIcon = L.divIcon({
+          className: "",
+          html: '<div class="user-locator"></div>',
+          iconSize: [14, 14],
+          iconAnchor: [7, 7],
+        });
+
+        if (!userMarker) {
+          userMarker = L.marker(pos, { icon: userIcon, zIndexOffset: 1000 }).addTo(map);
+          userMarker.bindTooltip("You", { direction: "top", offset: [0, -6] });
+        } else {
+          userMarker.setLatLng(pos);
+        }
+
+        if (!radiusBoundary) {
+          radiusBoundary = L.circle(pos, {
+            color: "#0284c7",
+            fillColor: "#0284c7",
+            fillOpacity: 0.03,
+            weight: 1,
+            dashArray: "4, 4",
+            radius: RADIUS_METERS,
+          }).addTo(map);
+        } else {
+          radiusBoundary.setLatLng(pos);
+        }
+
+        map.setMaxBounds(radiusBoundary.getBounds().pad(0.25));
+        map.setMinZoom(14);
+      }
+
+      // Flutter Bridge Hook: allows Flutter Dart to directly push user location
+      window.updateUserLocation = function (lat, lng) {
+        setUserPosition(lat, lng);
+        overlay.style.opacity = "0";
+        overlay.style.visibility = "hidden";
+        startTracking();
+      };
+
+      recenterBtn.addEventListener("click", () => {
+        if (userCoords) {
+          map.setView([userCoords.lat, userCoords.lng], 16, { animate: true, duration: 0.5 });
+        }
+      });
+
+      locateBtn.addEventListener("click", () => {
+        if (!navigator.geolocation) {
+          alert("Geolocation is not supported by your browser.");
+          return;
+        }
+
+        locateBtn.innerText = "Locating…";
+
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            setUserPosition(pos.coords.latitude, pos.coords.longitude);
+
+            overlay.style.opacity = "0";
+            overlay.style.visibility = "hidden";
+            startTracking();
+
+            navigator.geolocation.watchPosition(
+              (next) => {
+                setUserPosition(next.coords.latitude, next.coords.longitude);
+              },
+              () => {},
+              { enableHighAccuracy: true, maximumAge: 5000 },
+            );
+          },
+          (err) => {
+            locateBtn.innerText = "Try Again";
+            alert("Unable to retrieve location: " + err.message);
+          },
+          { enableHighAccuracy: true },
+        );
+      });
+
+      // Auto-check URL parameters for ?lat=28.6139&lng=77.2090
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("lat") && params.get("lng")) {
+        const initLat = parseFloat(params.get("lat"));
+        const initLng = parseFloat(params.get("lng"));
+        if (!isNaN(initLat) && !isNaN(initLng)) {
+          window.updateUserLocation(initLat, initLng);
+        }
+      }
+    </script>
+  </body>
+</html>

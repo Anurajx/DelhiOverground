@@ -16,6 +16,7 @@ import 'StationDir/station_search.dart';
 import 'ServicesDir/data_provider.dart';
 import 'package:provider/provider.dart';
 import 'journey_planner.dart';
+import 'live_bus_map_screen.dart';
 import 'package:metroapp/elements/ServicesDir/stops_manager.dart';
 import 'package:metroapp/elements/ServicesDir/analytics_service.dart';
 
@@ -231,10 +232,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return SizedBox(
       height: double.infinity,
       width: double.infinity,
-      //padding: const EdgeInsets.fromLTRB(5, 0, 5, 0),
       child: Column(
         children: [
           Expanded(child: _buildAppFooter(context)),
@@ -808,12 +808,14 @@ class _HomeScreenState extends State<HomeScreen> {
                 Expanded(
                   child: GestureDetector(
                     behavior: HitTestBehavior.opaque,
-                    onTap: () async {
-                      PostHogService.trackButtonClicked('whatsapp_tickets');
-                      final whatsappUrl = Uri.parse(
-                        'https://wa.me/+918744073223?text=Hi',
+                    onTap: () {
+                      PostHogService.trackMenuItemClicked('live_bus_map');
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const LiveBusMapScreen(),
+                        ),
                       );
-                      await launchUrl(whatsappUrl);
                     },
                     child: Container(
                       decoration: const BoxDecoration(
@@ -822,7 +824,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                       child: const Center(
                         child: Icon(
-                          CupertinoIcons.tickets,
+                          CupertinoIcons.bus,
                           color: Colors.white,
                         ),
                       ),
@@ -1005,6 +1007,60 @@ class _HomeScreenState extends State<HomeScreen> {
                       ],
                     ),
                   ],
+                ),
+              ),
+              // Ticket button overlay at the bottom of the hero image
+              Container(
+                margin: EdgeInsets.symmetric(horizontal: 16.w, vertical: 12.h),
+                alignment: Alignment.bottomRight,
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () async {
+                    PostHogService.trackButtonClicked('whatsapp_tickets');
+                    final whatsappUrl = Uri.parse(
+                      'https://wa.me/+918744073223?text=Hi',
+                    );
+                    await launchUrl(whatsappUrl);
+                  },
+                  child: Container(
+                    padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 8.h),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.65),
+                      borderRadius: BorderRadius.circular(24.r),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.25),
+                        width: 1,
+                      ),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Color(0x33000000),
+                          blurRadius: 10,
+                          offset: Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          CupertinoIcons.tickets,
+                          color: Colors.white,
+                          size: 16.sp,
+                        ),
+                        SizedBox(width: 6.w),
+                        Text(
+                          "Book Ticket",
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontFamily: 'Poppins',
+                            fontSize: 12.sp,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 0.2,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
             ],
