@@ -5,15 +5,11 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:metroapp/elements/ServicesDir/env_service.dart';
 import 'package:metroapp/elements/ServicesDir/analytics_service.dart';
-import 'package:metroapp/main.dart';
 
 class AdService {
   // Official Google AdMob Test Ad Unit IDs
   static const String testAndroidBannerId = 'ca-app-pub-3940256099942544/6300978111';
   static const String testIosBannerId = 'ca-app-pub-3940256099942544/2934735716';
-
-  static const String testAndroidInterstitialId = 'ca-app-pub-3940256099942544/1033173712';
-  static const String testIosInterstitialId = 'ca-app-pub-3940256099942544/4411468910';
 
   static bool _isInitialized = false;
   static bool get isInitialized => _isInitialized;
@@ -57,26 +53,53 @@ class AdService {
 
     return testAndroidBannerId;
   }
+
+  /// Get Banner Ad Unit ID for Trip Details Screen
+  static String get tripDetailsBannerAdUnitId {
+    if (kIsWeb) return '';
+
+    if (Platform.isAndroid) {
+      final customId = Env.get('ADMOB_TRIP_DETAILS_BANNER_ANDROID_ID');
+      if (customId.isNotEmpty) return customId;
+
+      final generalId = Env.get('ADMOB_BANNER_ANDROID_ID');
+      if (generalId.isNotEmpty) return generalId;
+
+      return testAndroidBannerId;
+    } else if (Platform.isIOS) {
+      final customId = Env.get('ADMOB_TRIP_DETAILS_BANNER_IOS_ID');
+      if (customId.isNotEmpty) return customId;
+
+      final generalId = Env.get('ADMOB_BANNER_IOS_ID');
+      if (generalId.isNotEmpty) return generalId;
+
+      return testIosBannerId;
+    }
+
+    return testAndroidBannerId;
+  }
 }
 
-/// A dedicated banner ad widget styled for the Stop Info screen
-class StopInfoBannerAd extends StatefulWidget {
+/// Generic banner ad widget that can be used on any screen
+class AppBannerAd extends StatefulWidget {
+  final String adUnitId;
+  final String screenName;
   final AdSize adSize;
   final EdgeInsetsGeometry? margin;
-  final bool showAdLabel;
 
-  const StopInfoBannerAd({
+  const AppBannerAd({
     super.key,
+    required this.adUnitId,
+    required this.screenName,
     this.adSize = AdSize.banner,
     this.margin,
-    this.showAdLabel = false,
   });
 
   @override
-  State<StopInfoBannerAd> createState() => _StopInfoBannerAdState();
+  State<AppBannerAd> createState() => _AppBannerAdState();
 }
 
-class _StopInfoBannerAdState extends State<StopInfoBannerAd> {
+class _AppBannerAdState extends State<AppBannerAd> {
   BannerAd? _bannerAd;
   bool _isAdLoaded = false;
   bool _hasAdFailed = false;
@@ -90,16 +113,15 @@ class _StopInfoBannerAdState extends State<StopInfoBannerAd> {
   void _loadBannerAd() {
     if (kIsWeb) return;
 
-    final adUnitId = AdService.stopInfoBannerAdUnitId;
-    if (adUnitId.isEmpty) return;
+    if (widget.adUnitId.isEmpty) return;
 
     _bannerAd = BannerAd(
-      adUnitId: adUnitId,
+      adUnitId: widget.adUnitId,
       size: widget.adSize,
       request: const AdRequest(),
       listener: BannerAdListener(
         onAdLoaded: (Ad ad) {
-          debugPrint('[AdService] Stop Info banner ad loaded successfully.');
+          debugPrint('[AdService] ${widget.screenName} banner ad loaded successfully.');
           if (mounted) {
             setState(() {
               _isAdLoaded = true;
@@ -108,7 +130,7 @@ class _StopInfoBannerAdState extends State<StopInfoBannerAd> {
           }
         },
         onAdFailedToLoad: (Ad ad, LoadAdError error) {
-          debugPrint('[AdService] Stop Info banner ad failed to load: ${error.message} (${error.code})');
+          debugPrint('[AdService] ${widget.screenName} banner ad failed to load: ${error.message} (${error.code})');
           ad.dispose();
           if (mounted) {
             setState(() {
@@ -119,14 +141,14 @@ class _StopInfoBannerAdState extends State<StopInfoBannerAd> {
           }
         },
         onAdOpened: (Ad ad) {
-          debugPrint('[AdService] Stop Info banner ad opened.');
-          PostHogService.trackButtonClicked('stop_info_ad_clicked');
+          debugPrint('[AdService] ${widget.screenName} banner ad opened.');
+          PostHogService.trackButtonClicked('${widget.screenName.toLowerCase().replaceAll(' ', '_')}_banner_ad_clicked');
         },
         onAdClosed: (Ad ad) {
-          debugPrint('[AdService] Stop Info banner ad closed.');
+          debugPrint('[AdService] ${widget.screenName} banner ad closed.');
         },
         onAdImpression: (Ad ad) {
-          debugPrint('[AdService] Stop Info banner ad impression recorded.');
+          debugPrint('[AdService] ${widget.screenName} banner ad impression recorded.');
         },
       ),
     );
@@ -147,38 +169,58 @@ class _StopInfoBannerAdState extends State<StopInfoBannerAd> {
     }
 
     return Container(
-      margin: widget.margin ?? EdgeInsets.only(top: 8.h, bottom: 6.h),
+      width: double.infinity,
+      margin: widget.margin ?? EdgeInsets.only(top: 6.h, bottom: 4.h),
       alignment: Alignment.center,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          if (widget.showAdLabel)
-            Padding(
-              padding: EdgeInsets.only(bottom: 2.h),
-              child: Text(
-                "ADVERTISEMENT",
-                style: TextStyle(
-                  color: AppColors.tertiaryText,
-                  fontSize: 9.sp,
-                  fontWeight: FontWeight.w500,
-                  letterSpacing: 1.0,
-                  fontFamily: 'Poppins',
-                ),
-              ),
-            ),
-          Container(
-            decoration: BoxDecoration(
-              color: AppColors.surface,
-              borderRadius: BorderRadius.zero,
-              border: Border.all(color: AppColors.divider, width: 0.5),
-            ),
-            width: _bannerAd!.size.width.toDouble(),
-            height: _bannerAd!.size.height.toDouble(),
-            child: AdWidget(ad: _bannerAd!),
-          ),
-        ],
+      child: SizedBox(
+        width: _bannerAd!.size.width.toDouble(),
+        height: _bannerAd!.size.height.toDouble(),
+        child: AdWidget(ad: _bannerAd!),
       ),
+    );
+  }
+}
+
+/// Banner ad specifically for Stop Info screen
+class StopInfoBannerAd extends StatelessWidget {
+  final AdSize adSize;
+  final EdgeInsetsGeometry? margin;
+
+  const StopInfoBannerAd({
+    super.key,
+    this.adSize = AdSize.banner,
+    this.margin,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AppBannerAd(
+      adUnitId: AdService.stopInfoBannerAdUnitId,
+      screenName: 'Stop Info',
+      adSize: adSize,
+      margin: margin,
+    );
+  }
+}
+
+/// Banner ad specifically for Trip Details screen
+class TripDetailsBannerAd extends StatelessWidget {
+  final AdSize adSize;
+  final EdgeInsetsGeometry? margin;
+
+  const TripDetailsBannerAd({
+    super.key,
+    this.adSize = AdSize.banner,
+    this.margin,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AppBannerAd(
+      adUnitId: AdService.tripDetailsBannerAdUnitId,
+      screenName: 'Trip Details',
+      adSize: adSize,
+      margin: margin,
     );
   }
 }

@@ -88,7 +88,6 @@ class _StopInfoScreenState extends State<StopInfoScreen> {
                       refreshTrigger: _refreshTrigger,
                     ),
                     SizedBox(height: 15.h),
-                    _buildCompanyFooter(),
                   ],
                 ),
               ),

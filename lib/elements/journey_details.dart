@@ -7,6 +7,7 @@ import 'package:metroapp/elements/StationDir/stop_info.dart';
 import 'package:metroapp/main.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:metroapp/elements/ServicesDir/analytics_service.dart';
+import 'package:metroapp/elements/ServicesDir/ad_service.dart';
 
 class JourneyDetailsScreen extends StatelessWidget {
   final JourneyRoute route;
@@ -60,6 +61,7 @@ class JourneyDetailsScreen extends StatelessWidget {
                 ],
               ),
             ),
+            const TripDetailsBannerAd(),
           ],
         ),
       ),

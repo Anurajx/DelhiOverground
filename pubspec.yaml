@@ -117,6 +117,7 @@ flutter:
     - assets/Image/connoughthero.jpg
     - assets/Image/qutubhero.jpg
     - assets/Image/dtcaccident.png
+    - assets/Image/traffichero.jpg
     - .env
 
   fonts:

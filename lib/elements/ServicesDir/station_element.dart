@@ -133,6 +133,8 @@ class StationNearby extends StatelessWidget {
                     fontSize: 14.sp,
                     fontWeight: FontWeight.w600,
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
                 SizedBox(height: 2.h),
                 Text(

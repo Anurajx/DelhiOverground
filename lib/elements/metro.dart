@@ -18,6 +18,7 @@ import 'package:provider/provider.dart';
 import 'journey_planner.dart';
 import 'package:metroapp/elements/ServicesDir/stops_manager.dart';
 import 'package:metroapp/elements/ServicesDir/analytics_service.dart';
+
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -58,7 +59,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _checkInitialConnectivity() async {
     final results = await Connectivity().checkConnectivity();
-    final isOffline = results.isEmpty || results.contains(ConnectivityResult.none);
+    final isOffline =
+        results.isEmpty || results.contains(ConnectivityResult.none);
     if (mounted) {
       setState(() {
         _isOffline = isOffline;
@@ -68,7 +70,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _checkLocationPermissionOnStartup() async {
     final permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.always || permission == LocationPermission.whileInUse) {
+    if (permission == LocationPermission.always ||
+        permission == LocationPermission.whileInUse) {
       if (mounted) {
         await initialize(context);
       }
@@ -83,112 +86,119 @@ class _HomeScreenState extends State<HomeScreen> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (ctx) => Dialog(
-        backgroundColor: AppColors.secondaryAccent,
-        insetPadding: EdgeInsets.symmetric(horizontal: 40.w),
-        shape: const Border(),
-        child: Container(
-          decoration: BoxDecoration(
-            color: AppColors.secondaryAccent,
-            border: Border.all(
-              color: Colors.black,
-              width: 0.8,
-            ),
-          ),
-          padding: EdgeInsets.symmetric(horizontal: 24.w, vertical: 24.h),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                "LOCATION ACCESS",
-                style: TextStyle(
-                  color: Colors.black,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 13.sp,
-                  fontFamily: 'Poppins',
-                  letterSpacing: 1.5,
-                ),
+      builder:
+          (ctx) => Dialog(
+            backgroundColor: AppColors.secondaryAccent,
+            insetPadding: EdgeInsets.symmetric(horizontal: 40.w),
+            shape: const Border(),
+            child: Container(
+              decoration: BoxDecoration(
+                color: AppColors.secondaryAccent,
+                border: Border.all(color: Colors.black, width: 0.8),
               ),
-              SizedBox(height: 12.h),
-              Text(
-                "Delhi Overground requires your location to find nearby bus and metro stops.",
-                style: TextStyle(
-                  color: Colors.black,
-                  fontWeight: FontWeight.w400,
-                  fontSize: 12.sp,
-                  fontFamily: 'Poppins',
-                  height: 1.5,
-                ),
-              ),
-              SizedBox(height: 24.h),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
+              padding: EdgeInsets.symmetric(horizontal: 24.w, vertical: 24.h),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap: () {
-                      PostHogService.trackButtonClicked('location_permission_cancel');
-                      Navigator.pop(ctx);
-                      Provider.of<DataProvider>(context, listen: false)
-                          .setLocationEnabled(false);
-                    },
-                    child: Container(
-                      padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 8.h),
-                      decoration: BoxDecoration(
-                        color: Colors.transparent,
-                        border: Border.all(
-                          color: Colors.black.withValues(alpha: 0.4),
-                          width: 1.2,
-                        ),
-                      ),
-                      child: Text(
-                        "CANCEL",
-                        style: TextStyle(
-                          color: Colors.black,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 11.sp,
-                          fontFamily: 'Poppins',
-                          letterSpacing: 1.0,
-                        ),
-                      ),
+                  Text(
+                    "LOCATION ACCESS",
+                    style: TextStyle(
+                      color: Colors.black,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13.sp,
+                      fontFamily: 'Poppins',
+                      letterSpacing: 1.5,
                     ),
                   ),
-                  SizedBox(width: 12.w),
-                  GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap: () {
-                      PostHogService.trackButtonClicked('location_permission_allow');
-                      Navigator.pop(ctx);
-                      initialize(context);
-                    },
-                    child: Container(
-                      padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 8.h),
-                      decoration: BoxDecoration(
-                        color: Colors.transparent,
-                        border: Border.all(
-                          color: Colors.black,
-                          width: 1.2,
-                        ),
-                      ),
-                      child: Text(
-                        "ALLOW",
-                        style: TextStyle(
-                          color: Colors.black,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 11.sp,
-                          fontFamily: 'Poppins',
-                          letterSpacing: 1.0,
-                        ),
-                      ),
+                  SizedBox(height: 12.h),
+                  Text(
+                    "Delhi Overground requires your location to find nearby bus and metro stops.",
+                    style: TextStyle(
+                      color: Colors.black,
+                      fontWeight: FontWeight.w400,
+                      fontSize: 12.sp,
+                      fontFamily: 'Poppins',
+                      height: 1.5,
                     ),
+                  ),
+                  SizedBox(height: 24.h),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () {
+                          PostHogService.trackButtonClicked(
+                            'location_permission_cancel',
+                          );
+                          Navigator.pop(ctx);
+                          Provider.of<DataProvider>(
+                            context,
+                            listen: false,
+                          ).setLocationEnabled(false);
+                        },
+                        child: Container(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: 20.w,
+                            vertical: 8.h,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.transparent,
+                            border: Border.all(
+                              color: Colors.black.withValues(alpha: 0.4),
+                              width: 1.2,
+                            ),
+                          ),
+                          child: Text(
+                            "CANCEL",
+                            style: TextStyle(
+                              color: Colors.black,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 11.sp,
+                              fontFamily: 'Poppins',
+                              letterSpacing: 1.0,
+                            ),
+                          ),
+                        ),
+                      ),
+                      SizedBox(width: 12.w),
+                      GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () {
+                          PostHogService.trackButtonClicked(
+                            'location_permission_allow',
+                          );
+                          Navigator.pop(ctx);
+                          initialize(context);
+                        },
+                        child: Container(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: 20.w,
+                            vertical: 8.h,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.transparent,
+                            border: Border.all(color: Colors.black, width: 1.2),
+                          ),
+                          child: Text(
+                            "ALLOW",
+                            style: TextStyle(
+                              color: Colors.black,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 11.sp,
+                              fontFamily: 'Poppins',
+                              letterSpacing: 1.0,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
-            ],
+            ),
           ),
-        ),
-      ),
     );
   }
 
@@ -196,9 +206,14 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     PostHogService.trackScreenViewed('Home');
-    WidgetsBinding.instance.addPostFrameCallback((_) => _checkLocationPermissionOnStartup());
-    _connectivitySubscription = Connectivity().onConnectivityChanged.listen((List<ConnectivityResult> results) {
-      final isOffline = results.isEmpty || results.contains(ConnectivityResult.none);
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _checkLocationPermissionOnStartup(),
+    );
+    _connectivitySubscription = Connectivity().onConnectivityChanged.listen((
+      List<ConnectivityResult> results,
+    ) {
+      final isOffline =
+          results.isEmpty || results.contains(ConnectivityResult.none);
       if (mounted && _isOffline != isOffline) {
         setState(() {
           _isOffline = isOffline;
@@ -273,7 +288,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-
   Widget _buildBusHistory(BuildContext context) {
     return Consumer<DataProvider>(
       builder: (context, dataProvider, child) {
@@ -294,9 +308,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   context,
                   MaterialPageRoute(
                     builder:
-                        (context) => JourneyPlannerScreen(
-                          initialParams: item,
-                        ),
+                        (context) => JourneyPlannerScreen(initialParams: item),
                   ),
                 );
               },
@@ -305,10 +317,12 @@ class _HomeScreenState extends State<HomeScreen> {
           );
           if (i < items.length - 1) {
             children.add(
-              const Divider(
+              Divider(
                 color: AppColors.divider,
                 thickness: 0.5,
                 height: 1,
+                indent: 14.w,
+                endIndent: 14.w,
               ),
             );
           }
@@ -330,7 +344,8 @@ class _HomeScreenState extends State<HomeScreen> {
   String _formatHistoryTime(String? timeStr) {
     if (timeStr == null || timeStr.trim().isEmpty) return '';
     final trimmed = timeStr.trim();
-    if (trimmed.toLowerCase().contains('am') || trimmed.toLowerCase().contains('pm')) {
+    if (trimmed.toLowerCase().contains('am') ||
+        trimmed.toLowerCase().contains('pm')) {
       return trimmed;
     }
     final parts = trimmed.split(':');
@@ -392,12 +407,9 @@ class _HomeScreenState extends State<HomeScreen> {
             Container(
               padding: EdgeInsets.symmetric(horizontal: 6.w, vertical: 2.h),
               decoration: BoxDecoration(
-                color: AppColors.inputBackground,
-                borderRadius: BorderRadius.circular(4.r),
-                border: Border.all(
-                  color: AppColors.inputBorder,
-                  width: 0.5,
-                ),
+                color: Colors.transparent,
+                borderRadius: BorderRadius.zero,
+                border: Border.all(color: AppColors.inputBorder, width: 0.8),
               ),
               child: Text(
                 timeFormatted,
@@ -497,7 +509,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-
   Widget _buildNearYou(BuildContext context) {
     return Container(
       width: double.infinity,
@@ -571,7 +582,8 @@ class _HomeScreenState extends State<HomeScreen> {
             List<String> lineNumbersN = lineN.split('-');
 
             Position? userPos;
-            if (data["UserLocation"] != null && data["UserLocation"]!.isNotEmpty) {
+            if (data["UserLocation"] != null &&
+                data["UserLocation"]!.isNotEmpty) {
               final loc = data["UserLocation"]![0];
               if (loc is Position) {
                 userPos = loc;
@@ -579,18 +591,36 @@ class _HomeScreenState extends State<HomeScreen> {
             }
 
             double? distNE;
-            final latNE = double.tryParse(data["NearEnough"]?[0]["Latitude"]?.toString() ?? '');
-            final lonNE = double.tryParse(data["NearEnough"]?[0]["Longitude"]?.toString() ?? '');
+            final latNE = double.tryParse(
+              data["NearEnough"]?[0]["Latitude"]?.toString() ?? '',
+            );
+            final lonNE = double.tryParse(
+              data["NearEnough"]?[0]["Longitude"]?.toString() ?? '',
+            );
             if (userPos != null && latNE != null && lonNE != null) {
-              final meters = Geolocator.distanceBetween(userPos.latitude, userPos.longitude, latNE, lonNE);
+              final meters = Geolocator.distanceBetween(
+                userPos.latitude,
+                userPos.longitude,
+                latNE,
+                lonNE,
+              );
               distNE = meters / 1000.0;
             }
 
             double? distN;
-            final latN = double.tryParse(data["Near"]?[0]["Latitude"]?.toString() ?? '');
-            final lonN = double.tryParse(data["Near"]?[0]["Longitude"]?.toString() ?? '');
+            final latN = double.tryParse(
+              data["Near"]?[0]["Latitude"]?.toString() ?? '',
+            );
+            final lonN = double.tryParse(
+              data["Near"]?[0]["Longitude"]?.toString() ?? '',
+            );
             if (userPos != null && latN != null && lonN != null) {
-              final meters = Geolocator.distanceBetween(userPos.latitude, userPos.longitude, latN, lonN);
+              final meters = Geolocator.distanceBetween(
+                userPos.latitude,
+                userPos.longitude,
+                latN,
+                lonN,
+              );
               distN = meters / 1000.0;
             }
 
@@ -659,10 +689,12 @@ class _HomeScreenState extends State<HomeScreen> {
                     distance: distNE,
                   ),
                 ),
-                const Divider(
+                Divider(
                   color: AppColors.divider,
                   thickness: 0.5,
                   height: 1,
+                  indent: 14.w,
+                  endIndent: 14.w,
                 ),
                 GestureDetector(
                   behavior: HitTestBehavior.opaque,
@@ -732,7 +764,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     ],
                   ),
                 ),
-                const Skeletonizer(
+                Skeletonizer(
                   child: Column(
                     children: [
                       StationNearby(
@@ -743,6 +775,8 @@ class _HomeScreenState extends State<HomeScreen> {
                         color: AppColors.divider,
                         thickness: 0.5,
                         height: 1,
+                        indent: 14.w,
+                        endIndent: 14.w,
                       ),
                       StationNearby(
                         name: "Loading Station Name / Subname",
@@ -809,7 +843,10 @@ class _HomeScreenState extends State<HomeScreen> {
                         borderRadius: BorderRadius.all(Radius.circular(80)),
                       ),
                       child: const Center(
-                        child: Icon(CupertinoIcons.settings, color: Colors.white),
+                        child: Icon(
+                          CupertinoIcons.settings,
+                          color: Colors.white,
+                        ),
                       ),
                     ),
                   ),
@@ -899,7 +936,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 bottomRight: Radius.circular(0),
               ),
               image: DecorationImage(
-                image: AssetImage('assets/Image/nighthero.jpg'),
+                image: AssetImage('assets/Image/traffichero.jpg'),
                 fit: BoxFit.cover,
               ),
             ),
@@ -934,7 +971,10 @@ class _HomeScreenState extends State<HomeScreen> {
                         if (_isOffline) ...[
                           SizedBox(height: 14.h),
                           Container(
-                            padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 6.h),
+                            padding: EdgeInsets.symmetric(
+                              horizontal: 10.w,
+                              vertical: 6.h,
+                            ),
                             decoration: const BoxDecoration(
                               color: AppColors.destructive, // Solid red color
                               borderRadius: BorderRadius.zero, // Sharp corners
@@ -995,7 +1035,8 @@ class PulsingDot extends StatefulWidget {
   State<PulsingDot> createState() => _PulsingDotState();
 }
 
-class _PulsingDotState extends State<PulsingDot> with SingleTickerProviderStateMixin {
+class _PulsingDotState extends State<PulsingDot>
+    with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _animation;
 
@@ -1006,9 +1047,10 @@ class _PulsingDotState extends State<PulsingDot> with SingleTickerProviderStateM
       vsync: this,
       duration: const Duration(milliseconds: 1800),
     )..repeat(reverse: true);
-    _animation = Tween<double>(begin: 0.3, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
-    );
+    _animation = Tween<double>(
+      begin: 0.3,
+      end: 1.0,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
   }
 
   @override
@@ -1098,201 +1140,210 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
             bottom: MediaQuery.of(context).padding.bottom + 24.h,
           ),
           decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: 0.65), // Neutral transparent background
+            color: Colors.black.withValues(
+              alpha: 0.65,
+            ), // Neutral transparent background
             borderRadius: BorderRadius.zero, // Sharp corners
             border: const Border(
-              top: BorderSide(
-                color: AppColors.divider,
-                width: 1.0,
-              ),
+              top: BorderSide(color: AppColors.divider, width: 1.0),
             ),
           ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Title Header
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(
-                "Settings",
-                style: TextStyle(
-                  color: AppColors.primaryText,
-                  fontSize: 20.sp,
-                  fontWeight: FontWeight.w700,
-                  fontFamily: 'Poppins',
-                  letterSpacing: -0.5,
+              // Title Header
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    "Settings",
+                    style: TextStyle(
+                      color: AppColors.primaryText,
+                      fontSize: 20.sp,
+                      fontWeight: FontWeight.w700,
+                      fontFamily: 'Poppins',
+                      letterSpacing: -0.5,
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: () {
+                      PostHogService.trackButtonClicked('close_settings');
+                      Navigator.pop(context);
+                    },
+                    behavior: HitTestBehavior.opaque,
+                    child: Container(
+                      padding: EdgeInsets.all(6.w),
+                      decoration: const BoxDecoration(
+                        color: Colors.black, // Solid color close background
+                        shape: BoxShape.rectangle, // Sharp corners
+                      ),
+                      child: Icon(
+                        CupertinoIcons.xmark,
+                        color: AppColors.secondaryText,
+                        size: 16.sp,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              SizedBox(height: 24.h),
+
+              // Action 1: Update Stop Database
+              Container(
+                padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 18.h),
+                child: Row(
+                  children: [
+                    _isUpdating
+                        ? SizedBox(
+                          width: 20.sp,
+                          height: 20.sp,
+                          child: const CupertinoActivityIndicator(
+                            color: Colors.white,
+                          ),
+                        )
+                        : Icon(
+                          CupertinoIcons.refresh,
+                          color: Colors.white,
+                          size: 20.sp,
+                        ),
+                    SizedBox(width: 14.w),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _isUpdating
+                                ? "Updating Assets..."
+                                : "Update Assets",
+                            style: TextStyle(
+                              color: AppColors.primaryText,
+                              fontSize: 14.sp,
+                              fontWeight: FontWeight.w600,
+                              fontFamily: 'Poppins',
+                            ),
+                          ),
+                          SizedBox(height: 4.h),
+                          Text(
+                            "Last updated: $_lastFetchTime",
+                            style: TextStyle(
+                              color: AppColors.secondaryText,
+                              fontSize: 11.sp,
+                              fontWeight: FontWeight.w400,
+                              fontFamily: 'Poppins',
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    GestureDetector(
+                      onTap: _isUpdating ? null : _triggerForceUpdate,
+                      behavior: HitTestBehavior.opaque,
+                      child: Container(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 16.w,
+                          vertical: 8.h,
+                        ),
+                        decoration: BoxDecoration(
+                          color:
+                              _isUpdating
+                                  ? Colors.white.withValues(alpha: 0.5)
+                                  : Colors.white,
+                          borderRadius: BorderRadius.zero,
+                        ),
+                        child: Text(
+                          _isUpdating ? "Updating" : "Update",
+                          style: TextStyle(
+                            color: Colors.black,
+                            fontFamily: 'Poppins',
+                            fontSize: 12.sp,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
+
               GestureDetector(
-                onTap: () {
-                  PostHogService.trackButtonClicked('close_settings');
-                  Navigator.pop(context);
+                onTap: () async {
+                  PostHogService.trackMenuItemClicked('official_website');
+                  final url = Uri.parse("https://delhioverground.vercel.app/");
+                  try {
+                    await launchUrl(url, mode: LaunchMode.externalApplication);
+                  } catch (e) {
+                    debugPrint("Error launching Website URL: $e");
+                  }
                 },
                 behavior: HitTestBehavior.opaque,
                 child: Container(
-                  padding: EdgeInsets.all(6.w),
-                  decoration: const BoxDecoration(
-                    color: Colors.black, // Solid color close background
-                    shape: BoxShape.rectangle, // Sharp corners
+                  color: Colors.transparent,
+                  padding: EdgeInsets.symmetric(
+                    horizontal: 16.w,
+                    vertical: 18.h,
                   ),
-                  child: Icon(
-                    CupertinoIcons.xmark,
-                    color: AppColors.secondaryText,
-                    size: 16.sp,
-                  ),
-                ),
-              )
-            ],
-          ),
-          SizedBox(height: 24.h),
-
-
-
-          // Action 1: Update Stop Database
-          Container(
-            padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 18.h),
-            child: Row(
-              children: [
-                _isUpdating
-                    ? SizedBox(
-                        width: 20.sp,
-                        height: 20.sp,
-                        child: const CupertinoActivityIndicator(
-                          color: Colors.white,
-                        ),
-                      )
-                    : Icon(
-                        CupertinoIcons.refresh,
+                  child: Row(
+                    children: [
+                      Icon(
+                        CupertinoIcons.globe,
                         color: Colors.white,
                         size: 20.sp,
                       ),
-                SizedBox(width: 14.w),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        _isUpdating ? "Updating Assets..." : "Update Assets",
-                        style: TextStyle(
-                          color: AppColors.primaryText,
-                          fontSize: 14.sp,
-                          fontWeight: FontWeight.w600,
-                          fontFamily: 'Poppins',
+                      SizedBox(width: 14.w),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              "Official Website",
+                              style: TextStyle(
+                                color: AppColors.primaryText,
+                                fontSize: 14.sp,
+                                fontWeight: FontWeight.w600,
+                                fontFamily: 'Poppins',
+                              ),
+                            ),
+                            SizedBox(height: 4.h),
+                            Text(
+                              "Visit our official homepage",
+                              style: TextStyle(
+                                color: AppColors.secondaryText,
+                                fontSize: 11.sp,
+                                fontWeight: FontWeight.w400,
+                                fontFamily: 'Poppins',
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                      SizedBox(height: 4.h),
-                      Text(
-                        "Last updated: $_lastFetchTime",
-                        style: TextStyle(
-                          color: AppColors.secondaryText,
-                          fontSize: 11.sp,
-                          fontWeight: FontWeight.w400,
-                          fontFamily: 'Poppins',
-                        ),
+                      Icon(
+                        CupertinoIcons.chevron_forward,
+                        color: AppColors.secondaryText,
+                        size: 14.sp,
                       ),
                     ],
                   ),
                 ),
-                GestureDetector(
-                  onTap: _isUpdating ? null : _triggerForceUpdate,
-                  behavior: HitTestBehavior.opaque,
-                  child: Container(
-                    padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 8.h),
-                    decoration: BoxDecoration(
-                      color: _isUpdating ? Colors.white.withValues(alpha: 0.5) : Colors.white,
-                      borderRadius: BorderRadius.zero,
-                    ),
-                    child: Text(
-                      _isUpdating ? "Updating" : "Update",
-                      style: TextStyle(
-                        color: Colors.black,
-                        fontFamily: 'Poppins',
-                        fontSize: 12.sp,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
+              ),
+
+              SizedBox(height: 16.h),
+              Center(
+                child: Text(
+                  "Version 1.0.0 (1)",
+                  style: TextStyle(
+                    color: AppColors.tertiaryText,
+                    fontSize: 11.sp,
+                    fontWeight: FontWeight.w400,
+                    fontFamily: 'Poppins',
+                    letterSpacing: 0.5,
                   ),
                 ),
-              ],
-            ),
-          ),
-
-
-          GestureDetector(
-            onTap: () async {
-              PostHogService.trackMenuItemClicked('official_website');
-              final url = Uri.parse("https://delhioverground.vercel.app/");
-              try {
-                await launchUrl(url, mode: LaunchMode.externalApplication);
-              } catch (e) {
-                debugPrint("Error launching Website URL: $e");
-              }
-            },
-            behavior: HitTestBehavior.opaque,
-            child: Container(
-              color: Colors.transparent,
-              padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 18.h),
-              child: Row(
-                children: [
-                  Icon(
-                    CupertinoIcons.globe,
-                    color: Colors.white,
-                    size: 20.sp,
-                  ),
-                  SizedBox(width: 14.w),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          "Official Website",
-                          style: TextStyle(
-                            color: AppColors.primaryText,
-                            fontSize: 14.sp,
-                            fontWeight: FontWeight.w600,
-                            fontFamily: 'Poppins',
-                          ),
-                        ),
-                        SizedBox(height: 4.h),
-                        Text(
-                          "Visit our official homepage",
-                          style: TextStyle(
-                            color: AppColors.secondaryText,
-                            fontSize: 11.sp,
-                            fontWeight: FontWeight.w400,
-                            fontFamily: 'Poppins',
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Icon(
-                    CupertinoIcons.chevron_forward,
-                    color: AppColors.secondaryText,
-                    size: 14.sp,
-                  ),
-                ],
               ),
-            ),
+            ],
           ),
-
-          SizedBox(height: 16.h),
-          Center(
-            child: Text(
-              "Version 1.0.0 (1)",
-              style: TextStyle(
-                color: AppColors.tertiaryText,
-                fontSize: 11.sp,
-                fontWeight: FontWeight.w400,
-                fontFamily: 'Poppins',
-                letterSpacing: 0.5,
-              ),
-            ),
-          ),
-        ],
+        ),
       ),
-    )));
+    );
   }
 }
